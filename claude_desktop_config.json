@@ -1,0 +1,25 @@
+{
+  "mcpServers": {
+    "firebird-mcp": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-firebird",
+        "start"
+      ],
+      "env": {
+        "FIREBIRD_HOST": "localhost",
+        "FIREBIRD_PORT": "3050",
+        "FIREBIRD_DATABASE": "F:\\\\Descargas\\\\Romexis\\\\20250224\\\\romexis.fdb",
+        "FIREBIRD_USER": "sysdba",
+        "FIREBIRD_PASSWORD": "masterkey",
+        "TABLE_NAME": "RBA_GLOBAL_SETTING",
+        "PORT": "3001",
+        "WS_PORT": "3002",
+        "PATH": "C:\\Program Files\\nodejs;C:\\Users\\%USERNAME%\\AppData\\Roaming\\npm;${PATH}",
+        "NODE_PATH": "C:\\Users\\%USERNAME%\\AppData\\Roaming\\npm\\node_modules"
+      },
+      "cwd": "C:\\Users\\%USERNAME%\\AppData\\Roaming\\npm"
+    }
+  }
+} 
