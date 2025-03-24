@@ -723,7 +723,12 @@ import('@modelcontextprotocol/sdk/server/mcp.js').then(async serverModule => {
                     // Crear un objeto con la estructura deseada
                     const responseObj = { success: true, tables: tables };
                     // Convertir a JSON sin secuencias de escape innecesarias
-                    const jsonString = JSON.stringify(responseObj, null, 0).replace(/\n/g, '');
+                    // Primero convertimos a JSON y luego limpiamos las secuencias de escape innecesarias
+                    let jsonString = JSON.stringify(responseObj, null, 0).replace(/\n/g, '');
+                    // Reemplazar secuencias de escape innecesarias
+                    jsonString = jsonString.replace(/\\\\(?!["\\\\bfnrt])/g, '\\');
+                    jsonString = jsonString.replace(/\\"(?=\w)/g, '"');
+                    jsonString = jsonString.replace(/\\"(?=\s)/g, '"');
 
                     return {
                         content: [{
