@@ -483,7 +483,7 @@ import('@modelcontextprotocol/sdk/server/mcp.js').then(async serverModule => {
                 return {
                     contents: [{
                         uri: "firebird://databases",
-                        text: JSON.stringify(databases, null, 2)
+                        text: JSON.stringify(databases, null, 2).replace(/\n/g, '')
                     }]
                 };
             }
@@ -506,7 +506,7 @@ import('@modelcontextprotocol/sdk/server/mcp.js').then(async serverModule => {
                     return {
                         contents: chunks.map((chunk, index) => ({
                             uri: `firebird://tables?page=${index}`,
-                            text: JSON.stringify(chunk, null, 2)
+                            text: JSON.stringify(chunk, null, 2).replace(/\n/g, '')
                         }))
                     };
                 } catch (error) {
@@ -514,7 +514,7 @@ import('@modelcontextprotocol/sdk/server/mcp.js').then(async serverModule => {
                     return {
                         contents: [{
                             uri: "firebird://tables",
-                            text: JSON.stringify({ error: "Error al obtener las tablas", message: String(error) }, null, 2)
+                            text: JSON.stringify({ error: "Error al obtener las tablas", message: String(error) }, null, 2).replace(/\n/g, '')
                         }]
                     };
                 }
@@ -532,7 +532,7 @@ import('@modelcontextprotocol/sdk/server/mcp.js').then(async serverModule => {
                     return {
                         contents: [{
                             uri: "firebird://views",
-                            text: JSON.stringify(views, null, 2)
+                            text: JSON.stringify(views, null, 2).replace(/\n/g, '')
                         }]
                     };
                 } catch (error) {
@@ -540,7 +540,7 @@ import('@modelcontextprotocol/sdk/server/mcp.js').then(async serverModule => {
                     return {
                         contents: [{
                             uri: "firebird://views",
-                            text: JSON.stringify({ error: "Error al obtener las vistas", message: String(error) }, null, 2)
+                            text: JSON.stringify({ error: "Error al obtener las vistas", message: String(error) }, null, 2).replace(/\n/g, '')
                         }]
                     };
                 }
@@ -558,7 +558,7 @@ import('@modelcontextprotocol/sdk/server/mcp.js').then(async serverModule => {
                     return {
                         contents: [{
                             uri: "firebird://procedures",
-                            text: JSON.stringify(procedures, null, 2)
+                            text: JSON.stringify(procedures, null, 2).replace(/\n/g, '')
                         }]
                     };
                 } catch (error) {
@@ -566,7 +566,7 @@ import('@modelcontextprotocol/sdk/server/mcp.js').then(async serverModule => {
                     return {
                         contents: [{
                             uri: "firebird://procedures",
-                            text: JSON.stringify({ error: "Error al obtener los procedimientos", message: String(error) }, null, 2)
+                            text: JSON.stringify({ error: "Error al obtener los procedimientos", message: String(error) }, null, 2).replace(/\n/g, '')
                         }]
                     };
                 }
@@ -589,7 +589,7 @@ import('@modelcontextprotocol/sdk/server/mcp.js').then(async serverModule => {
                     return {
                         contents: [{
                             uri: uri.href,
-                            text: JSON.stringify(fieldDescriptions, null, 2)
+                            text: JSON.stringify(fieldDescriptions, null, 2).replace(/\n/g, '')
                         }]
                     };
                 } catch (error) {
@@ -597,7 +597,7 @@ import('@modelcontextprotocol/sdk/server/mcp.js').then(async serverModule => {
                     return {
                         contents: [{
                             uri: uri.href,
-                            text: JSON.stringify({ error: `Error al obtener descripciones de campos para ${tableName}`, message: String(error) }, null, 2)
+                            text: JSON.stringify({ error: `Error al obtener descripciones de campos para ${tableName}`, message: String(error) }, null, 2).replace(/\n/g, '')
                         }]
                     };
                 }
@@ -620,7 +620,7 @@ import('@modelcontextprotocol/sdk/server/mcp.js').then(async serverModule => {
                     return {
                         contents: [{
                             uri: uri.href,
-                            text: JSON.stringify(schema, null, 2)
+                            text: JSON.stringify(schema, null, 2).replace(/\n/g, '')
                         }]
                     };
                 } catch (error) {
@@ -628,7 +628,7 @@ import('@modelcontextprotocol/sdk/server/mcp.js').then(async serverModule => {
                     return {
                         contents: [{
                             uri: uri.href,
-                            text: JSON.stringify({ error: `Error al obtener esquema de ${tableName}`, message: String(error) }, null, 2)
+                            text: JSON.stringify({ error: `Error al obtener esquema de ${tableName}`, message: String(error) }, null, 2).replace(/\n/g, '')
                         }]
                     };
                 }
@@ -653,7 +653,7 @@ import('@modelcontextprotocol/sdk/server/mcp.js').then(async serverModule => {
                     return {
                         contents: [{
                             uri: uri.href,
-                            text: JSON.stringify(data, null, 2)
+                            text: JSON.stringify(data, null, 2).replace(/\n/g, '')
                         }]
                     };
                 } catch (error) {
@@ -661,52 +661,13 @@ import('@modelcontextprotocol/sdk/server/mcp.js').then(async serverModule => {
                     return {
                         contents: [{
                             uri: uri.href,
-                            text: JSON.stringify({ error: `Error al obtener datos de ${tableName}`, message: String(error) }, null, 2)
+                            text: JSON.stringify({ error: `Error al obtener datos de ${tableName}`, message: String(error) }, null, 2).replace(/\n/g, '')
                         }]
                     };
                 }
             }
         );
-        
-        // Métodos para el servidor filesystem
-        server.resource(
-            "files",
-            "filesystem://files",
-            async () => {
-                return {
-                    contents: [{
-                        uri: "filesystem://files",
-                        text: JSON.stringify({ message: "Lista de archivos disponibles" }, null, 2)
-                    }]
-                };
-            }
-        );
 
-        server.tool(
-            "list-files",
-            {},
-            async () => {
-                return {
-                    content: [{
-                        type: "text",
-                        text: JSON.stringify({ message: "Herramienta para listar archivos" }, null, 2)
-                    }]
-                };
-            }
-        );
-
-        server.prompt(
-            "search-files",
-            "Busca archivos en el sistema de archivos",
-            [
-                {
-                    name: "query",
-                    description: "Término de búsqueda",
-                    required: true
-                }
-            ]
-        );
-        
         // 2. Definir herramientas para interactuar con la base de datos
         
         // Herramienta para ejecutar consultas SQL
@@ -730,7 +691,7 @@ import('@modelcontextprotocol/sdk/server/mcp.js').then(async serverModule => {
                     return {
                         content: [{
                             type: "text",
-                            text: JSON.stringify({ success: true, results }, null, 2)
+                            text: JSON.stringify({ success: true, results }, null, 2).replace(/\n/g, '')
                         }]
                     };
                 } catch (error) {
@@ -742,7 +703,7 @@ import('@modelcontextprotocol/sdk/server/mcp.js').then(async serverModule => {
                                 success: false, 
                                 error: String(error),
                                 sql
-                            }, null, 2)
+                            }, null, 2).replace(/\n/g, '')
                         }]
                     };
                 }
@@ -758,11 +719,11 @@ import('@modelcontextprotocol/sdk/server/mcp.js').then(async serverModule => {
                 
                 try {
                     const tables = await getTables();
-                    
+                    const limitedTables = tables.slice(0, 2); // Limitar a 2 tablas
                     return {
                         content: [{
                             type: "text",
-                            text: JSON.stringify({ success: true, tables }, null, 2)
+                            text: JSON.stringify({ success: true, tables: limitedTables }, null, 0).replace(/\n/g, '')
                         }]
                     };
                 } catch (error) {
@@ -773,7 +734,7 @@ import('@modelcontextprotocol/sdk/server/mcp.js').then(async serverModule => {
                             text: JSON.stringify({ 
                                 success: false, 
                                 error: String(error)
-                            }, null, 2)
+                            }, null, 2).replace(/\n/g, '')
                         }]
                     };
                 }
@@ -800,7 +761,7 @@ import('@modelcontextprotocol/sdk/server/mcp.js').then(async serverModule => {
                     return {
                         content: [{
                             type: "text",
-                            text: JSON.stringify({ success: true, schema }, null, 2)
+                            text: JSON.stringify({ success: true, schema }, null, 2).replace(/\n/g, '')
                         }]
                     };
                 } catch (error) {
@@ -811,7 +772,7 @@ import('@modelcontextprotocol/sdk/server/mcp.js').then(async serverModule => {
                             text: JSON.stringify({ 
                                 success: false, 
                                 error: String(error)
-                            }, null, 2)
+                            }, null, 2).replace(/\n/g, '')
                         }]
                     };
                 }
@@ -838,7 +799,7 @@ import('@modelcontextprotocol/sdk/server/mcp.js').then(async serverModule => {
                     return {
                         content: [{
                             type: "text",
-                            text: JSON.stringify({ success: true, fieldDescriptions }, null, 2)
+                            text: JSON.stringify({ success: true, fieldDescriptions }, null, 2).replace(/\n/g, '')
                         }]
                     };
                 } catch (error) {
@@ -849,7 +810,7 @@ import('@modelcontextprotocol/sdk/server/mcp.js').then(async serverModule => {
                             text: JSON.stringify({ 
                                 success: false, 
                                 error: String(error)
-                            }, null, 2)
+                            }, null, 2).replace(/\n/g, '')
                         }]
                     };
                 }

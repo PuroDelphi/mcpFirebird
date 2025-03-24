@@ -1,6 +1,6 @@
 {
   "name": "mcp-firebird",
-  "version": "1.0.82",
+  "version": "1.0.86",
   "description": "MCP server for Firebird database",
   "main": "dist/index.js",
   "type": "module",
@@ -15,7 +15,7 @@
     "dev": "nodemon -e ts --watch src/ --exec \"npm run build && npm run start\"",
     "inspector": "npm run build && npx @modelcontextprotocol/inspector node dist/index.js"
   },
-  "author": "Your Name",
+  "author": "Jhonny Suárez - asistentesautonomos.com",
   "license": "MIT",
   "devDependencies": {
     "@types/node": "^20.11.26",
