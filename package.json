@@ -1,6 +1,6 @@
 {
   "name": "mcp-firebird",
-  "version": "1.0.86",
+  "version": "1.0.87",
   "description": "MCP server for Firebird database",
   "main": "dist/index.js",
   "type": "module",

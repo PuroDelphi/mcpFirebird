@@ -3,19 +3,19 @@
 // IMPORTANTE: Interceptar TODOS los métodos de console antes de cualquier import
 // Esto es crítico para evitar que cualquier librería escriba a stdout
 // Sobrescribir inmediatamente los métodos de console para que todo vaya a stderr
-console.log = function(...args) {
+console.log = function (...args) {
     process.stderr.write('[LOG] ' + args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ') + '\n');
 };
-console.info = function(...args) {
+console.info = function (...args) {
     process.stderr.write('[INFO] ' + args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ') + '\n');
 };
-console.warn = function(...args) {
+console.warn = function (...args) {
     process.stderr.write('[WARN] ' + args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ') + '\n');
 };
-console.error = function(...args) {
+console.error = function (...args) {
     process.stderr.write('[ERROR] ' + args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ') + '\n');
 };
-console.debug = function(...args) {
+console.debug = function (...args) {
     process.stderr.write('[DEBUG] ' + args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ') + '\n');
 };
 
@@ -49,10 +49,10 @@ interface ConfigFile {
 function parseCommandLineArgs() {
     const args = process.argv.slice(2);
     const parsedArgs: Record<string, string> = {};
-    
+
     for (let i = 0; i < args.length; i++) {
         const arg = args[i];
-        
+
         // Si es un argumento con formato --nombre
         if (arg.startsWith('--')) {
             const name = arg.substring(2);
@@ -66,7 +66,7 @@ function parseCommandLineArgs() {
             }
         }
     }
-    
+
     return parsedArgs;
 }
 
@@ -112,15 +112,15 @@ process.stderr.write("[INIT] Iniciando servidor MCP Firebird...\n");
 
 // Usar argumentos de línea de comandos o valores predeterminados
 // prioridad: 1) argumentos cli, 2) archivo config, 3) variables entorno, 4) defaults
-const DEFAULT_DATABASE_PATH = cmdArgs.database || 
-                              configFile.database || 
-                              process.env.FIREBIRD_DATABASE || 
-                              join(process.cwd(), 'database', 'sample.fdb');
+const DEFAULT_DATABASE_PATH = cmdArgs.database ||
+    configFile.database ||
+    process.env.FIREBIRD_DATABASE ||
+    join(process.cwd(), 'database', 'sample.fdb');
 
-const DATABASE_DIR = cmdArgs.databaseDir || 
-                    configFile.databaseDir || 
-                    process.env.FIREBIRD_DATABASE_DIR || 
-                    join(process.cwd(), 'database');
+const DATABASE_DIR = cmdArgs.databaseDir ||
+    configFile.databaseDir ||
+    process.env.FIREBIRD_DATABASE_DIR ||
+    join(process.cwd(), 'database');
 
 // Configuración predeterminada para la conexión a Firebird
 const DEFAULT_CONFIG: {
@@ -136,9 +136,9 @@ const DEFAULT_CONFIG: {
     [key: string]: any;
 } = {
     host: cmdArgs.host || configFile.host || process.env.FIREBIRD_HOST || '127.0.0.1',
-    port: cmdArgs.port ? parseInt(cmdArgs.port) : 
-          configFile.port ? parseInt(String(configFile.port)) : 
-          process.env.FIREBIRD_PORT ? parseInt(process.env.FIREBIRD_PORT) : 3050,
+    port: cmdArgs.port ? parseInt(cmdArgs.port) :
+        configFile.port ? parseInt(String(configFile.port)) :
+            process.env.FIREBIRD_PORT ? parseInt(process.env.FIREBIRD_PORT) : 3050,
     database: DEFAULT_DATABASE_PATH,
     user: cmdArgs.user || configFile.user || process.env.FIREBIRD_USER || 'SYSDBA',
     password: cmdArgs.password || configFile.password || process.env.FIREBIRD_PASSWORD || 'masterkey',
@@ -170,7 +170,7 @@ const connectToDatabase = async (config = DEFAULT_CONFIG): Promise<any> => {
             ...config,
             lowercase_keys: false
         };
-        
+
         Firebird.attach(fullConfig, (err: Error | null, db: any) => {
             if (err) {
                 logger.error(`Error conectando a la base de datos: ${err.message}`);
@@ -219,7 +219,7 @@ const getDatabases = () => {
         if (!existsSync(DATABASE_DIR)) {
             return [];
         }
-        
+
         return readdirSync(DATABASE_DIR)
             .filter(file => ['.fdb', '.gdb'].includes(extname(file).toLowerCase()))
             .map(file => ({
@@ -257,9 +257,9 @@ const getTableSchema = async (tableName: string, config = DEFAULT_CONFIG) => {
             WHERE r.RDB$RELATION_NAME = ?
             ORDER BY r.RDB$FIELD_POSITION
         `;
-        
+
         const columns = await executeQuery(columnsSql, [tableName], config);
-        
+
         // Obtener primary keys
         const pkSql = `
             SELECT
@@ -270,10 +270,10 @@ const getTableSchema = async (tableName: string, config = DEFAULT_CONFIG) => {
             AND ix.RDB$UNIQUE_FLAG = 1
             AND ix.RDB$SYSTEM_FLAG = 1
         `;
-        
+
         const primaryKeys = await executeQuery(pkSql, [tableName], config);
         const pkColumns = primaryKeys.map((pk: any) => pk.COLUMN_NAME?.trim());
-        
+
         // Obtener foreign keys
         const fkSql = `
             SELECT
@@ -291,16 +291,16 @@ const getTableSchema = async (tableName: string, config = DEFAULT_CONFIG) => {
             WHERE rc.RDB$RELATION_NAME = ?
             AND rc.RDB$CONSTRAINT_TYPE = 'FOREIGN KEY'
         `;
-        
+
         const foreignKeys = await executeQuery(fkSql, [tableName], config);
-        
+
         // Mappear los tipos de Firebird a tipos más legibles
         const processedColumns = columns.map((col: any) => {
             const fieldType = col.FIELD_TYPE;
             const subType = col.FIELD_SUB_TYPE;
-            
+
             let dataType = 'UNKNOWN';
-            
+
             // Mapeo básico de tipos
             if (fieldType === 7) {
                 if (subType === 1) dataType = 'NUMERIC';
@@ -332,7 +332,7 @@ const getTableSchema = async (tableName: string, config = DEFAULT_CONFIG) => {
                 if (subType === 1) dataType = 'BLOB SUB_TYPE TEXT';
                 else dataType = 'BLOB';
             }
-            
+
             return {
                 name: col.COLUMN_NAME?.trim(),
                 type: dataType,
@@ -345,7 +345,7 @@ const getTableSchema = async (tableName: string, config = DEFAULT_CONFIG) => {
                 isPrimaryKey: pkColumns.includes(col.COLUMN_NAME?.trim())
             };
         });
-        
+
         // Procesar foreign keys
         const processedFKs = foreignKeys.map((fk: any) => ({
             constraintName: fk.CONSTRAINT_NAME?.trim(),
@@ -353,7 +353,7 @@ const getTableSchema = async (tableName: string, config = DEFAULT_CONFIG) => {
             referencedTable: fk.REFERENCED_TABLE?.trim(),
             referencedColumn: fk.REFERENCED_COLUMN?.trim()
         }));
-        
+
         return {
             tableName: tableName.trim(),
             columns: processedColumns,
@@ -384,9 +384,9 @@ const getFieldDescriptions = async (tableName: string, config = DEFAULT_CONFIG) 
             ORDER BY 
                 RDB$FIELD_POSITION
         `;
-        
+
         const result = await executeQuery(sql, [tableName], config);
-        
+
         return result.map((row: any) => ({
             fieldName: row.FIELD_NAME?.trim(),
             description: row.DESCRIPTION?.trim() || null
@@ -409,7 +409,7 @@ const getTables = async (config = DEFAULT_CONFIG) => {
         AND (rdb$system_flag = 0 OR rdb$system_flag IS NULL)
         ORDER BY rdb$relation_name
     `;
-    
+
     const result = await executeQuery(sql, [], config);
     return result.map((row: any) => ({
         name: row.TABLE_NAME.trim(),
@@ -429,7 +429,7 @@ const getViews = async (config = DEFAULT_CONFIG) => {
         AND (rdb$system_flag = 0 OR rdb$system_flag IS NULL)
         ORDER BY rdb$relation_name
     `;
-    
+
     const result = await executeQuery(sql, [], config);
     return result.map((row: any) => ({
         name: row.VIEW_NAME.trim(),
@@ -447,7 +447,7 @@ const getProcedures = async (config = DEFAULT_CONFIG) => {
         WHERE rdb$system_flag = 0 OR rdb$system_flag IS NULL
         ORDER BY rdb$procedure_name
     `;
-    
+
     const result = await executeQuery(sql, [], config);
     return result.map((row: any) => ({
         name: row.PROCEDURE_NAME.trim(),
@@ -458,7 +458,7 @@ const getProcedures = async (config = DEFAULT_CONFIG) => {
 import('@modelcontextprotocol/sdk/server/mcp.js').then(async serverModule => {
     // Importación de transporte STDIO
     const stdioModule = await import('@modelcontextprotocol/sdk/server/stdio.js');
-    
+
     try {
         // Crear instancia del servidor
         const server = new serverModule.McpServer({
@@ -466,13 +466,13 @@ import('@modelcontextprotocol/sdk/server/mcp.js').then(async serverModule => {
             version: '1.0.0',
             description: 'Servidor MCP para bases de datos Firebird SQL'
         });
-        
+
         // Crear transporte STDIO
         const transport = new stdioModule.StdioServerTransport();
         process.stderr.write("[INIT] Transporte STDIO creado\n");
-        
+
         // 1. Definir recursos para acceder a la información de la base de datos
-        
+
         // Recurso para listar bases de datos
         server.resource(
             "databases",
@@ -488,7 +488,7 @@ import('@modelcontextprotocol/sdk/server/mcp.js').then(async serverModule => {
                 };
             }
         );
-        
+
         // Recurso para listar tablas de la base de datos
         server.resource(
             "tables",
@@ -520,7 +520,7 @@ import('@modelcontextprotocol/sdk/server/mcp.js').then(async serverModule => {
                 }
             }
         );
-        
+
         // Recurso para listar vistas
         server.resource(
             "views",
@@ -546,7 +546,7 @@ import('@modelcontextprotocol/sdk/server/mcp.js').then(async serverModule => {
                 }
             }
         );
-        
+
         // Recurso para listar procedimientos almacenados
         server.resource(
             "procedures",
@@ -572,7 +572,7 @@ import('@modelcontextprotocol/sdk/server/mcp.js').then(async serverModule => {
                 }
             }
         );
-        
+
         // Recurso para obtener descripciones de campos
         server.resource(
             "field-descriptions",
@@ -584,7 +584,7 @@ import('@modelcontextprotocol/sdk/server/mcp.js').then(async serverModule => {
                     if (typeof tableName !== 'string' || !validateSql(tableName)) {
                         throw new Error(`Nombre de tabla inválido: ${tableName}`);
                     }
-                    
+
                     const fieldDescriptions = await getFieldDescriptions(tableName);
                     return {
                         contents: [{
@@ -603,7 +603,7 @@ import('@modelcontextprotocol/sdk/server/mcp.js').then(async serverModule => {
                 }
             }
         );
-        
+
         // Recurso dinámico para obtener el esquema de una tabla específica
         server.resource(
             "table-schema",
@@ -615,7 +615,7 @@ import('@modelcontextprotocol/sdk/server/mcp.js').then(async serverModule => {
                     if (typeof tableName !== 'string' || !validateSql(tableName)) {
                         throw new Error(`Nombre de tabla inválido: ${tableName}`);
                     }
-                    
+
                     const schema = await getTableSchema(String(tableName));
                     return {
                         contents: [{
@@ -634,7 +634,7 @@ import('@modelcontextprotocol/sdk/server/mcp.js').then(async serverModule => {
                 }
             }
         );
-        
+
         // Recurso para obtener los primeros registros de una tabla
         server.resource(
             "table-data",
@@ -646,10 +646,10 @@ import('@modelcontextprotocol/sdk/server/mcp.js').then(async serverModule => {
                     if (typeof tableName !== 'string' || !validateSql(tableName)) {
                         throw new Error(`Nombre de tabla inválido: ${tableName}`);
                     }
-                    
+
                     const sql = `SELECT FIRST 20 * FROM "${tableName}"`;
                     const data = await executeQuery(sql);
-                    
+
                     return {
                         contents: [{
                             uri: uri.href,
@@ -669,25 +669,25 @@ import('@modelcontextprotocol/sdk/server/mcp.js').then(async serverModule => {
         );
 
         // 2. Definir herramientas para interactuar con la base de datos
-        
+
         // Herramienta para ejecutar consultas SQL
         server.tool(
             "execute-query",
-            { 
+            {
                 sql: z.string().min(1).describe("Consulta SQL a ejecutar"),
                 params: z.array(z.any()).optional().describe("Parámetros opcionales para la consulta")
             },
             async ({ sql, params = [] }) => {
                 logger.info(`Ejecutando consulta SQL: ${sql}`);
-                
+
                 try {
                     // Validar SQL para seguridad básica
                     if (!validateSql(sql)) {
                         throw new Error(`Consulta SQL potencialmente peligrosa rechazada`);
                     }
-                    
+
                     const results = await executeQuery(sql, params);
-                    
+
                     return {
                         content: [{
                             type: "text",
@@ -699,8 +699,8 @@ import('@modelcontextprotocol/sdk/server/mcp.js').then(async serverModule => {
                     return {
                         content: [{
                             type: "text",
-                            text: JSON.stringify({ 
-                                success: false, 
+                            text: JSON.stringify({
+                                success: false,
                                 error: String(error),
                                 sql
                             }, null, 2).replace(/\n/g, '')
@@ -709,21 +709,26 @@ import('@modelcontextprotocol/sdk/server/mcp.js').then(async serverModule => {
                 }
             }
         );
-        
+
         // Herramienta para listar tablas
         server.tool(
             "list-tables",
             {},
             async () => {
                 logger.info("Listando tablas mediante herramienta");
-                
+
                 try {
                     const tables = await getTables();
-                    const limitedTables = tables.slice(0, 2); // Limitar a 2 tablas
+                    //const limitedTables = tables.slice(0, 2); // Limitar a 2 tablas
+                    // Crear un objeto con la estructura deseada
+                    const responseObj = { success: true, tables: tables };
+                    // Convertir a JSON sin secuencias de escape innecesarias
+                    const jsonString = JSON.stringify(responseObj, null, 0).replace(/\n/g, '');
+
                     return {
                         content: [{
                             type: "text",
-                            text: JSON.stringify({ success: true, tables: limitedTables }, null, 0).replace(/\n/g, '')
+                            text: jsonString
                         }]
                     };
                 } catch (error) {
@@ -731,8 +736,8 @@ import('@modelcontextprotocol/sdk/server/mcp.js').then(async serverModule => {
                     return {
                         content: [{
                             type: "text",
-                            text: JSON.stringify({ 
-                                success: false, 
+                            text: JSON.stringify({
+                                success: false,
                                 error: String(error)
                             }, null, 2).replace(/\n/g, '')
                         }]
@@ -740,7 +745,7 @@ import('@modelcontextprotocol/sdk/server/mcp.js').then(async serverModule => {
                 }
             }
         );
-        
+
         // Herramienta para describir tabla
         server.tool(
             "describe-table",
@@ -749,15 +754,15 @@ import('@modelcontextprotocol/sdk/server/mcp.js').then(async serverModule => {
             },
             async ({ tableName }) => {
                 logger.info(`Describiendo tabla ${tableName}`);
-                
+
                 try {
                     // Validar el nombre de la tabla para prevenir inyección SQL
                     if (typeof tableName !== 'string' || !validateSql(tableName)) {
                         throw new Error(`Nombre de tabla inválido: ${tableName}`);
                     }
-                    
+
                     const schema = await getTableSchema(String(tableName)); // Asegurando que tableName sea tratado como string
-                    
+
                     return {
                         content: [{
                             type: "text",
@@ -769,8 +774,8 @@ import('@modelcontextprotocol/sdk/server/mcp.js').then(async serverModule => {
                     return {
                         content: [{
                             type: "text",
-                            text: JSON.stringify({ 
-                                success: false, 
+                            text: JSON.stringify({
+                                success: false,
                                 error: String(error)
                             }, null, 2).replace(/\n/g, '')
                         }]
@@ -778,7 +783,7 @@ import('@modelcontextprotocol/sdk/server/mcp.js').then(async serverModule => {
                 }
             }
         );
-        
+
         // Herramienta para obtener descripciones de campos
         server.tool(
             "get-field-descriptions",
@@ -787,15 +792,15 @@ import('@modelcontextprotocol/sdk/server/mcp.js').then(async serverModule => {
             },
             async ({ tableName }) => {
                 logger.info(`Obteniendo descripciones de campos para la tabla ${tableName}`);
-                
+
                 try {
                     // Validar el nombre de la tabla para prevenir inyección SQL
                     if (typeof tableName !== 'string' || !validateSql(tableName)) {
                         throw new Error(`Nombre de tabla inválido: ${tableName}`);
                     }
-                    
+
                     const fieldDescriptions = await getFieldDescriptions(tableName);
-                    
+
                     return {
                         content: [{
                             type: "text",
@@ -807,8 +812,8 @@ import('@modelcontextprotocol/sdk/server/mcp.js').then(async serverModule => {
                     return {
                         content: [{
                             type: "text",
-                            text: JSON.stringify({ 
-                                success: false, 
+                            text: JSON.stringify({
+                                success: false,
                                 error: String(error)
                             }, null, 2).replace(/\n/g, '')
                         }]
@@ -816,9 +821,9 @@ import('@modelcontextprotocol/sdk/server/mcp.js').then(async serverModule => {
                 }
             }
         );
-        
+
         // 3. Definir prompts para facilitar la interacción con Firebird
-        
+
         // Prompt para consultar datos
         server.prompt(
             "query-data",
@@ -836,7 +841,7 @@ import('@modelcontextprotocol/sdk/server/mcp.js').then(async serverModule => {
                 }]
             })
         );
-        
+
         // Prompt para analizar tabla
         server.prompt(
             "analyze-table",
@@ -854,7 +859,7 @@ import('@modelcontextprotocol/sdk/server/mcp.js').then(async serverModule => {
                 }]
             })
         );
-        
+
         // Prompt para optimizar consulta
         server.prompt(
             "optimize-query",
@@ -872,7 +877,7 @@ import('@modelcontextprotocol/sdk/server/mcp.js').then(async serverModule => {
                 }]
             })
         );
-        
+
         // Prompt para generar SQL
         server.prompt(
             "generate-sql",
@@ -890,15 +895,15 @@ import('@modelcontextprotocol/sdk/server/mcp.js').then(async serverModule => {
                 }]
             })
         );
-        
+
         // Conectar el servidor al transporte
         process.stderr.write("[INIT] Conectando servidor al transporte...\n");
         await server.connect(transport);
         process.stderr.write("[INIT] Servidor conectado y listo para recibir peticiones\n");
-        
+
         // Notificar que el servidor está listo
         logger.info('Servidor MCP Firebird inicializado correctamente');
-        
+
     } catch (error) {
         logger.error('Error al iniciar servidor: ' + error);
         process.exit(1);
