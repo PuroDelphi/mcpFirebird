@@ -1,28 +1,30 @@
-import { connect } from 'mcp-firebird';
-import { testConfig, testTable, testData } from './test-config';
+import { Server } from "@modelcontextprotocol/sdk";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk";
 
-let mcpConnection: any;
+describe('Integration Tests', () => {
+    let server: Server;
+    let transport: StdioServerTransport;
 
-beforeAll(async () => {
-  // Conectar al MCP
-  mcpConnection = await connect(testConfig);
-  
-  // Limpiar datos de prueba anteriores
-  await mcpConnection.query({
-    sql: `DELETE FROM ${testTable} WHERE ID = ?`,
-    params: [testData.id]
-  });
-});
+    beforeAll(async () => {
+        server = new Server({
+            name: "mcp-firebird",
+            version: "1.0.64"
+        }, {
+            capabilities: {
+                resources: {},
+                tools: {},
+                prompts: {}
+            }
+        });
+        transport = new StdioServerTransport();
+        await server.connect(transport);
+    });
 
-afterAll(async () => {
-  // Limpiar datos de prueba
-  await mcpConnection.query({
-    sql: `DELETE FROM ${testTable} WHERE ID = ?`,
-    params: [testData.id]
-  });
-  
-  // Cerrar conexión
-  await mcpConnection.disconnect();
-});
+    afterAll(async () => {
+        await transport.close();
+    });
 
-export { mcpConnection }; 
+    it('should initialize successfully', () => {
+        expect(server).toBeDefined();
+    });
+}); 

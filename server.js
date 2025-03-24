@@ -33,7 +33,7 @@ async function getConnection() {
 
     return new Promise((resolve, reject) => {
         Firebird.attach(dbConfig, (err, db) => {
-            if (err) {
+        if (err) {
                 console.error('[DEBUG] Error conectando a la base de datos:', err);
                 reject(err);
                 return;
@@ -96,8 +96,8 @@ const wss = new WebSocket.Server({
 server.on('upgrade', (request, socket, head) => {
     wss.handleUpgrade(request, socket, head, (ws) => {
         wss.emit('connection', ws, request);
+        });
     });
-});
 
 // Mantener un registro de conexiones activas
 const activeConnections = new Set();
@@ -159,8 +159,8 @@ app.get('/status', (req, res) => {
             name: 'mcp-firebird',
             version: VERSION
         }
-    });
-});
+                });
+            });
 
 // Endpoints para información de la base de datos
 app.get('/database/info', async (req, res) => {
@@ -218,8 +218,8 @@ app.get('/database/tables', async (req, res) => {
                 name: row.column_name,
                 type: getFieldType(row.field_type),
                 nullable: row.nullable === 1
+                });
             });
-        });
 
         res.json({
             tables: Array.from(tableMap.values())
@@ -461,7 +461,7 @@ async function analyzeTableStructure(connection, table, options) {
     }
 
     return {
-        name: table,
+                                name: table,
         columns: columns.map(col => ({
             name: col.name,
             type: getFieldType(col.field_type),
@@ -589,13 +589,13 @@ wss.on('connection', (ws) => {
                     throw new Error(`Unsupported method: ${data.method}`);
             }
 
-            ws.send(JSON.stringify(response));
-        } catch (error) {
+                        ws.send(JSON.stringify(response));
+                } catch (error) {
             console.error(`[DEBUG] Error procesando mensaje MCP de ${connectionId}:`, error);
             ws.send(JSON.stringify({
                 jsonrpc: '2.0',
                 id: data.id,
-                error: {
+                        error: {
                     code: -32603,
                     message: error.message,
                     data: error.stack
@@ -614,9 +614,9 @@ wss.on('connection', (ws) => {
             code,
             reason
         });
-    });
+            });
 
-    ws.on('error', (error) => {
+            ws.on('error', (error) => {
         console.error(`[DEBUG] Error en WebSocket para ${connectionId}:`, error);
         sendJsonRpcNotification('mcp/error', {
             error: error.message,
@@ -627,9 +627,9 @@ wss.on('connection', (ws) => {
         } catch (closeError) {
             console.error(`[DEBUG] Error al cerrar WebSocket para ${connectionId}:`, closeError);
         }
-    });
-});
-
+            });
+        });
+        
 // Manejo de señales de terminación
 function gracefulShutdown(signal) {
     console.error(`[DEBUG] Señal de terminación recibida: ${signal}`);
@@ -639,7 +639,7 @@ function gracefulShutdown(signal) {
     for (const ws of activeConnections) {
         try {
             ws.close(1000, 'Server shutting down');
-        } catch (error) {
+    } catch (error) {
             console.error('[DEBUG] Error al cerrar conexión WebSocket:', error);
         }
     }
@@ -647,7 +647,7 @@ function gracefulShutdown(signal) {
     // Cerrar el servidor HTTP
     server.close(() => {
         console.error('[DEBUG] Servidor HTTP cerrado');
-        process.exit(0);
+                        process.exit(0);
     });
     
     // Si el servidor no se cierra en 5 segundos, forzar el cierre
@@ -681,10 +681,10 @@ console.error(`[DEBUG] Iniciando servidor en puerto ${port}`);
 server.on('error', (error) => {
     if (error.code === 'EADDRINUSE') {
         console.error(`[DEBUG] El puerto ${port} ya está en uso`);
-        process.exit(1);
-    } else {
+                                                process.exit(1);
+                                        } else {
         console.error('[DEBUG] Error en el servidor:', error);
-        process.exit(1);
+                                        process.exit(1);
     }
 });
 
@@ -702,6 +702,6 @@ server.listen(port, () => {
             status: 'running',
             port: port,
             wsPort: wsPort
-        });
-    });
+                });
+            });
 }); 

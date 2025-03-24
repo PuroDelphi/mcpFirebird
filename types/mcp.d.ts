@@ -1,112 +1,68 @@
-declare module 'mcp-firebird' {
-    export interface MCPConfig {
-        host?: string;
-        port?: number;
-        wsPort?: number;
-        database: string;
-        user: string;
-        password: string;
-        maxConnections?: number;
+import * as fb from 'node-firebird';
+
+export interface MCPConfig {
+    host: string;
+    port: number;
+    wsPort?: number;
+    database: string;
+    user: string;
+    password: string;
+    options?: {
+        poolSize?: number;
+        connectionTimeout?: number;
         queryTimeout?: number;
         logLevel?: 'debug' | 'info' | 'warn' | 'error';
-    }
+    };
+}
 
-    export interface MCPQueryOptions {
-        timeout?: number;
-        format?: 'json' | 'csv';
-        maxRows?: number;
-    }
+export interface MCPQuery {
+    sql: string;
+    params?: any[];
+    timeout?: number;
+}
 
-    export interface MCPQueryParams {
-        sql: string;
-        params?: any[];
-        options?: MCPQueryOptions;
-    }
+export interface MCPColumn {
+    name: string;
+    type: string;
+    nullable: boolean;
+    defaultValue?: any;
+}
 
-    export interface MCPAnalyzeOptions {
-        includeIndexes?: boolean;
-        includeConstraints?: boolean;
-        includeTriggers?: boolean;
-        includeProcedures?: boolean;
-    }
+export interface MCPIndex {
+    name: string;
+    columns: string[];
+    unique: boolean;
+}
 
-    export interface MCPDataTrendsOptions {
-        field: string;
-        period: 'daily' | 'monthly' | 'yearly';
-        startDate?: Date;
-        endDate?: Date;
-    }
-
-    export interface MCPTableInfo {
-        name: string;
-        columns: MCPColumn[];
-        indexes?: MCPIndex[];
-        constraints?: MCPConstraint[];
-        triggers?: MCPTrigger[];
-        procedures?: MCPProcedure[];
-    }
-
-    export interface MCPColumn {
-        name: string;
-        type: string;
-        nullable: boolean;
-        default?: string;
-        length?: number;
-        scale?: number;
-        precision?: number;
-        subType?: string;
-        source?: string;
-        description?: string;
-    }
-
-    export interface MCPIndex {
-        name: string;
-        isUnique: boolean;
-        columns: string[];
-    }
-
-    export interface MCPConstraint {
-        name: string;
+export interface MCPTableInfo {
+    name: string;
+    columns: MCPColumn[];
+    primaryKey?: string[];
+    foreignKeys?: Array<{
         column: string;
-        type: string;
-    }
-
-    export interface MCPTrigger {
-        name: string;
-        type: string;
-        timing: string;
-        source: string;
-    }
-
-    export interface MCPProcedure {
-        name: string;
-        inputParams: MCPColumn[];
-        outputParams: MCPColumn[];
-        source: string;
-    }
-
-    export interface MCPDataTrends {
-        table: string;
-        field: string;
-        period: string;
-        trends: {
-            period: string;
-            count: number;
-            average: number;
-            minimum: number;
-            maximum: number;
-        }[];
-    }
-
-    export interface MCPConnection {
-        query(params: MCPQueryParams): Promise<any>;
-        analyze(params: {
-            type: 'table_structure' | 'data_trends';
+        references: {
             table: string;
-            options?: MCPAnalyzeOptions | MCPDataTrendsOptions;
-        }): Promise<MCPTableInfo | MCPDataTrends>;
-        disconnect(): Promise<void>;
-    }
+            column: string;
+        };
+    }>;
+    indexes?: MCPIndex[];
+}
 
-    export function connect(config: MCPConfig | string): Promise<MCPConnection>;
-} 
+export interface MCPDataTrend {
+    table: string;
+    trends: Array<{
+        period: string;
+        count: number;
+        changes: number;
+        lastUpdate: Date;
+    }>;
+}
+
+export interface MCPConnection {
+    query(query: MCPQuery): Promise<any[]>;
+    analyzeTable(table: string): Promise<MCPTableInfo>;
+    analyzeTrends(table: string, period?: 'daily' | 'monthly' | 'yearly'): Promise<MCPDataTrend>;
+    close(): Promise<void>;
+}
+
+export function createConnection(config: MCPConfig): MCPConnection; 
