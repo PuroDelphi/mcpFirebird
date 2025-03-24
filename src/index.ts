@@ -497,11 +497,17 @@ import('@modelcontextprotocol/sdk/server/mcp.js').then(async serverModule => {
                 logger.info('Accediendo al listado de tablas');
                 try {
                     const tables = await getTables();
+                    // Dividir en chunks de 10 tablas
+                    const chunkSize = 10;
+                    const chunks = [];
+                    for (let i = 0; i < tables.length; i += chunkSize) {
+                        chunks.push(tables.slice(i, i + chunkSize));
+                    }
                     return {
-                        contents: [{
-                            uri: "firebird://tables",
-                            text: JSON.stringify(tables, null, 2)
-                        }]
+                        contents: chunks.map((chunk, index) => ({
+                            uri: `firebird://tables?page=${index}`,
+                            text: JSON.stringify(chunk, null, 2)
+                        }))
                     };
                 } catch (error) {
                     logger.error(`Error al listar tablas: ${error}`);
