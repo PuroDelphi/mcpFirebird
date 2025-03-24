@@ -33,8 +33,48 @@ import Firebird from 'node-firebird';
 import { createLogger } from './utils/logger.js';
 import { validateSql } from './utils/security.js';
 
+// Definimos la interfaz para el archivo de configuración
+interface ConfigFile {
+    database?: string;
+    databaseDir?: string;
+    host?: string;
+    port?: number | string;
+    user?: string;
+    password?: string;
+    role?: string;
+    [key: string]: any; // Para otras propiedades que pueda tener
+}
+
+// Función para procesar argumentos de línea de comandos
+function parseCommandLineArgs() {
+    const args = process.argv.slice(2);
+    const parsedArgs: Record<string, string> = {};
+    
+    for (let i = 0; i < args.length; i++) {
+        const arg = args[i];
+        
+        // Si es un argumento con formato --nombre
+        if (arg.startsWith('--')) {
+            const name = arg.substring(2);
+            // Si hay un siguiente argumento y no es otro flag, lo tomamos como valor
+            if (i + 1 < args.length && !args[i + 1].startsWith('--')) {
+                parsedArgs[name] = args[i + 1];
+                i++; // Saltar el siguiente argumento ya que es el valor
+            } else {
+                // Para flags booleanos
+                parsedArgs[name] = 'true';
+            }
+        }
+    }
+    
+    return parsedArgs;
+}
+
+// Procesar argumentos de línea de comandos
+const cmdArgs = parseCommandLineArgs();
+
 // Manejar el comando --version antes de iniciar el servidor
-if (process.argv.includes('--version')) {
+if (cmdArgs.version || process.argv.includes('--version')) {
     try {
         const __filename = fileURLToPath(import.meta.url);
         const __dirname = dirname(__filename);
@@ -47,6 +87,22 @@ if (process.argv.includes('--version')) {
     }
 }
 
+// Si se especifica un archivo de configuración, cargarlo
+let configFile: ConfigFile = {};
+if (cmdArgs.config) {
+    try {
+        const configPath = resolve(cmdArgs.config);
+        if (existsSync(configPath)) {
+            configFile = require(configPath);
+            console.info(`Configuración cargada desde: ${configPath}`);
+        } else {
+            console.error(`Archivo de configuración no encontrado: ${configPath}`);
+        }
+    } catch (error) {
+        console.error(`Error al cargar el archivo de configuración: ${error}`);
+    }
+}
+
 // Configuración de logs
 const logger = createLogger('mcp-firebird');
 
@@ -54,22 +110,50 @@ const logger = createLogger('mcp-firebird');
 logger.info('Iniciando servidor MCP Firebird...');
 process.stderr.write("[INIT] Iniciando servidor MCP Firebird...\n");
 
-// Definir la configuración del pool de conexiones para Firebird
-const DEFAULT_DATABASE_PATH = process.env.FIREBIRD_DATABASE || join(process.cwd(), 'database', 'sample.fdb');
-const DATABASE_DIR = process.env.FIREBIRD_DATABASE_DIR || join(process.cwd(), 'database');
+// Usar argumentos de línea de comandos o valores predeterminados
+// prioridad: 1) argumentos cli, 2) archivo config, 3) variables entorno, 4) defaults
+const DEFAULT_DATABASE_PATH = cmdArgs.database || 
+                              configFile.database || 
+                              process.env.FIREBIRD_DATABASE || 
+                              join(process.cwd(), 'database', 'sample.fdb');
+
+const DATABASE_DIR = cmdArgs.databaseDir || 
+                    configFile.databaseDir || 
+                    process.env.FIREBIRD_DATABASE_DIR || 
+                    join(process.cwd(), 'database');
 
 // Configuración predeterminada para la conexión a Firebird
-const DEFAULT_CONFIG = {
-    host: process.env.FIREBIRD_HOST || '127.0.0.1',
-    port: process.env.FIREBIRD_PORT ? parseInt(process.env.FIREBIRD_PORT) : 3050,
+const DEFAULT_CONFIG: {
+    host: string;
+    port: number;
+    database: string;
+    user: string;
+    password: string;
+    role?: string;
+    lowercase_keys: boolean;
+    pageSize: number;
+    timeout: number;
+    [key: string]: any;
+} = {
+    host: cmdArgs.host || configFile.host || process.env.FIREBIRD_HOST || '127.0.0.1',
+    port: cmdArgs.port ? parseInt(cmdArgs.port) : 
+          configFile.port ? parseInt(String(configFile.port)) : 
+          process.env.FIREBIRD_PORT ? parseInt(process.env.FIREBIRD_PORT) : 3050,
     database: DEFAULT_DATABASE_PATH,
-    user: process.env.FIREBIRD_USER || 'SYSDBA',
-    password: process.env.FIREBIRD_PASSWORD || 'masterkey',
-    role: process.env.FIREBIRD_ROLE || undefined,
+    user: cmdArgs.user || configFile.user || process.env.FIREBIRD_USER || 'SYSDBA',
+    password: cmdArgs.password || configFile.password || process.env.FIREBIRD_PASSWORD || 'masterkey',
+    role: cmdArgs.role || configFile.role || process.env.FIREBIRD_ROLE || undefined,
     lowercase_keys: false,
     pageSize: 4096,
     timeout: 5000
 };
+
+// Registrar la configuración (sin la contraseña) para ayudar en la depuración
+const logConfig = { ...DEFAULT_CONFIG };
+if ('password' in logConfig) {
+    delete (logConfig as any).password;
+}
+logger.info(`Configuración: ${JSON.stringify(logConfig)}`);
 
 // Cache de metadatos para evitar consultas repetitivas
 const metadataCache = {
