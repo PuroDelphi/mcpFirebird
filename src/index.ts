@@ -668,6 +668,45 @@ import('@modelcontextprotocol/sdk/server/mcp.js').then(async serverModule => {
             }
         );
         
+        // Métodos para el servidor filesystem
+        server.resource(
+            "files",
+            "filesystem://files",
+            async () => {
+                return {
+                    contents: [{
+                        uri: "filesystem://files",
+                        text: JSON.stringify({ message: "Lista de archivos disponibles" }, null, 2)
+                    }]
+                };
+            }
+        );
+
+        server.tool(
+            "list-files",
+            {},
+            async () => {
+                return {
+                    content: [{
+                        type: "text",
+                        text: JSON.stringify({ message: "Herramienta para listar archivos" }, null, 2)
+                    }]
+                };
+            }
+        );
+
+        server.prompt(
+            "search-files",
+            "Busca archivos en el sistema de archivos",
+            [
+                {
+                    name: "query",
+                    description: "Término de búsqueda",
+                    required: true
+                }
+            ]
+        );
+        
         // 2. Definir herramientas para interactuar con la base de datos
         
         // Herramienta para ejecutar consultas SQL
