@@ -308,7 +308,7 @@ uses
 type
   TMcpFirebirdClient = class
   private
-    FProcess: TProcess;
+    FProcess: TProcess; //PAra Delphi cambiar por TProcessDelphi y agregue https://github.com/ferruhkoroglu/TProcessDelphi
     FRequestId: Integer;
     
     function SendRequest(const Method: string; const Params: TJSONObject = nil): TJSONObject;
