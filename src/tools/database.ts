@@ -14,6 +14,7 @@ import {
 } from '../db/queries.js';
 import { getTableSchema } from '../db/schema.js';
 import { FirebirdError } from '../db/connection.js';
+import { compactJsonStringify } from '../utils/json.js';
 
 const logger = createLogger('tools:database');
 
@@ -122,7 +123,7 @@ export const setupDatabaseTools = (server: MCPServer): void => {
                 return {
                     content: [{
                         type: "text",
-                        text: JSON.stringify(wrapSuccess(result))
+                        text: compactJsonStringify(wrapSuccess(result))
                     }]
                 };
             } catch (error) {
@@ -132,7 +133,10 @@ export const setupDatabaseTools = (server: MCPServer): void => {
                 return {
                     content: [{
                         type: "text",
-                        text: JSON.stringify(errorResponse)
+                        text: compactJsonStringify({
+                            ...errorResponse,
+                            sql: sql // Incluir la consulta SQL en caso de error para facilitar depuración
+                        })
                     }]
                 };
             }
@@ -156,7 +160,7 @@ export const setupDatabaseTools = (server: MCPServer): void => {
                 return {
                     content: [{
                         type: "text",
-                        text: JSON.stringify(wrapSuccess(tables, 'tables'))
+                        text: compactJsonStringify(wrapSuccess(tables, 'tables'))
                     }]
                 };
             } catch (error) {
@@ -166,7 +170,7 @@ export const setupDatabaseTools = (server: MCPServer): void => {
                 return {
                     content: [{
                         type: "text",
-                        text: JSON.stringify(errorResponse)
+                        text: compactJsonStringify(errorResponse)
                     }]
                 };
             }
@@ -201,7 +205,7 @@ export const setupDatabaseTools = (server: MCPServer): void => {
                 return {
                     content: [{
                         type: "text",
-                        text: JSON.stringify(wrapSuccess(schema, 'schema'))
+                        text: compactJsonStringify(wrapSuccess(schema, 'schema'))
                     }]
                 };
             } catch (error) {
@@ -211,7 +215,7 @@ export const setupDatabaseTools = (server: MCPServer): void => {
                 return {
                     content: [{
                         type: "text",
-                        text: JSON.stringify(errorResponse)
+                        text: compactJsonStringify(errorResponse)
                     }]
                 };
             }
@@ -245,7 +249,7 @@ export const setupDatabaseTools = (server: MCPServer): void => {
                 return {
                     content: [{
                         type: "text",
-                        text: JSON.stringify(wrapSuccess(fieldDescriptions, 'fieldDescriptions'))
+                        text: compactJsonStringify(wrapSuccess(fieldDescriptions, 'fieldDescriptions'))
                     }]
                 };
             } catch (error) {
@@ -255,7 +259,7 @@ export const setupDatabaseTools = (server: MCPServer): void => {
                 return {
                     content: [{
                         type: "text",
-                        text: JSON.stringify(errorResponse)
+                        text: compactJsonStringify(errorResponse)
                     }]
                 };
             }
@@ -304,7 +308,7 @@ export const setupDatabaseTools = (server: MCPServer): void => {
                 return {
                     content: [{
                         type: "text",
-                        text: JSON.stringify(wrapSuccess(methods))
+                        text: compactJsonStringify(wrapSuccess(methods))
                     }]
                 };
             } catch (error) {
@@ -314,7 +318,7 @@ export const setupDatabaseTools = (server: MCPServer): void => {
                 return {
                     content: [{
                         type: "text",
-                        text: JSON.stringify(errorResponse)
+                        text: compactJsonStringify(errorResponse)
                     }]
                 };
             }

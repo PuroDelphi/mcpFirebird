@@ -1,0 +1,34 @@
+# Tests
+__tests__/
+*.test.js
+*.test.ts
+jest.*.config.js
+jest.setup.mjs
+tsconfig.test.json
+coverage/
+
+# Development files
+.github/
+.vscode/
+src/
+*.ts
+!*.d.ts
+tsconfig.json
+.eslintrc.js
+.eslintrc.json
+.prettierrc
+.gitignore
+.env
+publish.ps1
+server.pid
+
+# Temporary files
+temp_*/
+*_temp.*
+*.patch
+*.bak
+*.backup
+
+# Documentation source files
+documentacion/
+examples/
