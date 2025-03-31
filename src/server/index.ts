@@ -25,7 +25,7 @@ export const initializeServer = async (serverModule: any, transport: any) => {
         process.stderr.write("[INIT] Creando servidor MCP...\n");
         const server = new serverModule.McpServer({
             name: 'Firebird MCP',
-            version: '1.0.93',
+            version: '1.0.94',
             description: 'Servidor MCP para bases de datos Firebird SQL'
         });
         
