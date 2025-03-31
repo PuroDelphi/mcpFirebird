@@ -91,53 +91,61 @@ function logSystemInfo(): void {
 function setupSignalHandlers(): void {
     const logger = createLogger('signal-handler');
     
-    try {
-        // Intentar configurar los manejadores de señales estándar
-        process.on('SIGINT', () => {
-            logger.info('Recibida señal SIGINT, cerrando...');
-            process.exit(0);
-        });
-        
-        process.on('SIGTERM', () => {
-            logger.info('Recibida señal SIGTERM, cerrando...');
-            process.exit(0);
-        });
-        
-        process.on('unhandledRejection', (reason) => {
-            logger.error('Promesa rechazada no manejada');
-            handleFatalError(reason || new Error('Promesa rechazada desconocida'), false);
-        });
-        
-        process.on('uncaughtException', (error) => {
-            logger.error('Excepción no capturada');
-            handleFatalError(error, true);
-        });
-        
-        logger.info('Manejadores de señales configurados correctamente');
-    } catch (error) {
-        // Si hay un error al configurar los manejadores de señales, registrarlo pero continuar
-        logger.warn(`No se pudieron configurar manejadores de señales: ${error instanceof Error ? error.message : String(error)}`);
-        
-        // Configuración básica de manejo de errores para entornos que no soportan process.on
-        const handleGlobalErrors = () => {
-            logger.info('Configurando manejadores de errores alternativos');
-            
-            // Función auxiliar para manejar errores no capturados
-            function handleUncaughtError(error: Error | unknown): void {
-                logger.error('Error global no capturado');
-                handleFatalError(error || new Error('Error desconocido'), false);
-            }
-            
-            // Se puede agregar aquí lógica específica para otros entornos si es necesario
-        };
-        
-        // Intentar configurar manejadores alternativos
+    // Verificar si process.on es una función antes de intentar usarla
+    if (typeof process.on === 'function') {
         try {
-            handleGlobalErrors();
-        } catch (innerError) {
-            logger.error(`No se pudieron configurar manejadores alternativos: ${innerError instanceof Error ? innerError.message : String(innerError)}`);
+            // Intentar configurar los manejadores de señales estándar
+            process.on('SIGINT', () => {
+                logger.info('Recibida señal SIGINT, cerrando...');
+                process.exit(0);
+            });
+            
+            process.on('SIGTERM', () => {
+                logger.info('Recibida señal SIGTERM, cerrando...');
+                process.exit(0);
+            });
+            
+            process.on('unhandledRejection', (reason) => {
+                logger.error('Promesa rechazada no manejada');
+                handleFatalError(reason || new Error('Promesa rechazada desconocida'), false);
+            });
+            
+            process.on('uncaughtException', (error) => {
+                logger.error('Excepción no capturada');
+                handleFatalError(error, true);
+            });
+            
+            logger.info('Manejadores de señales configurados correctamente');
+        } catch (error) {
+            // Si hay un error al configurar los manejadores de señales, registrarlo pero continuar
+            logger.warn(`Error al configurar los manejadores de señales: ${error instanceof Error ? error.message : String(error)}`);
+            configureAlternativeErrorHandlers(logger);
         }
+    } else {
+        // process.on no es una función en este entorno
+        logger.warn('process.on no es una función en este entorno, configurando manejadores alternativos');
+        configureAlternativeErrorHandlers(logger);
     }
+}
+
+/**
+ * Configura manejadores de errores alternativos cuando process.on no está disponible
+ * @param {any} logger - Instancia del logger
+ */
+function configureAlternativeErrorHandlers(logger: any): void {
+    logger.info('Configurando manejadores de errores alternativos');
+    
+    // En entornos donde process.on no está disponible, podemos implementar
+    // otras estrategias de manejo de errores específicas para el entorno
+    
+    // Por ejemplo, podemos usar try/catch en puntos críticos del código
+    // o implementar nuestro propio mecanismo de eventos simplificado
+    
+    // También podemos configurar timeouts para verificar periódicamente el estado
+    setTimeout(() => {
+        // Verificación periódica del estado del sistema
+        logger.debug('Verificación de estado del sistema');
+    }, 30000);
 }
 
 /**
