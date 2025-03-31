@@ -196,7 +196,13 @@ const queryDatabase = async (db: any, sql: string, params: any[] = []): Promise<
     });
 };
 
-// Función para ejecutar consultas y cerrar automáticamente la conexión
+/**
+ * Executes a SQL query and automatically closes the database connection
+ * @param {string} sql - SQL query to execute
+ * @param {Array} params - Parameters for the SQL query (optional)
+ * @param {object} config - Database connection configuration (optional)
+ * @returns {Array} Results of the query execution
+ */
 const executeQuery = async (sql: string, params: any[] = [], config = DEFAULT_CONFIG) => {
     let db: any;
     try {
@@ -213,7 +219,10 @@ const executeQuery = async (sql: string, params: any[] = [], config = DEFAULT_CO
     }
 };
 
-// Función para listar bases de datos disponibles
+/**
+ * Lists all available Firebird databases in the database directory
+ * @returns {Array} Array of database objects with name, path and URI
+ */
 const getDatabases = () => {
     try {
         if (!existsSync(DATABASE_DIR)) {
@@ -233,7 +242,12 @@ const getDatabases = () => {
     }
 };
 
-// Obtener el esquema de una tabla
+/**
+ * Gets the complete schema definition for a specified table
+ * @param {string} tableName - The name of the table to retrieve schema for
+ * @param {object} config - Database connection configuration (optional)
+ * @returns {object} Table schema including columns, primary keys, and foreign keys
+ */
 const getTableSchema = async (tableName: string, config = DEFAULT_CONFIG) => {
     try {
         if (!validateSql(tableName)) {
@@ -366,7 +380,12 @@ const getTableSchema = async (tableName: string, config = DEFAULT_CONFIG) => {
     }
 };
 
-// Función para obtener descripciones de campos de una tabla
+/**
+ * Retrieves field descriptions for a specified table
+ * @param {string} tableName - The name of the table
+ * @param {object} config - Database connection configuration (optional)
+ * @returns {Array} Array of objects containing field names and descriptions
+ */
 const getFieldDescriptions = async (tableName: string, config = DEFAULT_CONFIG) => {
     try {
         if (!validateSql(tableName)) {
@@ -397,7 +416,11 @@ const getFieldDescriptions = async (tableName: string, config = DEFAULT_CONFIG) 
     }
 };
 
-// Función para obtener todas las tablas de la base de datos
+/**
+ * Gets all user tables from the database
+ * @param {object} config - Database connection configuration (optional)
+ * @returns {Array} Array of table objects with name and URI
+ */
 const getTables = async (config = DEFAULT_CONFIG) => {
     const sql = `
         SELECT 
@@ -417,7 +440,11 @@ const getTables = async (config = DEFAULT_CONFIG) => {
     }));
 };
 
-// Función para obtener todas las vistas de la base de datos
+/**
+ * Gets all user views from the database
+ * @param {object} config - Database connection configuration (optional)
+ * @returns {Array} Array of view objects with name and URI
+ */
 const getViews = async (config = DEFAULT_CONFIG) => {
     const sql = `
         SELECT 
@@ -437,7 +464,11 @@ const getViews = async (config = DEFAULT_CONFIG) => {
     }));
 };
 
-// Función para obtener todos los procedimientos almacenados
+/**
+ * Gets all user stored procedures from the database
+ * @param {object} config - Database connection configuration (optional)
+ * @returns {Array} Array of procedure objects with name and URI
+ */
 const getProcedures = async (config = DEFAULT_CONFIG) => {
     const sql = `
         SELECT
@@ -483,7 +514,7 @@ import('@modelcontextprotocol/sdk/server/mcp.js').then(async serverModule => {
                 return {
                     contents: [{
                         uri: "firebird://databases",
-                        text: JSON.stringify(databases, null, 2).replace(/\n/g, '')
+                        text: JSON.stringify(databases)
                     }]
                 };
             }
@@ -506,7 +537,7 @@ import('@modelcontextprotocol/sdk/server/mcp.js').then(async serverModule => {
                     return {
                         contents: chunks.map((chunk, index) => ({
                             uri: `firebird://tables?page=${index}`,
-                            text: JSON.stringify(chunk, null, 2).replace(/\n/g, '')
+                            text: JSON.stringify(chunk)
                         }))
                     };
                 } catch (error) {
@@ -514,7 +545,7 @@ import('@modelcontextprotocol/sdk/server/mcp.js').then(async serverModule => {
                     return {
                         contents: [{
                             uri: "firebird://tables",
-                            text: JSON.stringify({ error: "Error al obtener las tablas", message: String(error) }, null, 2).replace(/\n/g, '')
+                            text: JSON.stringify({ error: "Error al obtener las tablas", message: String(error) })
                         }]
                     };
                 }
@@ -532,7 +563,7 @@ import('@modelcontextprotocol/sdk/server/mcp.js').then(async serverModule => {
                     return {
                         contents: [{
                             uri: "firebird://views",
-                            text: JSON.stringify(views, null, 2).replace(/\n/g, '')
+                            text: JSON.stringify(views)
                         }]
                     };
                 } catch (error) {
@@ -540,7 +571,7 @@ import('@modelcontextprotocol/sdk/server/mcp.js').then(async serverModule => {
                     return {
                         contents: [{
                             uri: "firebird://views",
-                            text: JSON.stringify({ error: "Error al obtener las vistas", message: String(error) }, null, 2).replace(/\n/g, '')
+                            text: JSON.stringify({ error: "Error al obtener las vistas", message: String(error) })
                         }]
                     };
                 }
@@ -558,7 +589,7 @@ import('@modelcontextprotocol/sdk/server/mcp.js').then(async serverModule => {
                     return {
                         contents: [{
                             uri: "firebird://procedures",
-                            text: JSON.stringify(procedures, null, 2).replace(/\n/g, '')
+                            text: JSON.stringify(procedures)
                         }]
                     };
                 } catch (error) {
@@ -566,7 +597,7 @@ import('@modelcontextprotocol/sdk/server/mcp.js').then(async serverModule => {
                     return {
                         contents: [{
                             uri: "firebird://procedures",
-                            text: JSON.stringify({ error: "Error al obtener los procedimientos", message: String(error) }, null, 2).replace(/\n/g, '')
+                            text: JSON.stringify({ error: "Error al obtener los procedimientos", message: String(error) })
                         }]
                     };
                 }
@@ -589,7 +620,7 @@ import('@modelcontextprotocol/sdk/server/mcp.js').then(async serverModule => {
                     return {
                         contents: [{
                             uri: uri.href,
-                            text: JSON.stringify(fieldDescriptions, null, 2).replace(/\n/g, '')
+                            text: JSON.stringify(fieldDescriptions)
                         }]
                     };
                 } catch (error) {
@@ -597,7 +628,7 @@ import('@modelcontextprotocol/sdk/server/mcp.js').then(async serverModule => {
                     return {
                         contents: [{
                             uri: uri.href,
-                            text: JSON.stringify({ error: `Error al obtener descripciones de campos para ${tableName}`, message: String(error) }, null, 2).replace(/\n/g, '')
+                            text: JSON.stringify({ error: `Error al obtener descripciones de campos para ${tableName}`, message: String(error) })
                         }]
                     };
                 }
@@ -620,7 +651,7 @@ import('@modelcontextprotocol/sdk/server/mcp.js').then(async serverModule => {
                     return {
                         contents: [{
                             uri: uri.href,
-                            text: JSON.stringify(schema, null, 2).replace(/\n/g, '')
+                            text: JSON.stringify(schema)
                         }]
                     };
                 } catch (error) {
@@ -628,7 +659,7 @@ import('@modelcontextprotocol/sdk/server/mcp.js').then(async serverModule => {
                     return {
                         contents: [{
                             uri: uri.href,
-                            text: JSON.stringify({ error: `Error al obtener esquema de ${tableName}`, message: String(error) }, null, 2).replace(/\n/g, '')
+                            text: JSON.stringify({ error: `Error al obtener esquema de ${tableName}`, message: String(error) })
                         }]
                     };
                 }
@@ -653,7 +684,7 @@ import('@modelcontextprotocol/sdk/server/mcp.js').then(async serverModule => {
                     return {
                         contents: [{
                             uri: uri.href,
-                            text: JSON.stringify(data, null, 2).replace(/\n/g, '')
+                            text: JSON.stringify(data)
                         }]
                     };
                 } catch (error) {
@@ -661,7 +692,7 @@ import('@modelcontextprotocol/sdk/server/mcp.js').then(async serverModule => {
                     return {
                         contents: [{
                             uri: uri.href,
-                            text: JSON.stringify({ error: `Error al obtener datos de ${tableName}`, message: String(error) }, null, 2).replace(/\n/g, '')
+                            text: JSON.stringify({ error: `Error al obtener datos de ${tableName}`, message: String(error) })
                         }]
                     };
                 }
@@ -691,7 +722,7 @@ import('@modelcontextprotocol/sdk/server/mcp.js').then(async serverModule => {
                     return {
                         content: [{
                             type: "text",
-                            text: JSON.stringify({ success: true, results }, null, 2).replace(/\n/g, '')
+                            text: JSON.stringify({ success: true, results })
                         }]
                     };
                 } catch (error) {
@@ -703,7 +734,7 @@ import('@modelcontextprotocol/sdk/server/mcp.js').then(async serverModule => {
                                 success: false,
                                 error: String(error),
                                 sql
-                            }, null, 2).replace(/\n/g, '')
+                            })
                         }]
                     };
                 }
@@ -724,7 +755,7 @@ import('@modelcontextprotocol/sdk/server/mcp.js').then(async serverModule => {
                     const responseObj = { success: true, tables: tables };
                     // Convertir a JSON sin secuencias de escape innecesarias
                     // Primero convertimos a JSON y luego limpiamos las secuencias de escape innecesarias
-                    let jsonString = JSON.stringify(responseObj, null, 0).replace(/\n/g, '');
+                    let jsonString = JSON.stringify(responseObj);
                     // Reemplazar secuencias de escape innecesarias
                     jsonString = jsonString.replace(/\\\\(?!["\\\\bfnrt])/g, '\\');
                     jsonString = jsonString.replace(/\\"(?=\w)/g, '"');
@@ -744,7 +775,7 @@ import('@modelcontextprotocol/sdk/server/mcp.js').then(async serverModule => {
                             text: JSON.stringify({
                                 success: false,
                                 error: String(error)
-                            }, null, 2).replace(/\n/g, '')
+                            })
                         }]
                     };
                 }
@@ -771,7 +802,7 @@ import('@modelcontextprotocol/sdk/server/mcp.js').then(async serverModule => {
                     return {
                         content: [{
                             type: "text",
-                            text: JSON.stringify({ success: true, schema }, null, 2).replace(/\n/g, '')
+                            text: JSON.stringify({ success: true, schema })
                         }]
                     };
                 } catch (error) {
@@ -782,7 +813,7 @@ import('@modelcontextprotocol/sdk/server/mcp.js').then(async serverModule => {
                             text: JSON.stringify({
                                 success: false,
                                 error: String(error)
-                            }, null, 2).replace(/\n/g, '')
+                            })
                         }]
                     };
                 }
@@ -809,7 +840,7 @@ import('@modelcontextprotocol/sdk/server/mcp.js').then(async serverModule => {
                     return {
                         content: [{
                             type: "text",
-                            text: JSON.stringify({ success: true, fieldDescriptions }, null, 2).replace(/\n/g, '')
+                            text: JSON.stringify({ success: true, fieldDescriptions })
                         }]
                     };
                 } catch (error) {
@@ -820,10 +851,89 @@ import('@modelcontextprotocol/sdk/server/mcp.js').then(async serverModule => {
                             text: JSON.stringify({
                                 success: false,
                                 error: String(error)
-                            }, null, 2).replace(/\n/g, '')
+                            })
                         }]
                     };
                 }
+            }
+        );
+
+        // Implementar el nuevo handler para getMethods
+        server.tool(
+            "get-methods",
+            {},
+            async () => {
+                logger.info("Obteniendo descripción de métodos disponibles");
+
+                // Definir las descripciones de métodos
+                const methods = [
+                    {
+                        name: "ping",
+                        description: "Tests connectivity to the Firebird MCP server",
+                        parameters: [],
+                        returns: "A simple success response indicating the server is available"
+                    },
+                    {
+                        name: "list-tables",
+                        description: "Lists all user tables in the current database",
+                        parameters: [],
+                        returns: "Array of table objects with table names and URIs"
+                    },
+                    {
+                        name: "describe-table",
+                        description: "Gets detailed schema information for a specific table",
+                        parameters: [
+                            {
+                                name: "tableName",
+                                type: "string",
+                                description: "Name of the table to describe"
+                            }
+                        ],
+                        returns: "Table schema including columns, data types, primary keys, and foreign keys"
+                    },
+                    {
+                        name: "get-field-descriptions",
+                        description: "Retrieves metadata descriptions for all fields in a table",
+                        parameters: [
+                            {
+                                name: "tableName",
+                                type: "string",
+                                description: "Name of the table to get field descriptions for"
+                            }
+                        ],
+                        returns: "Array of field description objects with field names and descriptions"
+                    },
+                    {
+                        name: "execute-query",
+                        description: "Executes a custom SQL query on the database",
+                        parameters: [
+                            {
+                                name: "sql",
+                                type: "string",
+                                description: "SQL query to execute"
+                            },
+                            {
+                                name: "params",
+                                type: "array",
+                                description: "Parameters for the SQL query (optional)"
+                            }
+                        ],
+                        returns: "Query results as an array of records"
+                    },
+                    {
+                        name: "get-methods",
+                        description: "Returns a description of all available MCP methods",
+                        parameters: [],
+                        returns: "Array of method objects with name, description, parameters, and return type"
+                    }
+                ];
+
+                return {
+                    content: [{
+                        type: "text",
+                        text: JSON.stringify({ success: true, methods })
+                    }]
+                };
             }
         );
 
