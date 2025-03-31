@@ -30,17 +30,21 @@ export const setupDatabaseResources = (server: any, serverModule: any) => {
                         uri: "firebird://databases",
                         name: "Bases de datos Firebird",
                         mimeType: "application/json",
-                        text: compactJsonStringify({ success: true, databases })
+                        text: JSON.stringify({ success: true, databases })
                     }]
                 };
             } catch (error) {
                 logger.error(`Error al listar bases de datos: ${error}`);
                 return {
                     contents: [{
-                        uri: "firebird://databases",
+                        uri: "firebird://databases/error",
                         name: "Error en bases de datos",
                         mimeType: "application/json",
-                        text: compactJsonStringify({ success: false, error: "Error al obtener el listado de bases de datos", message: String(error) })
+                        text: JSON.stringify({ 
+                            success: false, 
+                            error: "Error al obtener el listado de bases de datos", 
+                            message: String(error)
+                        })
                     }]
                 };
             }
@@ -63,17 +67,21 @@ export const setupDatabaseResources = (server: any, serverModule: any) => {
                         uri: "firebird://tables",
                         name: "Tablas de la base de datos",
                         mimeType: "application/json",
-                        text: compactJsonStringify({ success: true, tables })
+                        text: JSON.stringify({ success: true, tables })
                     }]
                 };
             } catch (error) {
                 logger.error(`Error al listar tablas: ${error}`);
                 return {
                     contents: [{
-                        uri: "firebird://tables",
+                        uri: "firebird://tables/error",
                         name: "Error en listado de tablas",
                         mimeType: "application/json",
-                        text: compactJsonStringify({ success: false, error: "Error al obtener las tablas", message: String(error) })
+                        text: JSON.stringify({ 
+                            success: false, 
+                            error: "Error al obtener las tablas", 
+                            message: String(error)
+                        })
                     }]
                 };
             }
@@ -96,17 +104,21 @@ export const setupDatabaseResources = (server: any, serverModule: any) => {
                         uri: "firebird://views",
                         name: "Vistas de la base de datos",
                         mimeType: "application/json",
-                        text: compactJsonStringify({ success: true, views })
+                        text: JSON.stringify({ success: true, views })
                     }]
                 };
             } catch (error) {
                 logger.error(`Error al listar vistas: ${error}`);
                 return {
                     contents: [{
-                        uri: "firebird://views",
+                        uri: "firebird://views/error",
                         name: "Error en listado de vistas",
                         mimeType: "application/json",
-                        text: compactJsonStringify({ success: false, error: "Error al obtener las vistas", message: String(error) })
+                        text: JSON.stringify({ 
+                            success: false, 
+                            error: "Error al obtener las vistas", 
+                            message: String(error)
+                        })
                     }]
                 };
             }
@@ -129,17 +141,21 @@ export const setupDatabaseResources = (server: any, serverModule: any) => {
                         uri: "firebird://procedures",
                         name: "Procedimientos de la base de datos",
                         mimeType: "application/json",
-                        text: compactJsonStringify({ success: true, procedures })
+                        text: JSON.stringify({ success: true, procedures })
                     }]
                 };
             } catch (error) {
                 logger.error(`Error al listar procedimientos: ${error}`);
                 return {
                     contents: [{
-                        uri: "firebird://procedures",
+                        uri: "firebird://procedures/error",
                         name: "Error en listado de procedimientos",
                         mimeType: "application/json",
-                        text: compactJsonStringify({ success: false, error: "Error al obtener los procedimientos", message: String(error) })
+                        text: JSON.stringify({ 
+                            success: false, 
+                            error: "Error al obtener los procedimientos", 
+                            message: String(error)
+                        })
                     }]
                 };
             }
@@ -167,17 +183,21 @@ export const setupDatabaseResources = (server: any, serverModule: any) => {
                         uri: uri.href,
                         name: `Descripciones de campos de ${tableName}`,
                         mimeType: "application/json",
-                        text: compactJsonStringify({ success: true, fieldDescriptions })
+                        text: JSON.stringify({ success: true, fieldDescriptions })
                     }]
                 };
             } catch (error) {
                 logger.error(`Error al obtener descripciones de campos para ${tableName}: ${error}`);
                 return {
                     contents: [{
-                        uri: uri.href,
+                        uri: uri.href + "/error",
                         name: `Error en descripciones de campos de ${tableName}`,
                         mimeType: "application/json",
-                        text: compactJsonStringify({ success: false, error: `Error al obtener descripciones de campos para ${tableName}`, message: String(error) })
+                        text: JSON.stringify({ 
+                            success: false, 
+                            error: `Error al obtener descripciones de campos para ${tableName}`, 
+                            message: String(error)
+                        })
                     }]
                 };
             }
@@ -205,17 +225,21 @@ export const setupDatabaseResources = (server: any, serverModule: any) => {
                         uri: uri.href,
                         name: `Esquema de ${tableName}`,
                         mimeType: "application/json",
-                        text: compactJsonStringify({ success: true, schema })
+                        text: JSON.stringify({ success: true, schema })
                     }]
                 };
             } catch (error) {
                 logger.error(`Error al obtener esquema de ${tableName}: ${error}`);
                 return {
                     contents: [{
-                        uri: uri.href,
+                        uri: uri.href + "/error",
                         name: `Error en esquema de ${tableName}`,
                         mimeType: "application/json",
-                        text: compactJsonStringify({ success: false, error: `Error al obtener esquema de ${tableName}`, message: String(error) })
+                        text: JSON.stringify({ 
+                            success: false, 
+                            error: `Error al obtener esquema de ${tableName}`, 
+                            message: String(error)
+                        })
                     }]
                 };
             }
@@ -244,17 +268,21 @@ export const setupDatabaseResources = (server: any, serverModule: any) => {
                         uri: uri.href,
                         name: `Datos de ${tableName}`,
                         mimeType: "application/json",
-                        text: compactJsonStringify({ success: true, data })
+                        text: JSON.stringify({ success: true, data })
                     }]
                 };
             } catch (error) {
                 logger.error(`Error al obtener datos de ${tableName}: ${error}`);
                 return {
                     contents: [{
-                        uri: uri.href,
+                        uri: uri.href + "/error",
                         name: `Error en datos de ${tableName}`,
                         mimeType: "application/json",
-                        text: compactJsonStringify({ success: false, error: `Error al obtener datos de ${tableName}`, message: String(error) })
+                        text: JSON.stringify({ 
+                            success: false, 
+                            error: `Error al obtener datos de ${tableName}`, 
+                            message: String(error)
+                        })
                     }]
                 };
             }
