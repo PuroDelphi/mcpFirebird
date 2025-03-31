@@ -29,7 +29,7 @@ export const setupSqlPrompts = (server: any) => {
 
     // Prompt para optimizar consulta
     server.prompt(
-        "optimize-query",
+        "sql-optimize-query",
         "Optimiza una consulta SQL para Firebird",
         {
             sql: z.string().min(1).describe("Consulta SQL a optimizar")
@@ -47,7 +47,7 @@ export const setupSqlPrompts = (server: any) => {
 
     // Prompt para generar SQL
     server.prompt(
-        "generate-sql",
+        "sql-generate-query",
         "Genera una consulta SQL para Firebird basada en una descripción",
         {
             description: z.string().min(1).describe("Descripción de la consulta que se desea generar")

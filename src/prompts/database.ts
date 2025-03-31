@@ -11,7 +11,7 @@ const logger = createLogger('prompts:database');
 export const setupDatabasePrompts = (server: any) => {
     // Prompt para analizar tabla
     server.prompt(
-        "analyze-table",
+        "db-analyze-table",
         "Analiza la estructura y datos de una tabla en Firebird",
         {
             tableName: z.string().min(1).describe("Nombre de la tabla a analizar")
