@@ -27,8 +27,8 @@
     "typescript": "^5.4.2"
   },
   "dependencies": {
-    "@modelcontextprotocol/inspector": "^0.6.0",
-    "@modelcontextprotocol/sdk": "^1.7.0",
+    "@modelcontextprotocol/inspector": "^0.7.0",
+    "@modelcontextprotocol/sdk": "^1.8.0",
     "glob": "^10.3.10",
     "minimist": "^1.2.8",
     "node-firebird": "^1.1.5",
