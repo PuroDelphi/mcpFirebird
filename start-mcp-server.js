@@ -3,99 +3,70 @@
 /**
  * MCP Firebird - Script de inicio con protección MCP
  * 
- * Este script inicia el servidor Firebird asegurando el cumplimiento del Model Context Protocol
+ * Este script inicia el servidor Firebird asegurando el cumplimiento del Model Context Protocol,
  * que requiere que solo mensajes JSON válidos vayan a stdout, mientras todos los logs
  * se redirigen a stderr.
  */
 
-// Guardar referencias originales a los streams y funciones
-const originalStdoutWrite = process.stdout.write.bind(process.stdout);
-const originalStderrWrite = process.stderr.write.bind(process.stderr);
-const originalConsoleLog = console.log;
-const originalConsoleWarn = console.warn;
-const originalConsoleError = console.error;
-const originalConsoleInfo = console.info;
+import { spawn } from 'child_process';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import fs from 'fs';
 
-/**
- * Verifica si una cadena es un JSON válido
- * @param {string} str - Cadena a verificar
- * @returns {boolean} True si es JSON válido
- */
-function isValidJson(str) {
-    if (typeof str !== 'string') return false;
-    
-    // Eliminar espacios en blanco al inicio y fin
-    str = str.trim();
-    
-    // Verificar si comienza con { o [ (indicador básico de JSON)
-    if (!(str.startsWith('{') || str.startsWith('['))) {
-        return false;
-    }
-    
+// Obtener ruta del servidor
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const serverPath = path.join(__dirname, 'dist', 'index.js');
+
+// Función simple para verificar si un texto es JSON válido
+function isJsonString(str) {
     try {
-        JSON.parse(str);
-        return true;
+        const json = JSON.parse(str);
+        return typeof json === 'object';
     } catch (e) {
         return false;
     }
 }
 
-/**
- * Activa el modo estricto MCP
- */
-function activateMCPGuard() {
-    originalStderrWrite("[MCP-GUARD] Activando protección del Model Context Protocol\n");
-    
-    // Interceptar process.stdout.write
-    process.stdout.write = function(chunk, encoding, callback) {
-        const data = chunk.toString();
-        
-        // Si es JSON válido, permitir que se escriba a stdout
-        if (isValidJson(data)) {
-            return originalStdoutWrite(chunk, encoding, callback);
-        } else {
-            // Si no es JSON válido, redirigir a stderr con prefijo
-            originalStderrWrite(`[MCP-GUARD] Redirigiendo mensajes no-JSON a stderr: ${data}`);
-            
-            // Mantener la funcionalidad del callback
-            if (typeof callback === 'function') {
-                callback();
-            }
-            return true;
-        }
-    };
-    
-    // Redirigir todos los métodos de console a stderr
-    console.log = function(...args) {
-        originalStderrWrite(`[LOG] ${args.join(' ')}\n`);
-    };
-    
-    console.info = function(...args) {
-        originalStderrWrite(`[INFO] ${args.join(' ')}\n`);
-    };
-    
-    console.warn = function(...args) {
-        originalStderrWrite(`[WARN] ${args.join(' ')}\n`);
-    };
-    
-    console.error = function(...args) {
-        originalStderrWrite(`[ERROR] ${args.join(' ')}\n`);
-    };
-    
-    originalStderrWrite("[MCP-GUARD] Protección activada - Solo JSON válido irá a stdout\n");
-}
+// Mensaje de inicio
+console.error('[MCP-SERVER] Iniciando servidor MCP Firebird con protección de protocolo');
 
-// Activar la protección MCP inmediatamente antes de cualquier otra operación
-activateMCPGuard();
+// Crear el proceso del servidor
+const serverProcess = spawn('node', [serverPath], {
+    stdio: ['pipe', 'pipe', 'pipe'],
+    env: process.env
+});
 
-// Cargar y ejecutar el servidor
-originalStderrWrite("[MCP-GUARD] Iniciando servidor MCP Firebird...\n");
-
-// Importar el módulo del servidor y manejar cualquier error
-import('./dist/index.js').catch(err => {
-    originalStderrWrite(`[FATAL] Error al cargar el servidor MCP: ${err}\n`);
-    if (err.stack) {
-        originalStderrWrite(`[FATAL] Stack de error: ${err.stack}\n`);
+// Manejar stdout del servidor - Solo permitir JSON válido
+serverProcess.stdout.on('data', (data) => {
+    const text = data.toString().trim();
+    if (isJsonString(text)) {
+        process.stdout.write(data);
+    } else {
+        console.error(`[MCP-SERVER] Redirigiendo no-JSON: ${text}`);
     }
+});
+
+// Redirigir stderr a process.stderr
+serverProcess.stderr.on('data', (data) => {
+    process.stderr.write(data);
+});
+
+// Manejar eventos del proceso hijo
+serverProcess.on('error', (err) => {
+    console.error(`[MCP-SERVER] Error al iniciar servidor: ${err.message}`);
     process.exit(1);
+});
+
+serverProcess.on('close', (code) => {
+    console.error(`[MCP-SERVER] Servidor finalizado con código: ${code}`);
+    process.exit(code);
+});
+
+// Reenviar señales al proceso hijo
+['SIGINT', 'SIGTERM', 'SIGHUP'].forEach(signal => {
+    process.on(signal, () => {
+        console.error(`[MCP-SERVER] Recibida señal ${signal}, cerrando servidor`);
+        serverProcess.kill(signal);
+    });
 });

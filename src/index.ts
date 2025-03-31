@@ -7,6 +7,7 @@ import pkgJson from '../package.json' with { type: 'json' };
 const { version } = pkgJson;
 import * as os from 'os';
 import * as process from 'process';
+import { logToStderr } from './utils/mcp-guard.js';
 
 /**
  * Interfaz para los módulos de MCP que se cargan dinámicamente
@@ -25,21 +26,21 @@ interface MCPModules {
 function handleFatalError(error: Error | FirebirdError | unknown, exit: boolean = true, exitCode: number = 1): void {
     // Escribimos directamente a stderr
     if (error instanceof FirebirdError) {
-        process.stderr.write(`[ERROR] Error fatal [${error.type}]: ${error.message}\n`);
+        logToStderr(`Error fatal [${error.type}]: ${error.message}`, 'ERROR');
         if (error.originalError) {
-            process.stderr.write(`[ERROR] Error original: ${error.originalError}\n`);
+            logToStderr(`Error original: ${error.originalError}`, 'ERROR');
         }
     } else if (error instanceof Error) {
-        process.stderr.write(`[ERROR] Error fatal: ${error.message}\n`);
+        logToStderr(`Error fatal: ${error.message}`, 'ERROR');
         if (error.stack) {
-            process.stderr.write(`[ERROR] Error stack: ${error.stack}\n`);
+            logToStderr(`Error stack: ${error.stack}`, 'ERROR');
         }
     } else {
-        process.stderr.write(`[ERROR] Error fatal desconocido: ${String(error)}\n`);
+        logToStderr(`Error fatal desconocido: ${String(error)}`, 'ERROR');
     }
     
     if (exit) {
-        process.stderr.write(`[ERROR] Saliendo con código de error: ${exitCode}\n`);
+        logToStderr(`Saliendo con código de error: ${exitCode}`, 'ERROR');
         process.exit(exitCode);
     }
 }
@@ -49,17 +50,17 @@ function handleFatalError(error: Error | FirebirdError | unknown, exit: boolean 
  * @returns {Promise<MCPModules>} Módulos cargados
  */
 async function loadMCPModules(): Promise<MCPModules> {
-    process.stderr.write('[INFO] Cargando módulos MCP necesarios...\n');
+    logToStderr('Cargando módulos MCP necesarios...', 'INFO');
     
     try {
         // Importar módulos MCP
         const serverModule = await import('@modelcontextprotocol/sdk/server/mcp.js');
         const stdioModule = await import('@modelcontextprotocol/sdk/server/stdio.js');
         
-        process.stderr.write('[INFO] Módulos MCP cargados correctamente\n');
+        logToStderr('Módulos MCP cargados correctamente', 'INFO');
         return { serverModule, stdioModule };
     } catch (error) {
-        process.stderr.write(`[ERROR] Error al cargar módulos MCP: ${error}\n`);
+        logToStderr(`Error al cargar módulos MCP: ${error}`, 'ERROR');
         throw error;
     }
 }
@@ -68,11 +69,11 @@ async function loadMCPModules(): Promise<MCPModules> {
  * Imprime información del sistema en el inicio
  */
 function logSystemInfo(): void {
-    process.stderr.write(`[INFO] Versión MCP Firebird: ${version}\n`);
-    process.stderr.write(`[INFO] Plataforma: ${os.platform()} ${os.release()}\n`);
-    process.stderr.write(`[INFO] Node.js: ${process.version}\n`);
-    process.stderr.write(`[INFO] Memoria total: ${Math.round(os.totalmem() / (1024 * 1024))} MB\n`);
-    process.stderr.write(`[INFO] CPUs: ${os.cpus().length}\n`);
+    logToStderr(`Versión MCP Firebird: ${version}`, 'INFO');
+    logToStderr(`Plataforma: ${os.platform()} ${os.release()}`, 'INFO');
+    logToStderr(`Node.js: ${process.version}`, 'INFO');
+    logToStderr(`Memoria total: ${Math.round(os.totalmem() / (1024 * 1024))} MB`, 'INFO');
+    logToStderr(`CPUs: ${os.cpus().length}`, 'INFO');
 }
 
 /**
@@ -82,13 +83,13 @@ function setupSignalHandlers(): void {
     // Manejar cierre limpio en SIGINT (Ctrl+C)
     if (process.on) {
         process.on('SIGINT', () => {
-            process.stderr.write('[INFO] Recibida señal SIGINT. Cerrando servidor...\n');
+            logToStderr('Recibida señal SIGINT. Cerrando servidor...', 'INFO');
             process.exit(0);
         });
         
         // Manejar otras señales comunes
         process.on('SIGTERM', () => {
-            process.stderr.write('[INFO] Recibida señal SIGTERM. Cerrando servidor...\n');
+            logToStderr('Recibida señal SIGTERM. Cerrando servidor...', 'INFO');
             process.exit(0);
         });
         
@@ -102,7 +103,7 @@ function setupSignalHandlers(): void {
             handleFatalError(reason instanceof Error ? reason : new Error(String(reason)));
         });
     } else {
-        process.stderr.write('[WARN] No se pudo configurar manejadores de señales estándar.\n');
+        logToStderr('No se pudo configurar manejadores de señales estándar.', 'WARN');
     }
 }
 
@@ -120,8 +121,8 @@ async function performHealthCheck(): Promise<boolean> {
     const missingVars = requiredEnvVars.filter(v => !process.env[v]);
     
     if (missingVars.length > 0) {
-        process.stderr.write(`[WARN] Variables de entorno faltantes: ${missingVars.join(', ')}\n`);
-        process.stderr.write('[WARN] Se utilizarán valores predeterminados donde sea posible\n');
+        logToStderr(`Variables de entorno faltantes: ${missingVars.join(', ')}`, 'WARN');
+        logToStderr('Se utilizarán valores predeterminados donde sea posible', 'WARN');
         checkPassed = false;
     }
     
@@ -143,22 +144,22 @@ async function main(): Promise<void> {
         logSystemInfo();
         
         // Cargar los módulos MCP necesarios
-        process.stderr.write('[INFO] Cargando módulos MCP necesarios...\n');
+        logToStderr('Cargando módulos MCP necesarios...', 'INFO');
         const { serverModule, stdioModule } = await loadMCPModules();
         
         // Crear transporte STDIO
-        process.stderr.write('[INFO] Creando transporte STDIO...\n');
+        logToStderr('Creando transporte STDIO...', 'INFO');
         
         // Crear el transporte STDIO 
         const transport = new stdioModule.StdioServerTransport();
-        process.stderr.write('[INFO] Transporte STDIO creado\n');
+        logToStderr('Transporte STDIO creado', 'INFO');
         
         // Inicializar el servidor
-        process.stderr.write('[INFO] Inicializando servidor MCP...\n');
+        logToStderr('Inicializando servidor MCP...', 'INFO');
         const server = await initializeServer(serverModule, transport);
         
         // Permitir que el SDK maneje la lógica de cierre
-        process.stderr.write('[INFO] Servidor MCP inicializado correctamente\n');
+        logToStderr('Servidor MCP inicializado correctamente', 'INFO');
         
     } catch (error) {
         // Manejar cualquier error durante la inicialización
