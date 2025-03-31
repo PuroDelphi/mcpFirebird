@@ -25,21 +25,8 @@ export const initializeServer = async (serverModule: any, transport: any) => {
         process.stderr.write("[INIT] Creando servidor MCP...\n");
         const server = new serverModule.McpServer({
             name: 'Firebird MCP',
-            version: '1.1.1',
+            version: '1.1.2',
             description: 'Servidor MCP para bases de datos Firebird SQL'
-        });
-        
-        // Captura de errores no manejados para evitar que el servidor se cierre
-        process.on('uncaughtException', (error) => {
-            process.stderr.write(`[ERROR] Excepción no capturada: ${error.message}\n`);
-            logger.error(`Excepción no capturada: ${error.message}\n${error.stack}`);
-            // No salimos del proceso para que el servidor continúe funcionando
-        });
-        
-        process.on('unhandledRejection', (reason, promise) => {
-            process.stderr.write(`[ERROR] Promesa rechazada no manejada: ${reason}\n`);
-            logger.error(`Promesa rechazada no manejada: ${reason}`);
-            // No salimos del proceso para que el servidor continúe funcionando
         });
         
         // Configurar con manejo de errores para evitar fallos por nombres duplicados
@@ -73,15 +60,23 @@ export const initializeServer = async (serverModule: any, transport: any) => {
         // Conectar el servidor al transporte
         process.stderr.write("[INIT] Conectando servidor al transporte...\n");
         
-        // Configuramos manejadores para eventos del servidor
-        server.on('error', (error: any) => {
-            process.stderr.write(`[ERROR] Error en el servidor MCP: ${error.message}\n`);
-            logger.error(`Error en el servidor MCP: ${error.message}\n${error.stack}`);
-        });
-        
         // Conectamos el servidor al transporte con manejo de errores mejorado
         try {
+            // Esto es crítico: aseguramos que el console.log original esté disponible
+            // para que el transporte pueda comunicarse directamente con stdout
+            const originalConsoleLog = console.log;
+            
+            // Restaurar temporalmente console.log para la conexión
+            console.log = originalConsoleLog;
+            
+            // Conectar el servidor al transporte
             await server.connect(transport);
+            
+            // El SDK MCP ya está conectado, podemos volver a redireccionar logs futuros
+            console.log = (...args) => {
+                process.stderr.write(`[LOG] ${args.join(' ')}\n`);
+            };
+            
             process.stderr.write("[INIT] Servidor conectado y listo para recibir peticiones\n");
             
             // Notificar que el servidor está listo

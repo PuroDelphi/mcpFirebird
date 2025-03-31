@@ -30,7 +30,7 @@ export const setupDatabaseResources = (server: any, serverModule: any) => {
                         uri: "firebird://databases",
                         name: "Bases de datos Firebird",
                         mimeType: "application/json",
-                        text: JSON.stringify({ success: true, databases })
+                        text: compactJsonStringify({ databases })
                     }]
                 };
             } catch (error) {
@@ -40,10 +40,9 @@ export const setupDatabaseResources = (server: any, serverModule: any) => {
                         uri: "firebird://databases/error",
                         name: "Error en bases de datos",
                         mimeType: "application/json",
-                        text: JSON.stringify({ 
-                            success: false, 
+                        text: compactJsonStringify({ 
                             error: "Error al obtener el listado de bases de datos", 
-                            message: String(error)
+                            details: String(error)
                         })
                     }]
                 };
@@ -67,7 +66,7 @@ export const setupDatabaseResources = (server: any, serverModule: any) => {
                         uri: "firebird://tables",
                         name: "Tablas de la base de datos",
                         mimeType: "application/json",
-                        text: JSON.stringify({ success: true, tables })
+                        text: compactJsonStringify({ tables })
                     }]
                 };
             } catch (error) {
@@ -77,10 +76,9 @@ export const setupDatabaseResources = (server: any, serverModule: any) => {
                         uri: "firebird://tables/error",
                         name: "Error en listado de tablas",
                         mimeType: "application/json",
-                        text: JSON.stringify({ 
-                            success: false, 
+                        text: compactJsonStringify({ 
                             error: "Error al obtener las tablas", 
-                            message: String(error)
+                            details: String(error)
                         })
                     }]
                 };
@@ -104,7 +102,7 @@ export const setupDatabaseResources = (server: any, serverModule: any) => {
                         uri: "firebird://views",
                         name: "Vistas de la base de datos",
                         mimeType: "application/json",
-                        text: JSON.stringify({ success: true, views })
+                        text: compactJsonStringify({ views })
                     }]
                 };
             } catch (error) {
@@ -114,10 +112,9 @@ export const setupDatabaseResources = (server: any, serverModule: any) => {
                         uri: "firebird://views/error",
                         name: "Error en listado de vistas",
                         mimeType: "application/json",
-                        text: JSON.stringify({ 
-                            success: false, 
+                        text: compactJsonStringify({ 
                             error: "Error al obtener las vistas", 
-                            message: String(error)
+                            details: String(error)
                         })
                     }]
                 };
@@ -125,7 +122,7 @@ export const setupDatabaseResources = (server: any, serverModule: any) => {
         }
     );
 
-    // Recurso para listar procedimientos
+    // Recurso para listar procedimientos almacenados
     server.resource(
         "procedures",
         { 
@@ -139,9 +136,9 @@ export const setupDatabaseResources = (server: any, serverModule: any) => {
                 return {
                     contents: [{
                         uri: "firebird://procedures",
-                        name: "Procedimientos de la base de datos",
+                        name: "Procedimientos almacenados",
                         mimeType: "application/json",
-                        text: JSON.stringify({ success: true, procedures })
+                        text: compactJsonStringify({ procedures })
                     }]
                 };
             } catch (error) {
@@ -151,10 +148,9 @@ export const setupDatabaseResources = (server: any, serverModule: any) => {
                         uri: "firebird://procedures/error",
                         name: "Error en listado de procedimientos",
                         mimeType: "application/json",
-                        text: JSON.stringify({ 
-                            success: false, 
+                        text: compactJsonStringify({ 
                             error: "Error al obtener los procedimientos", 
-                            message: String(error)
+                            details: String(error)
                         })
                     }]
                 };
@@ -162,126 +158,154 @@ export const setupDatabaseResources = (server: any, serverModule: any) => {
         }
     );
 
-    // Recurso de plantilla para descripciones de campos de tabla
+    // Recurso para obtener esquema de una tabla
     server.resource(
-        "field-descriptions-template",
-        {
-            uriTemplate: "firebird://field-descriptions/{tableName}",
-            description: "Descripciones de los campos de una tabla específica en Firebird. Reemplazar {tableName} con el nombre de la tabla deseada."
+        "tableSchema",
+        { 
+            uri: "firebird://schema/:table",
+            description: "Obtiene el esquema completo de una tabla específica de la base de datos"
         },
-        async (uri: URL) => {
-            // Extraer el nombre de la tabla de la URI
-            const pathParts = uri.pathname.split('/');
-            const tableName = pathParts[pathParts.length - 1];
-            
-            logger.info(`Accediendo a descripciones de campos para la tabla ${tableName}`);
-            try {
-                validateSql({ table: tableName });
-                const fieldDescriptions = await getFieldDescriptions(tableName);
+        async (request: any) => {
+            const tableName = request.params.table;
+            if (!tableName) {
                 return {
                     contents: [{
-                        uri: uri.href,
-                        name: `Descripciones de campos de ${tableName}`,
+                        uri: "firebird://schema/error",
+                        name: "Error en la solicitud",
                         mimeType: "application/json",
-                        text: JSON.stringify({ success: true, fieldDescriptions })
-                    }]
-                };
-            } catch (error) {
-                logger.error(`Error al obtener descripciones de campos para ${tableName}: ${error}`);
-                return {
-                    contents: [{
-                        uri: uri.href + "/error",
-                        name: `Error en descripciones de campos de ${tableName}`,
-                        mimeType: "application/json",
-                        text: JSON.stringify({ 
-                            success: false, 
-                            error: `Error al obtener descripciones de campos para ${tableName}`, 
-                            message: String(error)
-                        })
+                        text: compactJsonStringify({ error: "Nombre de tabla no especificado" })
                     }]
                 };
             }
-        }
-    );
-    
-    // Recurso de plantilla para esquema de tabla
-    server.resource(
-        "table-schema-template",
-        {
-            uriTemplate: "firebird://schema/{tableName}",
-            description: "Esquema detallado de una tabla específica en Firebird. Reemplazar {tableName} con el nombre de la tabla deseada."
-        },
-        async (uri: URL) => {
-            // Extraer el nombre de la tabla de la URI
-            const pathParts = uri.pathname.split('/');
-            const tableName = pathParts[pathParts.length - 1];
-            
-            logger.info(`Accediendo al esquema de la tabla ${tableName}`);
+
+            logger.info(`Obteniendo esquema para la tabla: ${tableName}`);
             try {
-                validateSql({ table: tableName });
+                // Validar nombre de tabla para evitar inyección SQL
+                validateSql(tableName);
+                
                 const schema = await getTableSchema(tableName);
                 return {
                     contents: [{
-                        uri: uri.href,
+                        uri: `firebird://schema/${tableName}`,
                         name: `Esquema de ${tableName}`,
                         mimeType: "application/json",
-                        text: JSON.stringify({ success: true, schema })
+                        text: compactJsonStringify({ schema })
                     }]
                 };
             } catch (error) {
                 logger.error(`Error al obtener esquema de ${tableName}: ${error}`);
                 return {
                     contents: [{
-                        uri: uri.href + "/error",
-                        name: `Error en esquema de ${tableName}`,
+                        uri: `firebird://schema/error`,
+                        name: "Error al obtener esquema",
                         mimeType: "application/json",
-                        text: JSON.stringify({ 
-                            success: false, 
-                            error: `Error al obtener esquema de ${tableName}`, 
-                            message: String(error)
+                        text: compactJsonStringify({ 
+                            error: `Error al obtener el esquema de ${tableName}`, 
+                            details: String(error)
                         })
                     }]
                 };
             }
         }
     );
-    
-    // Recurso de plantilla para datos de tabla
+
+    // Recurso para obtener descripciones de campos
     server.resource(
-        "table-data-template",
-        {
-            uriTemplate: "firebird://data/{tableName}",
-            description: "Datos almacenados en una tabla específica de Firebird. Reemplazar {tableName} con el nombre de la tabla deseada."
+        "fieldDescriptions",
+        { 
+            uri: "firebird://fields/:table",
+            description: "Obtiene descripciones de los campos para una tabla específica"
         },
-        async (uri: URL) => {
-            // Extraer el nombre de la tabla de la URI
-            const pathParts = uri.pathname.split('/');
-            const tableName = pathParts[pathParts.length - 1];
-            
-            logger.info(`Accediendo a los datos de la tabla ${tableName}`);
-            try {
-                validateSql({ table: tableName });
-                const query = `SELECT FIRST 100 * FROM ${tableName}`;
-                const data = await executeQuery(query);
+        async (request: any) => {
+            const tableName = request.params.table;
+            if (!tableName) {
                 return {
                     contents: [{
-                        uri: uri.href,
-                        name: `Datos de ${tableName}`,
+                        uri: "firebird://fields/error",
+                        name: "Error en la solicitud",
                         mimeType: "application/json",
-                        text: JSON.stringify({ success: true, data })
+                        text: compactJsonStringify({ error: "Nombre de tabla no especificado" })
+                    }]
+                };
+            }
+
+            logger.info(`Obteniendo descripciones de campos para tabla: ${tableName}`);
+            try {
+                // Validar nombre de tabla para evitar inyección SQL
+                validateSql(tableName);
+                
+                const descriptions = await getFieldDescriptions(tableName);
+                return {
+                    contents: [{
+                        uri: `firebird://fields/${tableName}`,
+                        name: `Descripciones de campos de ${tableName}`,
+                        mimeType: "application/json",
+                        text: compactJsonStringify({ descriptions })
                     }]
                 };
             } catch (error) {
-                logger.error(`Error al obtener datos de ${tableName}: ${error}`);
+                logger.error(`Error al obtener descripciones de campos para ${tableName}: ${error}`);
                 return {
                     contents: [{
-                        uri: uri.href + "/error",
-                        name: `Error en datos de ${tableName}`,
+                        uri: `firebird://fields/error`,
+                        name: "Error al obtener descripciones",
                         mimeType: "application/json",
-                        text: JSON.stringify({ 
-                            success: false, 
-                            error: `Error al obtener datos de ${tableName}`, 
-                            message: String(error)
+                        text: compactJsonStringify({ 
+                            error: `Error al obtener descripciones de campos para ${tableName}`, 
+                            details: String(error)
+                        })
+                    }]
+                };
+            }
+        }
+    );
+
+    // Recurso para ejecutar una consulta SQL
+    server.resource(
+        "queryResult",
+        { 
+            uri: "firebird://query",
+            description: "Ejecuta una consulta SQL personalizada y devuelve los resultados"
+        },
+        async (request: any) => {
+            const query = request.query.sql;
+            const params = request.query.params || [];
+            
+            if (!query) {
+                return {
+                    contents: [{
+                        uri: "firebird://query/error",
+                        name: "Error en la consulta",
+                        mimeType: "application/json",
+                        text: compactJsonStringify({ error: "Consulta SQL no especificada" })
+                    }]
+                };
+            }
+
+            logger.info(`Ejecutando consulta SQL personalizada: ${query}`);
+            try {
+                // Validar la consulta SQL para evitar inyección
+                validateSql(query);
+                
+                const results = await executeQuery(query, params);
+                return {
+                    contents: [{
+                        uri: "firebird://query/results",
+                        name: "Resultados de la consulta",
+                        mimeType: "application/json",
+                        text: compactJsonStringify({ results })
+                    }]
+                };
+            } catch (error) {
+                logger.error(`Error al ejecutar consulta SQL: ${error}`);
+                return {
+                    contents: [{
+                        uri: "firebird://query/error",
+                        name: "Error en la consulta",
+                        mimeType: "application/json",
+                        text: compactJsonStringify({ 
+                            error: "Error al ejecutar la consulta SQL", 
+                            details: String(error)
                         })
                     }]
                 };
