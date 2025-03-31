@@ -29,19 +29,33 @@ export const initializeServer = async (serverModule: any, transport: any) => {
             description: 'Servidor MCP para bases de datos Firebird SQL'
         });
         
-        // Configurar herramientas
-        process.stderr.write("[INIT] Registrando herramientas...\n");
-        setupDatabaseTools(server);
-        setupMetadataTools(server);
-        
-        // Configurar prompts
-        process.stderr.write("[INIT] Registrando prompts...\n");
-        setupSqlPrompts(server);
-        setupDatabasePrompts(server);
-        
-        // Configurar recursos
-        process.stderr.write("[INIT] Registrando recursos...\n");
-        setupDatabaseResources(server, serverModule);
+        // Configurar con manejo de errores para evitar fallos por nombres duplicados
+        try {
+            // Configurar herramientas
+            process.stderr.write("[INIT] Registrando herramientas...\n");
+            setupDatabaseTools(server);
+            process.stderr.write("[INIT] Herramientas de base de datos registradas\n");
+            
+            setupMetadataTools(server);
+            process.stderr.write("[INIT] Herramientas de metadatos registradas\n");
+            
+            // Configurar prompts
+            process.stderr.write("[INIT] Registrando prompts...\n");
+            setupSqlPrompts(server);
+            process.stderr.write("[INIT] Prompts SQL registrados\n");
+            
+            setupDatabasePrompts(server);
+            process.stderr.write("[INIT] Prompts de base de datos registrados\n");
+            
+            // Configurar recursos
+            process.stderr.write("[INIT] Registrando recursos...\n");
+            setupDatabaseResources(server, serverModule);
+            process.stderr.write("[INIT] Recursos de base de datos registrados\n");
+        } catch (toolError) {
+            logger.error(`Error al registrar herramientas o prompts: ${toolError}`);
+            process.stderr.write(`[ERROR] Falló el registro de algunas herramientas: ${toolError}\n`);
+            // Continuamos a pesar del error para que el servidor pueda iniciar con las herramientas que sí funcionan
+        }
         
         // Conectar el servidor al transporte
         process.stderr.write("[INIT] Conectando servidor al transporte...\n");
@@ -49,11 +63,10 @@ export const initializeServer = async (serverModule: any, transport: any) => {
         process.stderr.write("[INIT] Servidor conectado y listo para recibir peticiones\n");
         
         // Notificar que el servidor está listo
-        logger.info('Servidor MCP Firebird inicializado correctamente');
-        
+        logger.info('Servidor MCP conectado y listo');
         return server;
     } catch (error) {
-        logger.error(`Error al iniciar servidor: ${error}`);
+        logger.error(`Error al inicializar el servidor MCP: ${error}`);
         throw error;
     }
 };

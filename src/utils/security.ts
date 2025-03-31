@@ -1,4 +1,4 @@
-import { MCPConfig, MCPQuery } from '../types';
+import { MCPConfig, MCPQuery } from '../types.js';
 
 export function validateConfig(config: MCPConfig): MCPConfig {
   if (!config.host) {
@@ -34,6 +34,65 @@ export function sanitizeInput<T>(input: T): T {
   return input;
 }
 
+/**
+ * Valida y sanitiza parámetros de consultas SQL
+ * @param {string | { table?: string, sql?: string }} input - String SQL o objeto con nombre de tabla o consulta SQL
+ * @returns {boolean} Verdadero si la entrada es válida
+ * @throws {Error} Si la entrada contiene caracteres o patrones peligrosos
+ */
+export function validateSql(input: string | { table?: string, sql?: string }): boolean {
+  // Si es un objeto, procesamos cada propiedad relevante
+  if (typeof input === 'object') {
+    if (input.table) {
+      // Validar nombre de tabla
+      const tableName = input.table.trim();
+      if (!tableName || tableName.length === 0) {
+        throw new Error('Nombre de tabla vacío');
+      }
+      
+      // Verificar caracteres no permitidos en nombres de tabla
+      const tableNameRegex = /^[a-zA-Z0-9_]+$/;
+      if (!tableNameRegex.test(tableName)) {
+        throw new Error(`Nombre de tabla inválido: ${tableName}. Solo se permiten letras, números y guiones bajos.`);
+      }
+    }
+    
+    if (input.sql) {
+      // Validar consulta SQL
+      return validateSql(input.sql);
+    }
+    
+    return true;
+  }
+  
+  // Validación de cadena SQL
+  const sql = input.trim();
+  if (!sql || sql.length === 0) {
+    throw new Error('Consulta SQL vacía');
+  }
+  
+  // Patrones de SQL peligrosos
+  const dangerousPatterns = [
+    /--/,              // Comentarios de línea
+    /\/\*/,            // Comentarios de bloque inicio
+    /\*\//,            // Comentarios de bloque fin
+    /;.*;/,            // Múltiples consultas
+    /xp_cmdshell/i,    // Comandos del sistema (específico de SQL Server, pero buena práctica)
+    /EXECUTE\s+sp_/i,  // Procedimientos del sistema
+    /INTO\s+OUTFILE/i, // Escritura de archivos
+    /UNION\s+ALL\s+SELECT/i, // Ataques de Unión típicos
+  ];
+  
+  // Verificar patrones peligrosos
+  for (const pattern of dangerousPatterns) {
+    if (pattern.test(sql)) {
+      throw new Error(`Consulta SQL potencialmente peligrosa detectada: ${sql}`);
+    }
+  }
+  
+  return true;
+}
+
 export function validateQuery(query: MCPQuery): MCPQuery {
   if (!query.sql) {
     throw new Error('SQL query is required');
@@ -44,66 +103,7 @@ export function validateQuery(query: MCPQuery): MCPQuery {
     context: query.context ? {
       description: query.context.description?.trim(),
       constraints: query.context.constraints?.map(c => c.trim()),
-      preferences: query.context.preferences?.map(p => p.trim())
+      preferences: query.context.preferences?.map((p: string) => p.trim())
     } : undefined
   };
-}
-
-/**
- * Valida una consulta SQL o nombre de tabla/campo para prevenir inyección SQL
- * @param sql Consulta SQL o nombre de tabla/campo a validar
- * @returns true si es válido, false si es potencialmente peligroso
- */
-export function validateSql(sql: string): boolean {
-  if (!sql) return false;
-  
-  const sanitized = sql.trim();
-  
-  // Lista de palabras clave o patrones que podrían indicar un intento de inyección SQL
-  const dangerousPatterns = [
-    /;\s*DROP\s+/i,
-    /;\s*DELETE\s+/i, 
-    /;\s*UPDATE\s+/i,
-    /;\s*INSERT\s+/i,
-    /;\s*ALTER\s+/i,
-    /;\s*CREATE\s+/i,
-    /UNION\s+ALL\s+SELECT/i,
-    /UNION\s+SELECT/i,
-    /--/,         // Comentarios SQL
-    /\/\*/,       // Comentarios de bloque
-    /xp_cmdshell/i, // Procedimientos almacenados peligrosos
-    /exec\s+master/i,
-    /exec\s+xp_/i,
-    /INTO\s+OUTFILE/i,
-    /INTO\s+DUMPFILE/i
-  ];
-  
-  // Verificamos si la consulta contiene patrones peligrosos
-  for (const pattern of dangerousPatterns) {
-    if (pattern.test(sanitized)) {
-      return false;
-    }
-  }
-  
-  // Verificar el balance de comillas y paréntesis para consultas completas
-  // Solo para consultas, no para nombres de tablas/campos
-  if (sanitized.toLowerCase().startsWith('select') || 
-      sanitized.toLowerCase().startsWith('update') || 
-      sanitized.toLowerCase().startsWith('delete') || 
-      sanitized.toLowerCase().startsWith('insert')) {
-    
-    const singleQuotes = (sanitized.match(/'/g) || []).length;
-    const doubleQuotes = (sanitized.match(/"/g) || []).length;
-    const openParens = (sanitized.match(/\(/g) || []).length;
-    const closeParens = (sanitized.match(/\)/g) || []).length;
-    
-    // Verificar que las comillas y paréntesis estén balanceados
-    if (singleQuotes % 2 !== 0 || 
-        doubleQuotes % 2 !== 0 || 
-        openParens !== closeParens) {
-      return false;
-    }
-  }
-  
-  return true;
 }

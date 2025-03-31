@@ -11,7 +11,7 @@ const logger = createLogger('tools:metadata');
 export const setupMetadataTools = (server: any) => {
     // Implementar el handler para get-methods
     server.tool(
-        "get-methods",
+        "get-metadata-methods",
         {},
         async () => {
             logger.info("Obteniendo descripción de métodos disponibles");
@@ -72,8 +72,8 @@ export const setupMetadataTools = (server: any) => {
                     returns: "Query results as an array of records"
                 },
                 {
-                    name: "get-methods",
-                    description: "Returns a description of all available MCP methods",
+                    name: "get-metadata-methods",
+                    description: "Returns a description of all available metadata MCP methods",
                     parameters: [],
                     returns: "Array of method objects with name, description, parameters, and return type"
                 }

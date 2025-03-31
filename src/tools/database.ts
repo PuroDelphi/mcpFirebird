@@ -331,7 +331,7 @@ export const setupDatabaseTools = (server: MCPServer): void => {
     
     // Prompt para consultar datos
     server.prompt(
-        "query-data",
+        "firebird-query-help",
         "Ayuda al usuario a consultar datos de la base de datos Firebird",
         {
             description: "Ayuda al usuario a consultar datos de la base de datos Firebird. Firebird usa FIRST/ROWS para paginación en lugar de LIMIT.",

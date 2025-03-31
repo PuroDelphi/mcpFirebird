@@ -25,17 +25,9 @@ export function restoreStdout(): void {
     process.stdout.write = originalStdoutWrite;
 }
 
-// Manejar excepciones no capturadas para evitar que rompan el protocolo
-process.on('uncaughtException', (error: Error) => {
-    process.stderr.write(`[FATAL] Excepción no capturada: ${error?.stack || error}\n`);
-    // No terminamos el proceso para permitir que continúe la comunicación
-});
-
-process.on('unhandledRejection', (reason: any) => {
-    process.stderr.write(`[FATAL] Promesa rechazada no capturada: ${reason?.stack || reason}\n`);
-    // No terminamos el proceso para permitir que continúe la comunicación
-});
+// No registramos manejadores de excepciones aquí porque
+// esto podría entrar en conflicto con los manejadores de errores en index.ts
 
 export default {
     restoreStdout
-}; 
+};

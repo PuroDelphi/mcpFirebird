@@ -3,7 +3,9 @@ import './utils/stdout-guard.js';
 import { createLogger } from './utils/logger.js';
 import { initializeServer } from './server/index.js';
 import { FirebirdError } from './db/connection.js';
-import { version } from '../package.json';
+// Import package.json with proper attribute for Node.js v22
+import pkgJson from '../package.json' with { type: 'json' };
+const { version } = pkgJson;
 import * as os from 'os';
 import * as process from 'process';
 
@@ -89,25 +91,53 @@ function logSystemInfo(): void {
 function setupSignalHandlers(): void {
     const logger = createLogger('signal-handler');
     
-    process.on('SIGINT', () => {
-        logger.info('Recibida señal SIGINT, cerrando...');
-        process.exit(0);
-    });
-    
-    process.on('SIGTERM', () => {
-        logger.info('Recibida señal SIGTERM, cerrando...');
-        process.exit(0);
-    });
-    
-    process.on('unhandledRejection', (reason) => {
-        logger.error('Promesa rechazada no manejada');
-        handleFatalError(reason || new Error('Promesa rechazada desconocida'), false);
-    });
-    
-    process.on('uncaughtException', (error) => {
-        logger.error('Excepción no capturada');
-        handleFatalError(error, true);
-    });
+    try {
+        // Intentar configurar los manejadores de señales estándar
+        process.on('SIGINT', () => {
+            logger.info('Recibida señal SIGINT, cerrando...');
+            process.exit(0);
+        });
+        
+        process.on('SIGTERM', () => {
+            logger.info('Recibida señal SIGTERM, cerrando...');
+            process.exit(0);
+        });
+        
+        process.on('unhandledRejection', (reason) => {
+            logger.error('Promesa rechazada no manejada');
+            handleFatalError(reason || new Error('Promesa rechazada desconocida'), false);
+        });
+        
+        process.on('uncaughtException', (error) => {
+            logger.error('Excepción no capturada');
+            handleFatalError(error, true);
+        });
+        
+        logger.info('Manejadores de señales configurados correctamente');
+    } catch (error) {
+        // Si hay un error al configurar los manejadores de señales, registrarlo pero continuar
+        logger.warn(`No se pudieron configurar manejadores de señales: ${error instanceof Error ? error.message : String(error)}`);
+        
+        // Configuración básica de manejo de errores para entornos que no soportan process.on
+        const handleGlobalErrors = () => {
+            logger.info('Configurando manejadores de errores alternativos');
+            
+            // Función auxiliar para manejar errores no capturados
+            function handleUncaughtError(error: Error | unknown): void {
+                logger.error('Error global no capturado');
+                handleFatalError(error || new Error('Error desconocido'), false);
+            }
+            
+            // Se puede agregar aquí lógica específica para otros entornos si es necesario
+        };
+        
+        // Intentar configurar manejadores alternativos
+        try {
+            handleGlobalErrors();
+        } catch (innerError) {
+            logger.error(`No se pudieron configurar manejadores alternativos: ${innerError instanceof Error ? innerError.message : String(innerError)}`);
+        }
+    }
 }
 
 /**
