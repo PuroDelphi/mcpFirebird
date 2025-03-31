@@ -497,11 +497,11 @@ begin
       WriteLn('Tablas disponibles: ', Tables.ToString);
       
       // Ejecutar una consulta
-      QueryResults := Client.ExecuteQuery('SELECT FIRST 10 * FROM EMPLOYEES');
-      WriteLn('Resultados de la consulta: ', QueryResults.ToString);
+      QueryResults := Client.ExecuteQuery("SELECT FIRST 10 * FROM EMPLOYEES");
+      WriteLn('Resultados: ', QueryResults.ToString);
       
       // Generar SQL
-      GeneratedSQL := Client.GenerateSQL('Obtener todos los clientes premium');
+      GeneratedSQL := Client.GenerateSQL("Listar los productos más vendidos");
       WriteLn('SQL generado: ', GeneratedSQL.ToString);
     finally
       Client.Free;
@@ -514,193 +514,6 @@ begin
   WriteLn('Presiona ENTER para salir...');
   ReadLn;
 end.
-```
-
-## Configuración con Docker
-
-Puedes ejecutar el servidor MCP Firebird en un contenedor Docker:
-
-### Dockerfile
-
-```dockerfile
-FROM node:18-alpine
-
-# Instalar dependencias necesarias para Firebird
-RUN apk add --no-cache firebird-client
-
-# Crear directorio de la aplicación
-WORKDIR /app
-
-# Copiar archivos del proyecto
-COPY package*.json ./
-RUN npm install
-
-# Copiar el código fuente
-COPY . .
-
-# Compilar el proyecto TypeScript
-RUN npm run build
-
-# Exponer puerto si se usa HTTP (opcional)
-# EXPOSE 3000
-
-# Establecer variables de entorno por defecto
-ENV FIREBIRD_HOST=firebird-db
-ENV FIREBIRD_PORT=3050
-ENV FIREBIRD_USER=SYSDBA
-ENV FIREBIRD_PASSWORD=masterkey
-ENV FIREBIRD_DATABASE=/firebird/data/database.fdb
-
-# Comando de inicio
-CMD ["node", "dist/index.js"]
-```
-
-### Docker Compose
-
-```yaml
-version: '3.8'
-
-services:
-  # Servidor de base de datos Firebird
-  firebird-db:
-    image: jacobalberty/firebird:3.0
-    environment:
-      ISC_PASSWORD: masterkey
-      FIREBIRD_DATABASE: database.fdb
-      FIREBIRD_USER: SYSDBA
-    volumes:
-      - firebird-data:/firebird/data
-    ports:
-      - "3050:3050"
-    networks:
-      - mcp-network
-
-  # Servidor MCP Firebird
-  mcp-firebird:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    environment:
-      FIREBIRD_HOST: firebird-db
-      FIREBIRD_PORT: 3050
-      FIREBIRD_USER: SYSDBA
-      FIREBIRD_PASSWORD: masterkey
-      FIREBIRD_DATABASE: /firebird/data/database.fdb
-    depends_on:
-      - firebird-db
-    networks:
-      - mcp-network
-    # Para usar con Claude Desktop, exponer STDIO
-    stdin_open: true
-    tty: true
-
-networks:
-  mcp-network:
-    driver: bridge
-
-volumes:
-  firebird-data:
-```
-
-### Ejecución con Docker
-
-```bash
-# Construir y ejecutar con Docker Compose
-docker compose up -d
-
-# Verificar logs
-docker compose logs -f mcp-firebird
-
-# Detener los servicios
-docker compose down
-```
-
-### Casos de uso
-
-1. **Análisis de datos con IA**:
-   - Analizar tendencias de ventas históricas
-   - Identificar patrones en datos financieros
-   - Detectar anomalías en registros de transacciones
-
-2. **Generación de consultas SQL**:
-   - Crear consultas complejas a partir de descripciones en lenguaje natural
-   - Optimizar consultas existentes para mejorar el rendimiento
-   - Traducir consultas entre diferentes dialectos SQL
-
-3. **Documentación automatizada**:
-   - Generar documentación sobre la estructura de la base de datos
-   - Explicar relaciones entre tablas y esquemas
-   - Crear diccionarios de datos detallados
-
-4. **Asistencia en desarrollo**:
-   - Sugerir índices para mejorar el rendimiento
-   - Proponer normalizaciones de esquemas
-   - Ayudar con la migración de datos entre sistemas
-
-### Ejemplo de uso para análisis de ventas
-
-Interacción con Claude:
-
-```
-Usuario: Conéctate a mi base de datos Firebird y analiza las tendencias de ventas por región en el último trimestre.
-
-Claude: Me conectaré a tu base de datos Firebird para analizar las tendencias de ventas regionales.
-
-[Claude usa MCP Firebird para ejecutar varias consultas SQL]
-
-Basado en los datos del último trimestre, he identificado las siguientes tendencias:
-
-1. La región Norte ha experimentado un crecimiento del 12.5% respecto al trimestre anterior
-2. La región Sur muestra una disminución del 3.2% en productos electrónicos
-3. El producto "Laptop Pro X" es el más vendido en todas las regiones
-4. Las ventas en la región Este muestran un patrón cíclico con picos los fines de semana
-
-Gráficamente, la distribución de ventas por región es:
-[Gráfico generado por Claude basado en los datos]
-
-¿Te gustaría profundizar en alguna región o categoría de productos específica?
-```
-
-### Ejemplo de optimización de consultas
-
-```
-Usuario: Tengo esta consulta que está funcionando lenta, ¿puedes optimizarla?
-SELECT c.CUSTOMER_NAME, SUM(o.ORDER_TOTAL) 
-FROM CUSTOMERS c 
-JOIN ORDERS o ON c.CUSTOMER_ID = o.CUSTOMER_ID 
-WHERE o.ORDER_DATE > '2024-01-01' 
-GROUP BY c.CUSTOMER_NAME 
-ORDER BY SUM(o.ORDER_TOTAL) DESC
-
-Claude: Analizaré esta consulta para optimizarla.
-
-[Claude usa MCP Firebird para analizar el esquema y la consulta]
-
-He identificado varias oportunidades de optimización:
-
-1. La consulta actual no utiliza índices eficientemente
-2. El cálculo de SUM(o.ORDER_TOTAL) se realiza dos veces
-
-Aquí está la versión optimizada:
-
-```sql
-SELECT c.CUSTOMER_NAME, total_sales
-FROM CUSTOMERS c 
-JOIN (
-  SELECT CUSTOMER_ID, SUM(ORDER_TOTAL) as total_sales
-  FROM ORDERS 
-  WHERE ORDER_DATE > '2024-01-01'
-  GROUP BY CUSTOMER_ID
-) o ON c.CUSTOMER_ID = o.CUSTOMER_ID 
-ORDER BY total_sales DESC
-```
-
-Esta versión:
-- Reduce el conjunto de datos antes de la unión
-- Calcula la suma una sola vez
-- Podría beneficiarse de un índice en ORDERS(ORDER_DATE, CUSTOMER_ID, ORDER_TOTAL)
-
-Al ejecutar ambas consultas en tu base de datos, la versión optimizada es aproximadamente 45% más rápida.
 ```
 
 ## Configuración de seguridad
@@ -1066,6 +879,102 @@ module.exports = {
 ```
 
 Estos ejemplos ilustran cómo MCP Firebird puede configurarse para diferentes casos de uso, cada uno con sus propias consideraciones de seguridad y acceso a datos.
+
+## Integración con agentes IA
+
+### Claude en la terminal
+
+Puedes usar el servidor MCP Firebird con Claude en la terminal:
+
+```bash
+# Iniciar el servidor MCP en una terminal
+npx mcp-firebird --database /path/to/database.fdb --user SYSDBA --password masterkey
+
+# En otra terminal, usar anthropic CLI con MCP
+anthropic messages create \
+  --model claude-3-opus-20240229 \
+  --max-tokens 4096 \
+  --mcp "npx mcp-firebird --database /path/to/database.fdb --user SYSDBA --password masterkey" \
+  --message "Analiza la estructura de mi base de datos Firebird"
+```
+
+### Otros agentes IA
+
+El servidor MCP Firebird es compatible con cualquier agente que implemente el protocolo MCP, simplemente proporcionando el comando para iniciar el servidor:
+
+```
+npx mcp-firebird --database /path/to/database.fdb --user SYSDBA --password masterkey
+```
+
+## Seguridad
+
+El servidor implementa las siguientes medidas de seguridad:
+
+- Validación de entradas con Zod
+- Sanitización de consultas SQL
+- Manejo seguro de credenciales
+- Prevención de inyección SQL
+- Limitación de operaciones destructivas
+
+## Depuración y solución de problemas
+
+Para habilitar el modo de depuración:
+
+```bash
+export LOG_LEVEL=debug
+```
+
+### Problemas comunes
+
+1. **Error de conexión a la base de datos**:
+   - Verifica las credenciales y ruta de la base de datos
+   - Asegúrate de que el servidor Firebird esté en ejecución
+   - Comprueba que el usuario tenga permisos suficientes
+
+2. **El servidor no aparece en Claude Desktop**:
+   - Reinicia Claude Desktop
+   - Verifica la configuración en `claude_desktop_config.json`
+   - Asegúrate de que la ruta de la base de datos sea absoluta
+
+3. **Problemas con STDIO**:
+   - Asegúrate de que la salida estándar no esté siendo redirigida
+   - No utilices `console.log` para depuración (usa `console.error`)
+
+## Actualizaciones Recientes
+
+### Versión 1.0.93 (Actualizada desde 1.0.91)
+
+MCP Firebird ha sido mejorado significativamente con:
+
+1. **Interfaces TypeScript mejoradas**:
+   - Nuevas interfaces para mejor tipado (FirebirdDatabase, ConfigOptions, DatabaseInfo, TableInfo, etc.)
+   - Tipado más estricto para todos los parámetros y valores de retorno
+
+2. **Manejo de errores mejorado**:
+   - Clase personalizada `FirebirdError` para mejor categorización de errores
+   - Detección detallada de diferentes tipos de errores (conexión, sintaxis, permisos, etc.)
+   - Mensajes de error más informativos para facilitar la depuración
+
+3. **Nuevas características y herramientas**:
+   - Herramienta `get-methods` para descubrimiento de API
+   - Nuevos prompts para analizar tablas y optimizar consultas
+   - Función `describeTable` para obtener estructura detallada de tablas
+   - Función `listTables` para listar nombres de tablas de manera simple
+
+4. **Mejor documentación**:
+   - JSDoc completo para todas las funciones
+   - Descripciones mejoradas de herramientas MCP con información específica de Firebird
+   - Especificación clara de que Firebird usa FIRST/ROWS en lugar de LIMIT para paginación
+
+5. **Mejoras de seguridad**:
+   - Validación explícita de parámetros SQL
+   - Prevención mejorada de inyecciones SQL
+   - Restricciones de acceso configurables para tablas y operaciones
+
+6. **Calidad del código**:
+   - Eliminación de archivos innecesarios (server.js, server.new.js, test-*.js, etc.)
+   - Respuestas JSON más compactas (eliminación de espacios innecesarios)
+   - Enfoque consistente de registro de actividad
 
 ## Integración con agentes IA
 

@@ -1,11 +1,34 @@
-// Base de datos y conexión
+// Módulo de conexión a la base de datos
 import Firebird from 'node-firebird';
 import { createLogger } from '../utils/logger.js';
 
 const logger = createLogger('db:connection');
 
-// Opciones predeterminadas para la conexión a la base de datos
-export const DEFAULT_CONFIG = {
+/**
+ * Tipo para el objeto de conexión de Firebird
+ */
+export interface FirebirdDatabase {
+    query: (sql: string, params: any[], callback: (err: Error | null, results?: any[]) => void) => any;
+    detach: (callback: (err: Error | null) => void) => void;
+    [key: string]: any;
+}
+
+/**
+ * Interfaz que define las opciones de configuración para la conexión a Firebird
+ */
+export interface ConfigOptions {
+    host: string;
+    port: number;
+    database: string;
+    user: string;
+    password: string;
+    lowercase_keys?: boolean;
+    role?: string;
+    pageSize?: number;
+}
+
+// Configuración por defecto para la conexión
+export const DEFAULT_CONFIG: ConfigOptions = {
     host: process.env.FB_HOST || 'localhost',
     port: parseInt(process.env.FB_PORT || '3050', 10),
     database: process.env.FB_DATABASE || '',
@@ -16,18 +39,65 @@ export const DEFAULT_CONFIG = {
 };
 
 /**
- * Establece una conexión a la base de datos Firebird
- * @param {object} config - Configuración de conexión
- * @returns {Promise<object>} Objeto de conexión a la base de datos
+ * Clase personalizada para los errores de la base de datos Firebird
  */
-export const connectToDatabase = (config = DEFAULT_CONFIG): Promise<any> => {
+export class FirebirdError extends Error {
+    type: string;
+    originalError?: any;
+
+    constructor(message: string, type: string, originalError?: any) {
+        super(message);
+        this.name = 'FirebirdError';
+        this.type = type;
+        this.originalError = originalError;
+    }
+}
+
+/**
+ * Establece conexión con la base de datos
+ * @param {ConfigOptions} config - Configuración de conexión a la base de datos
+ * @returns {Promise<FirebirdDatabase>} Objeto de conexión a la base de datos
+ * @throws {FirebirdError} Error categorizado si la conexión falla
+ */
+export const connectToDatabase = (config = DEFAULT_CONFIG): Promise<FirebirdDatabase> => {
     return new Promise((resolve, reject) => {
+        logger.info(`Conectando a ${config.host}:${config.port}/${config.database}`);
+        
+        // Verificar parámetros mínimos
+        if (!config.database) {
+            reject(new FirebirdError(
+                'No se ha especificado una base de datos. Configura FB_DATABASE o FIREBIRD_DATABASE.',
+                'CONFIGURATION_ERROR'
+            ));
+            return;
+        }
+
         Firebird.attach(config, (err: Error | null, db: any) => {
             if (err) {
-                logger.error(`Error conectando a la base de datos: ${err}`);
-                reject(err);
+                // Categorizar el error para mejor manejo
+                let errorType = 'CONNECTION_ERROR';
+                let errorMsg = `Error conectando a la base de datos: ${err.message}`;
+                
+                if (err.message.includes('service is not defined')) {
+                    errorType = 'SERVICE_UNDEFINED';
+                    errorMsg = 'El servicio Firebird no está disponible. Verifica que el servidor Firebird esté en ejecución.';
+                } else if (err.message.includes('ECONNREFUSED')) {
+                    errorType = 'CONNECTION_REFUSED';
+                    errorMsg = `Conexión rechazada en ${config.host}:${config.port}. Verifica que el servidor Firebird esté en ejecución y accesible.`;
+                } else if (err.message.includes('ENOENT')) {
+                    errorType = 'DATABASE_NOT_FOUND';
+                    errorMsg = `No se encuentra la base de datos: ${config.database}. Verifica la ruta y los permisos.`;
+                } else if (err.message.includes('password') || err.message.includes('user')) {
+                    errorType = 'AUTHENTICATION_ERROR';
+                    errorMsg = 'Error de autenticación. Verifica usuario y contraseña.';
+                }
+                
+                logger.error(errorMsg);
+                reject(new FirebirdError(errorMsg, errorType, err));
                 return;
             }
+
+            logger.info('Conexión establecida correctamente');
             resolve(db);
         });
     });
@@ -35,19 +105,52 @@ export const connectToDatabase = (config = DEFAULT_CONFIG): Promise<any> => {
 
 /**
  * Ejecuta una consulta en la base de datos
- * @param {object} db - Conexión a la base de datos
+ * @param {FirebirdDatabase} db - Objeto de conexión a la base de datos
  * @param {string} sql - Consulta SQL a ejecutar
- * @param {Array} params - Parámetros para la consulta SQL
- * @returns {Promise<Array>} Resultados de la consulta
+ * @param {Array} params - Parámetros para la consulta
+ * @returns {Promise<any[]>} Resultado de la consulta
+ * @throws {FirebirdError} Error categorizado si la consulta falla
  */
-export const queryDatabase = (db: any, sql: string, params: any[] = []): Promise<any[]> => {
+export const queryDatabase = (db: FirebirdDatabase, sql: string, params: any[] = []): Promise<any[]> => {
     return new Promise((resolve, reject) => {
+        logger.info(`Ejecutando consulta: ${sql.substring(0, 100)}${sql.length > 100 ? '...' : ''}`);
+        
         db.query(sql, params, (err: Error | null, result: any) => {
             if (err) {
-                logger.error(`Error ejecutando consulta: ${err}`);
-                reject(err);
+                // Categorizar el error para mejor manejo
+                let errorType = 'QUERY_ERROR';
+                
+                // Intentar categorizar el error según su contenido
+                if (err.message.includes('syntax error')) {
+                    errorType = 'SYNTAX_ERROR';
+                } else if (err.message.includes('not defined')) {
+                    errorType = 'OBJECT_NOT_FOUND';
+                } else if (err.message.includes('permission')) {
+                    errorType = 'PERMISSION_ERROR';
+                } else if (err.message.includes('deadlock')) {
+                    errorType = 'DEADLOCK_ERROR';
+                } else if (err.message.includes('timeout')) {
+                    errorType = 'TIMEOUT_ERROR';
+                }
+                
+                // Crear un error más informativo
+                const error = new FirebirdError(
+                    `Error al ejecutar consulta: ${err.message}`,
+                    errorType,
+                    err
+                );
+                
+                logger.error(`${error.message} [${errorType}]`);
+                reject(error);
                 return;
             }
+            
+            // Si no hay resultados, devolver un array vacío
+            if (!result) {
+                result = [];
+            }
+
+            logger.info(`Consulta ejecutada exitosamente, ${result.length} filas obtenidas`);
             resolve(result);
         });
     });
@@ -57,8 +160,8 @@ export const queryDatabase = (db: any, sql: string, params: any[] = []): Promise
  * Ejecuta una consulta SQL y cierra automáticamente la conexión a la base de datos
  * @param {string} sql - Consulta SQL a ejecutar (Firebird usa FIRST/ROWS para paginación en lugar de LIMIT)
  * @param {Array} params - Parámetros para la consulta SQL (opcional)
- * @param {object} config - Configuración de conexión a la base de datos (opcional)
- * @returns {Array} Resultados de la ejecución de la consulta
+ * @param {ConfigOptions} config - Configuración de conexión a la base de datos (opcional)
+ * @returns {Promise<any[]>} Resultados de la ejecución de la consulta
  */
 export const executeQuery = async (sql: string, params: any[] = [], config = DEFAULT_CONFIG) => {
     let db: any;

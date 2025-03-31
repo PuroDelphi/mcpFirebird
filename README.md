@@ -615,7 +615,43 @@ docker compose logs -f mcp-firebird
 docker compose down
 ```
 
-### Use Cases
+## Recent Updates
+
+### Version 1.0.93 (Updated from 1.0.91)
+
+MCP Firebird has been significantly improved with:
+
+1. **Enhanced TypeScript interfaces**:
+   - New interfaces for better type safety (FirebirdDatabase, ConfigOptions, DatabaseInfo, TableInfo, etc.)
+   - Stricter typing for all parameters and return values
+
+2. **Improved error handling**:
+   - Custom `FirebirdError` class for better error categorization
+   - Detailed detection of different error types (connection, syntax, permissions, etc.)
+   - More informative error messages for easier debugging
+
+3. **New features and tools**:
+   - `get-methods` tool for API discovery
+   - New prompts for analyzing tables and optimizing queries
+   - `describeTable` function for detailed table structure
+   - `listTables` function for simple table name listing
+
+4. **Better documentation**:
+   - Comprehensive JSDoc for all functions
+   - Improved MCP tool descriptions with Firebird-specific information
+   - Clear specification that Firebird uses FIRST/ROWS instead of LIMIT for pagination
+
+5. **Security improvements**:
+   - Explicit SQL parameter validation
+   - Enhanced SQL injection prevention
+   - Configurable access restrictions for tables and operations
+
+6. **Code quality**:
+   - Removal of unnecessary files (server.js, server.new.js, test-*.js, etc.)
+   - More compact JSON responses (removed unnecessary spaces)
+   - Consistent logging approach
+
+## Use Cases
 
 1. **Data Analysis with AI**:
    - Analyze historical sales trends
@@ -637,7 +673,7 @@ docker compose down
    - Propose schema normalizations
    - Help with data migration between systems
 
-### Example of Sales Analysis Usage
+## Example of Sales Analysis Usage
 
 Interaction with Claude:
 
@@ -661,7 +697,7 @@ Graphically, the distribution of sales by region is:
 Would you like to delve deeper into any specific region or product category?
 ```
 
-### Example of Query Optimization
+## Example of Query Optimization
 
 ```
 User: I have this query that's running slowly, can you optimize it?
@@ -702,370 +738,6 @@ This version:
 
 When running both queries on your database, the optimized version is approximately 45% faster.
 ```
-
-## Security Configuration
-
-Security is a priority in MCP Firebird. Below are advanced options to control access and permitted operations.
-
-### Limiting Access to Tables and Views
-
-You can restrict which tables and views are available to the MCP server using inclusion and exclusion filters:
-
-```javascript
-// In your custom configuration (config.js)
-module.exports = {
-  // Basic configuration...
-  
-  security: {
-    // Only allow access to these tables
-    allowedTables: [
-      'CUSTOMERS', 
-      'PRODUCTS', 
-      'ORDERS',
-      'ORDER_ITEMS'
-    ],
-    
-    // Explicitly exclude these tables (takes precedence over allowedTables)
-    forbiddenTables: [
-      'USERS',
-      'USER_CREDENTIALS',
-      'AUDIT_LOG'
-    ],
-    
-    // Table name pattern filter (regular expression)
-    tableNamePattern: '^(?!TMP_|TEMP_|BAK_).*$'  // Exclude temporary/backup tables
-  }
-};
-```
-
-To use this configuration:
-
-```bash
-npx mcp-firebird --config ./config.js
-```
-
-### Limiting SQL Operations
-
-You can restrict which SQL operations are allowed:
-
-```javascript
-// In your custom configuration
-module.exports = {
-  // Basic configuration...
-  
-  security: {
-    // Allowed SQL operations
-    allowedOperations: ['SELECT', 'EXECUTE'],  // Only queries and stored procedures
-    
-    // Specifically block these operations
-    forbiddenOperations: ['DROP', 'TRUNCATE', 'ALTER', 'GRANT', 'REVOKE'],
-    
-    // Maximum number of rows that can be returned in a query
-    maxRows: 1000,
-    
-    // Maximum query execution time (in ms)
-    queryTimeout: 5000
-  }
-};
-```
-
-### Restricting Sensitive Data
-
-You can configure rules to mask or filter sensitive data:
-
-```javascript
-module.exports = {
-  // Basic configuration...
-  
-  security: {
-    dataMasking: [
-      {
-        // Mask specific columns
-        columns: ['CREDIT_CARD_NUMBER', 'SSN', 'PASSWORD'],
-        pattern: /^.*/,
-        replacement: '************'
-      },
-      {
-        // Partially mask emails
-        columns: ['EMAIL'],
-        pattern: /^(.{3})(.*)(@.*)$/,
-        replacement: '$1***$3'
-      }
-    ],
-    
-    // Row filters to exclude sensitive data
-    rowFilters: {
-      'CUSTOMERS': 'GDPR_CONSENT = 1',  // Only show customers with GDPR consent
-      'EMPLOYEES': 'IS_PUBLIC_PROFILE = 1'  // Only public employee profiles
-    }
-  }
-};
-```
-
-### Audit Logging
-
-Configure detailed logging of all operations performed through MCP:
-
-```javascript
-module.exports = {
-  // Basic configuration...
-  
-  security: {
-    audit: {
-      // Enable auditing
-      enabled: true,
-      
-      // Audit log destination
-      destination: 'database',  // options: 'file', 'database', 'both'
-      
-      // If destination includes 'file'
-      auditFile: '/path/to/audit.log',
-      
-      // If destination includes 'database'
-      auditTable: 'MCP_AUDIT_LOG',
-      
-      // Detail level
-      detailLevel: 'full',  // 'basic', 'medium', 'full'
-      
-      // What to log
-      logQueries: true,
-      logResponses: true,
-      logParameters: true
-    }
-  }
-};
-```
-
-### Audit Logging Example
-
-```sql
--- Table structure for auditing
-CREATE TABLE MCP_AUDIT_LOG (
-  LOG_ID INT NOT NULL PRIMARY KEY,
-  TIMESTAMP TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  CLIENT_INFO VARCHAR(255),
-  OPERATION_TYPE VARCHAR(50),
-  TARGET_OBJECT VARCHAR(100),
-  QUERY_TEXT BLOB SUB_TYPE TEXT,
-  PARAMETERS BLOB SUB_TYPE TEXT,
-  AFFECTED_ROWS INT,
-  EXECUTION_TIME INT,
-  USER_IDENTIFIER VARCHAR(100),
-  SUCCESS BOOLEAN
-);
-
--- Example log entry
-INSERT INTO MCP_AUDIT_LOG (
-  LOG_ID, CLIENT_INFO, OPERATION_TYPE, TARGET_OBJECT, 
-  QUERY_TEXT, PARAMETERS, AFFECTED_ROWS, 
-  EXECUTION_TIME, USER_IDENTIFIER, SUCCESS
-) VALUES (
-  NEXT VALUE FOR SEQ_AUDIT_LOG, 'Claude/agent', 'SELECT', 'CUSTOMERS',
-  'SELECT CUSTOMER_NAME, CITY FROM CUSTOMERS WHERE REGION = ?', 
-  '["East"]', 24, 45, 'claude-session-123', TRUE
-);
-```
-
-### Data Volume Limitations
-
-Configure limits to prevent queries that consume too many resources:
-
-```javascript
-module.exports = {
-  // Basic configuration...
-  
-  security: {
-    resourceLimits: {
-      // Row limit per query
-      maxRowsPerQuery: 5000,
-      
-      // Result size limit (in bytes)
-      maxResponseSize: 1024 * 1024 * 5,  // 5 MB
-      
-      // CPU time limit per query (ms)
-      maxQueryCpuTime: 10000,
-      
-      // Query limit per session
-      maxQueriesPerSession: 100,
-      
-      // Rate limiting (queries per minute)
-      rateLimit: {
-        queriesPerMinute: 60,
-        burstLimit: 20
-      }
-    }
-  }
-};
-```
-
-### Integration with External Authorization Systems
-
-MCP Firebird can integrate with external authorization systems for more precise access control:
-
-```javascript
-module.exports = {
-  // Basic configuration...
-  
-  security: {
-    authorization: {
-      // Use an external authorization service
-      type: 'oauth2',
-      
-      // Configuration for OAuth2
-      oauth2: {
-        tokenVerifyUrl: 'https://auth.example.com/verify',
-        clientId: 'mcp-firebird-client',
-        clientSecret: process.env.OAUTH_CLIENT_SECRET,
-        scope: 'database:read'
-      },
-      
-      // Role to permission mapping
-      rolePermissions: {
-        'analyst': {
-          tables: ['SALES', 'PRODUCTS', 'CUSTOMERS'],
-          operations: ['SELECT']
-        },
-        'manager': {
-          tables: ['SALES', 'PRODUCTS', 'CUSTOMERS', 'EMPLOYEES'],
-          operations: ['SELECT', 'INSERT', 'UPDATE']
-        },
-        'admin': {
-          allTablesAllowed: true,
-          operations: ['SELECT', 'INSERT', 'UPDATE', 'DELETE']
-        }
-      }
-    }
-  }
-};
-```
-
-### Practical Security Examples
-
-#### Example 1: MCP Server for Sales Analysis
-
-```javascript
-// config-sales-analysis.js
-module.exports = {
-  database: process.env.FIREBIRD_DATABASE,
-  user: process.env.FIREBIRD_USER,
-  password: process.env.FIREBIRD_PASSWORD,
-  
-  security: {
-    // Limited access to sales tables
-    allowedTables: [
-      'SALES', 'PRODUCTS', 'CUSTOMERS', 'REGIONS',
-      'SALES_TARGETS', 'PRODUCT_CATEGORIES'
-    ],
-    
-    // Only allow SELECT queries
-    allowedOperations: ['SELECT'],
-    
-    // Mask sensitive customer data
-    dataMasking: [
-      {
-        columns: ['CUSTOMER_EMAIL', 'CUSTOMER_PHONE'],
-        pattern: /^.*/,
-        replacement: '[REDACTED]'
-      }
-    ],
-    
-    // Resource limits
-    resourceLimits: {
-      maxRowsPerQuery: 10000,
-      maxQueryCpuTime: 5000
-    }
-  }
-};
-```
-
-Claude Desktop config:
-
-```json
-{
-  "mcpServers": {
-    "mcp-firebird-sales": {
-      "command": "npx",
-      "args": [
-        "mcp-firebird",
-        "--config",
-        "C:\\config\\config-sales-analysis.js"
-      ]
-    }
-  }
-}
-```
-
-#### Example 2: MCP Server for Inventory Management
-
-```javascript
-// config-inventory.js
-module.exports = {
-  database: process.env.FIREBIRD_DATABASE,
-  user: process.env.FIREBIRD_USER,
-  password: process.env.FIREBIRD_PASSWORD,
-  
-  security: {
-    // Access to inventory tables
-    allowedTables: [
-      'INVENTORY', 'PRODUCTS', 'WAREHOUSES', 
-      'STOCK_MOVEMENTS', 'SUPPLIERS'
-    ],
-    
-    // Allow limited read and write operations
-    allowedOperations: ['SELECT', 'INSERT', 'UPDATE'],
-    
-    // Prevent modification of historical records
-    rowFilters: {
-      'STOCK_MOVEMENTS': 'MOVEMENT_DATE > DATEADD(-30 DAY TO CURRENT_DATE)'
-    },
-    
-    // Full auditing
-    audit: {
-      enabled: true,
-      destination: 'both',
-      auditFile: 'C:\\logs\\inventory-audit.log',
-      auditTable: 'MCP_INVENTORY_AUDIT',
-      detailLevel: 'full'
-    }
-  }
-};
-```
-
-#### Example 3: Configuration for Development and Testing
-
-```javascript
-// config-development.js
-module.exports = {
-  database: process.env.FIREBIRD_DATABASE_DEV,
-  user: process.env.FIREBIRD_USER_DEV,
-  password: process.env.FIREBIRD_PASSWORD_DEV,
-  
-  security: {
-    // In development, allow more operations
-    allowedOperations: ['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'CREATE'],
-    
-    // Exclude only critical tables
-    forbiddenTables: ['SYSTEM_CONFIG', 'APP_SECRETS'],
-    
-    // Limit impact of heavy queries
-    resourceLimits: {
-      maxRowsPerQuery: 1000,
-      maxQueryCpuTime: 3000,
-      queriesPerMinute: 120
-    },
-    
-    // Basic auditing
-    audit: {
-      enabled: true,
-      destination: 'file',
-      auditFile: './logs/dev-audit.log',
-      detailLevel: 'basic'
-    }
-  }
-};
-```
-
-These examples illustrate how MCP Firebird can be configured for different use cases, each with its own security and data access considerations.
 
 ## Integration with AI Agents
 

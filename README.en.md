@@ -293,7 +293,7 @@ finally:
     client.close()
 ```
 
-### Delphi and Lazarus
+### Delphi and Lazurus
 
 ```delphi
 // Example with Delphi
