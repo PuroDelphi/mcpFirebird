@@ -264,65 +264,6 @@ export const setupDatabaseTools = (server: MCPServer): void => {
     );
 
     /**
-     * Herramienta para obtener métodos disponibles
-     * Devuelve una lista de todas las herramientas disponibles en este módulo
-     */
-    server.tool(
-        "get-methods",
-        {},
-        async () => {
-            logger.info("Obteniendo métodos disponibles");
-
-            try {
-                const methods = [
-                    {
-                        name: "execute-query",
-                        description: "Ejecuta una consulta SQL personalizada",
-                        parameters: ["sql", "params (opcional)"]
-                    },
-                    {
-                        name: "list-tables",
-                        description: "Lista todas las tablas de usuario en la base de datos",
-                        parameters: []
-                    },
-                    {
-                        name: "describe-table",
-                        description: "Describe la estructura de una tabla específica",
-                        parameters: ["tableName"]
-                    },
-                    {
-                        name: "get-field-descriptions",
-                        description: "Obtiene las descripciones documentadas de los campos de una tabla",
-                        parameters: ["tableName"]
-                    },
-                    {
-                        name: "get-methods",
-                        description: "Lista todos los métodos disponibles",
-                        parameters: []
-                    }
-                ];
-
-                return {
-                    content: [{
-                        type: "json",
-                        text: stringifyCompact(wrapSuccess(methods))
-                    }]
-                };
-            } catch (error) {
-                const errorResponse = wrapError(error);
-                logger.error(`Error al obtener métodos: ${errorResponse.error}`);
-                
-                return {
-                    content: [{
-                        type: "json",
-                        text: stringifyCompact(errorResponse)
-                    }]
-                };
-            }
-        }
-    );
-
-    /**
      * Registrar prompts para facilitar el uso de la base de datos
      */
     
