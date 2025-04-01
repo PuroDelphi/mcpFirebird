@@ -156,25 +156,6 @@ export const queryDatabase = (db: FirebirdDatabase, sql: string, params: any[] =
     });
 };
 
-/**
- * Ejecuta una consulta SQL y cierra automáticamente la conexión a la base de datos
- * @param {string} sql - Consulta SQL a ejecutar (Firebird usa FIRST/ROWS para paginación en lugar de LIMIT)
- * @param {Array} params - Parámetros para la consulta SQL (opcional)
- * @param {ConfigOptions} config - Configuración de conexión a la base de datos (opcional)
- * @returns {Promise<any[]>} Resultados de la ejecución de la consulta
- */
-export const executeQuery = async (sql: string, params: any[] = [], config = DEFAULT_CONFIG) => {
-    let db: any;
-    try {
-        db = await connectToDatabase(config);
-        const result = await queryDatabase(db, sql, params);
-        return result;
-    } catch (error) {
-        logger.error(`Error ejecutando consulta: ${error}`);
-        throw error;
-    } finally {
-        if (db) {
-            db.detach();
-        }
-    }
-};
+// Se ha eliminado la función executeQuery ya que está duplicada
+// La implementación mejorada se mantiene en queries.ts con validación de SQL
+// y manejo de errores más robusto

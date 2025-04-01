@@ -1,5 +1,6 @@
 // Herramientas para metadatos e información del sistema
 import { createLogger } from '../utils/logger.js';
+import { stringifyCompact } from '../utils/jsonHelper.js';
 
 const logger = createLogger('tools:metadata');
 
@@ -81,7 +82,7 @@ export const setupMetadataTools = (server: any) => {
             return {
                 content: [{
                     type: "text",
-                    text: JSON.stringify({ success: true, methods })
+                    text: stringifyCompact({ success: true, methods })
                 }]
             };
         }
@@ -97,7 +98,7 @@ export const setupMetadataTools = (server: any) => {
             return {
                 content: [{
                     type: "text",
-                    text: JSON.stringify({ 
+                    text: stringifyCompact({ 
                         success: true, 
                         message: "Firebird MCP server is online",
                         timestamp: new Date().toISOString()

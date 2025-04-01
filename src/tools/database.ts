@@ -2,6 +2,7 @@
 import { z } from 'zod';
 import { createLogger } from '../utils/logger.js';
 import { validateSql } from '../utils/security.js';
+import { stringifyCompact } from '../utils/jsonHelper.js';
 import { 
     executeQuery, 
     getTables, 
@@ -121,8 +122,8 @@ export const setupDatabaseTools = (server: MCPServer): void => {
 
                 return {
                     content: [{
-                        type: "text",
-                        text: JSON.stringify(wrapSuccess(result))
+                        type: "json",
+                        text: stringifyCompact(wrapSuccess(result))
                     }]
                 };
             } catch (error) {
@@ -131,8 +132,8 @@ export const setupDatabaseTools = (server: MCPServer): void => {
                 
                 return {
                     content: [{
-                        type: "text",
-                        text: JSON.stringify(errorResponse)
+                        type: "json",
+                        text: stringifyCompact(errorResponse)
                     }]
                 };
             }
@@ -155,8 +156,8 @@ export const setupDatabaseTools = (server: MCPServer): void => {
 
                 return {
                     content: [{
-                        type: "text",
-                        text: JSON.stringify(wrapSuccess(tables, 'tables'))
+                        type: "json",
+                        text: stringifyCompact(wrapSuccess(tables, 'tables'))
                     }]
                 };
             } catch (error) {
@@ -165,8 +166,8 @@ export const setupDatabaseTools = (server: MCPServer): void => {
                 
                 return {
                     content: [{
-                        type: "text",
-                        text: JSON.stringify(errorResponse)
+                        type: "json",
+                        text: stringifyCompact(errorResponse)
                     }]
                 };
             }
@@ -200,8 +201,8 @@ export const setupDatabaseTools = (server: MCPServer): void => {
 
                 return {
                     content: [{
-                        type: "text",
-                        text: JSON.stringify(wrapSuccess(schema, 'schema'))
+                        type: "json",
+                        text: stringifyCompact(wrapSuccess(schema, 'schema'))
                     }]
                 };
             } catch (error) {
@@ -210,8 +211,8 @@ export const setupDatabaseTools = (server: MCPServer): void => {
                 
                 return {
                     content: [{
-                        type: "text",
-                        text: JSON.stringify(errorResponse)
+                        type: "json",
+                        text: stringifyCompact(errorResponse)
                     }]
                 };
             }
@@ -244,8 +245,8 @@ export const setupDatabaseTools = (server: MCPServer): void => {
 
                 return {
                     content: [{
-                        type: "text",
-                        text: JSON.stringify(wrapSuccess(fieldDescriptions, 'fieldDescriptions'))
+                        type: "json",
+                        text: stringifyCompact(wrapSuccess(fieldDescriptions, 'fieldDescriptions'))
                     }]
                 };
             } catch (error) {
@@ -254,8 +255,8 @@ export const setupDatabaseTools = (server: MCPServer): void => {
                 
                 return {
                     content: [{
-                        type: "text",
-                        text: JSON.stringify(errorResponse)
+                        type: "json",
+                        text: stringifyCompact(errorResponse)
                     }]
                 };
             }
@@ -303,8 +304,8 @@ export const setupDatabaseTools = (server: MCPServer): void => {
 
                 return {
                     content: [{
-                        type: "text",
-                        text: JSON.stringify(wrapSuccess(methods))
+                        type: "json",
+                        text: stringifyCompact(wrapSuccess(methods))
                     }]
                 };
             } catch (error) {
@@ -313,8 +314,8 @@ export const setupDatabaseTools = (server: MCPServer): void => {
                 
                 return {
                     content: [{
-                        type: "text",
-                        text: JSON.stringify(errorResponse)
+                        type: "json",
+                        text: stringifyCompact(errorResponse)
                     }]
                 };
             }
