@@ -156,6 +156,39 @@ export const queryDatabase = (db: FirebirdDatabase, sql: string, params: any[] =
     });
 };
 
+/**
+ * Prueba la conexión a la base de datos usando la configuración proporcionada.
+ * Intenta conectar y desconectar inmediatamente.
+ * @param {ConfigOptions} [config=DEFAULT_CONFIG] - Configuración a usar para la prueba.
+ * @returns {Promise<void>} Resuelve si la conexión es exitosa, rechaza si falla.
+ * @throws {FirebirdError} Error categorizado si la conexión falla.
+ */
+export const testConnection = async (config = DEFAULT_CONFIG): Promise<void> => {
+    logger.info('Probando conexión a la base de datos...');
+    let db: FirebirdDatabase | null = null;
+    try {
+        db = await connectToDatabase(config);
+        logger.info('Prueba de conexión exitosa.');
+    } catch (error) {
+        logger.error('Prueba de conexión fallida.');
+        // El error ya debería ser un FirebirdError de connectToDatabase
+        throw error;
+    } finally {
+        if (db) {
+            await new Promise<void>((resolve, reject) => {
+                db?.detach((detachErr: Error | null) => {
+                    if (detachErr) {
+                        logger.warn(`Error al cerrar conexión de prueba: ${detachErr.message}`);
+                        // No rechazamos la promesa principal por un error de detach,
+                        // pero sí lo registramos.
+                    }
+                    resolve();
+                });
+            });
+        }
+    }
+};
+
 // Se ha eliminado la función executeQuery ya que está duplicada
 // La implementación mejorada se mantiene en queries.ts con validación de SQL
 // y manejo de errores más robusto

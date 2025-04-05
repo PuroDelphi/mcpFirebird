@@ -27,11 +27,13 @@
     "typescript": "^5.4.2"
   },
   "dependencies": {
-    "@modelcontextprotocol/inspector": "^0.6.0",
-    "@modelcontextprotocol/sdk": "^1.7.0",
+    "@modelcontextprotocol/inspector": "latest",
+    "@modelcontextprotocol/sdk": "latest",
+    "dotenv": "^16.4.7",
     "glob": "^10.3.10",
     "minimist": "^1.2.8",
     "node-firebird": "^1.1.5",
+    "url-pattern": "^1.0.3",
     "winston": "^3.11.0",
     "zod": "^3.22.4"
   }

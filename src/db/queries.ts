@@ -2,7 +2,6 @@
 import { existsSync, readdirSync } from 'fs';
 import { join, extname } from 'path';
 import { createLogger } from '../utils/logger.js';
-import { validateSql } from '../utils/security.js';
 import { 
     connectToDatabase, 
     queryDatabase, 
@@ -11,6 +10,7 @@ import {
     FirebirdDatabase,
     ConfigOptions 
 } from './connection.js';
+import { validateSql } from '../utils/security.js';
 
 const logger = createLogger('db:queries');
 

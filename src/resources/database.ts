@@ -1,215 +1,133 @@
-// Recursos de base de datos para MCP
+// src/resources/database.ts
+import { z } from 'zod';
 import { createLogger } from '../utils/logger.js';
-import { validateSql } from '../utils/security.js';
-import { getDatabases, getTables, getViews, getProcedures } from '../db/queries.js';
+import { listTables, describeTable, executeQuery } from '../db/queries.js';
 import { getTableSchema } from '../db/schema.js';
-import { getFieldDescriptions, executeQuery } from '../db/queries.js';
-import { stringifyCompact } from '../utils/jsonHelper.js';
 
-const logger = createLogger('resources:database');
+const logger = createLogger('database'); // Provide string argument
 
 /**
- * Configura los recursos de base de datos para el servidor MCP
- * @param {Object} server - Instancia del servidor MCP
- * @param {Object} serverModule - Módulo del servidor con definiciones de recursos
+ * Interfaz para definir un Recurso MCP.
  */
-export const setupDatabaseResources = (server: any, serverModule: any) => {
-    // Recurso para listar bases de datos
-    server.resource(
-        "databases",
-        { uri: "firebird://databases" },
-        async () => {
-            logger.info('Accediendo al listado de bases de datos');
+export interface ResourceDefinition {
+    description: string; // Descripción del recurso
+    handler: (params: Record<string, string>) => Promise<object>; // Handler recibe parámetros de la URI
+}
+
+/**
+ * Configura los recursos relacionados con la base de datos y devuelve un mapa de definiciones.
+ * @returns {Map<string, ResourceDefinition>} Mapa con las definiciones de recursos (clave puede ser nombre o URI template).
+ */
+export const setupDatabaseResources = (): Map<string, ResourceDefinition> => {
+    const resources = new Map<string, ResourceDefinition>();
+
+    // --- Definición del Recurso: Lista de Tablas --- (URI: /tables)
+    const listTablesResource: ResourceDefinition = {
+        description: "Recurso que representa la lista de todas las tablas en la base de datos.",
+        handler: async () => {
+            logger.info("Accediendo al recurso /tables");
             try {
-                const databases = getDatabases();
-                return {
-                    contents: [{
-                        uri: "firebird://databases",
-                        text: stringifyCompact(databases)
-                    }]
-                };
-            } catch (error) {
-                logger.error(`Error al listar bases de datos: ${error}`);
-                return {
-                    contents: [{
-                        uri: "firebird://databases",
-                        text: stringifyCompact({ error: "Error al obtener el listado de bases de datos", message: String(error) })
-                    }]
-                };
+                const tables = await listTables();
+                return { tables };
+            } catch (error: any) {
+                logger.error(`Error al obtener la lista de tablas para el recurso /tables: ${error.message || error}`);
+                return { error: "Error interno al listar tablas", details: error.message || String(error) };
             }
         }
-    );
+    };
+    resources.set("/tables", listTablesResource); // Usar URI como clave
 
-    // Recurso para listar tablas
-    server.resource(
-        "tables",
-        { uri: "firebird://tables" },
-        async () => {
-            logger.info('Accediendo al listado de tablas');
-            try {
-                const tables = await getTables();
-                return {
-                    contents: [{
-                        uri: "firebird://tables",
-                        text: stringifyCompact(tables)
-                    }]
-                };
-            } catch (error) {
-                logger.error(`Error al listar tablas: ${error}`);
-                return {
-                    contents: [{
-                        uri: "firebird://tables",
-                        text: stringifyCompact({ error: "Error al obtener las tablas", message: String(error) })
-                    }]
-                };
+    // --- Definición del Recurso: Esquema de Tabla --- (URI: /tables/{tableName}/schema)
+    const tableSchemaResource: ResourceDefinition = {
+        description: "Recurso que representa el esquema de una tabla específica.",
+        handler: async (params) => {
+            const tableName = params.tableName;
+            if (!tableName) {
+                logger.warn("Intento de acceso a /tables/{tableName}/schema sin tableName");
+                return { error: "Falta el nombre de la tabla en la URI" };
             }
-        }
-    );
-
-    // Recurso para listar vistas
-    server.resource(
-        "views",
-        { uri: "firebird://views" },
-        async () => {
-            logger.info('Accediendo al listado de vistas');
+            logger.info(`Accediendo al recurso /tables/${tableName}/schema`);
             try {
-                const views = await getViews();
-                return {
-                    contents: [{
-                        uri: "firebird://views",
-                        text: stringifyCompact(views)
-                    }]
-                };
-            } catch (error) {
-                logger.error(`Error al listar vistas: ${error}`);
-                return {
-                    contents: [{
-                        uri: "firebird://views",
-                        text: stringifyCompact({ error: "Error al obtener las vistas", message: String(error) })
-                    }]
-                };
-            }
-        }
-    );
-
-    // Recurso para listar procedimientos
-    server.resource(
-        "procedures",
-        { uri: "firebird://procedures" },
-        async () => {
-            logger.info('Accediendo al listado de procedimientos');
-            try {
-                const procedures = await getProcedures();
-                return {
-                    contents: [{
-                        uri: "firebird://procedures",
-                        text: stringifyCompact(procedures)
-                    }]
-                };
-            } catch (error) {
-                logger.error(`Error al listar procedimientos: ${error}`);
-                return {
-                    contents: [{
-                        uri: "firebird://procedures",
-                        text: stringifyCompact({ error: "Error al obtener los procedimientos", message: String(error) })
-                    }]
-                };
-            }
-        }
-    );
-
-    // Recurso para obtener descripciones de campos
-    server.resource(
-        "field-descriptions",
-        new serverModule.ResourceTemplate("firebird://table/{tableName}/field-descriptions", { list: undefined }),
-        async (uri: any, { tableName }: { tableName: string }) => {
-            logger.info(`Accediendo a las descripciones de campos de la tabla: ${tableName}`);
-            try {
-                // Validar el nombre de la tabla para prevenir inyección SQL
-                if (typeof tableName !== 'string' || !validateSql(tableName)) {
-                    throw new Error(`Nombre de tabla inválido: ${tableName}`);
-                }
-
-                const fieldDescriptions = await getFieldDescriptions(tableName);
-                return {
-                    contents: [{
-                        uri: uri.href,
-                        text: stringifyCompact(fieldDescriptions)
-                    }]
-                };
-            } catch (error) {
-                logger.error(`Error al obtener descripciones de campos para ${tableName}: ${error}`);
-                return {
-                    contents: [{
-                        uri: uri.href,
-                        text: stringifyCompact({ error: `Error al obtener descripciones de campos para ${tableName}`, message: String(error) })
-                    }]
-                };
-            }
-        }
-    );
-
-    // Recurso dinámico para obtener el esquema de una tabla específica
-    server.resource(
-        "table-schema",
-        new serverModule.ResourceTemplate("firebird://table/{tableName}/schema", { list: undefined }),
-        async (uri: any, { tableName }: { tableName: string }) => {
-            logger.info(`Accediendo al esquema de la tabla: ${tableName}`);
-            try {
-                // Validar el nombre de la tabla para prevenir inyección SQL
-                if (typeof tableName !== 'string' || !validateSql(tableName)) {
-                    throw new Error(`Nombre de tabla inválido: ${tableName}`);
-                }
-
                 const schema = await getTableSchema(tableName);
-                return {
-                    contents: [{
-                        uri: uri.href,
-                        text: stringifyCompact(schema)
-                    }]
-                };
-            } catch (error) {
-                logger.error(`Error al obtener esquema de tabla ${tableName}: ${error}`);
-                return {
-                    contents: [{
-                        uri: uri.href,
-                        text: stringifyCompact({ error: `Error al obtener esquema de ${tableName}`, message: String(error) })
-                    }]
-                };
+                return schema;
+            } catch (error: any) {
+                logger.error(`Error al obtener el esquema para el recurso /tables/${tableName}/schema: ${error.message || error}`);
+                return { error: `Error interno al obtener esquema para ${tableName}`, details: error.message || String(error) };
             }
         }
-    );
+    };
+    // La clave podría ser la plantilla URI para que el handler en index.ts pueda hacer matching
+    resources.set("/tables/{tableName}/schema", tableSchemaResource);
 
-    // Recurso para obtener los primeros registros de una tabla
-    server.resource(
-        "table-data",
-        new serverModule.ResourceTemplate("firebird://table/{tableName}/data", { list: undefined }),
-        async (uri: any, { tableName }: { tableName: string }) => {
-            logger.info(`Accediendo a los datos de la tabla: ${tableName}`);
+    // --- Definición del Recurso: Descripción de Tabla (describeTable) --- (URI: /tables/{tableName}/description)
+    const tableDescriptionResource: ResourceDefinition = {
+        description: "Recurso que representa la descripción detallada (columnas, tipos, etc.) de una tabla específica.",
+        handler: async (params) => {
+            const tableName = params.tableName;
+            if (!tableName) {
+                logger.warn("Intento de acceso a /tables/{tableName}/description sin tableName");
+                return { error: "Falta el nombre de la tabla en la URI" };
+            }
+            logger.info(`Accediendo al recurso /tables/${tableName}/description`);
             try {
-                // Validar el nombre de la tabla para prevenir inyección SQL
-                if (typeof tableName !== 'string' || !validateSql(tableName)) {
-                    throw new Error(`Nombre de tabla inválido: ${tableName}`);
+                // Asumiendo que describeTable devuelve un objeto adecuado
+                const description = await describeTable(tableName);
+                return description;
+            } catch (error: any) {
+                logger.error(`Error al obtener la descripción para el recurso /tables/${tableName}/description: ${error.message || error}`);
+                return { error: `Error interno al obtener descripción para ${tableName}`, details: error.message || String(error) };
+            }
+        }
+    };
+    resources.set("/tables/{tableName}/description", tableDescriptionResource);
+
+
+    // --- Definición del Recurso: Datos de Tabla (con paginación simple) --- (URI: /tables/{tableName}/data?first=N&skip=M)
+    // Nota: Esto es un ejemplo simple, la paginación real puede ser más compleja.
+    const tableDataResource: ResourceDefinition = {
+        description: "Recurso que representa los datos de una tabla, con paginación básica (FIRST/SKIP).",
+        handler: async (params) => {
+            const tableName = params.tableName;
+            const first = params.first ? parseInt(params.first, 10) : undefined;
+            const skip = params.skip ? parseInt(params.skip, 10) : 0; // Default skip to 0
+
+            if (!tableName) {
+                logger.warn("Intento de acceso a /tables/{tableName}/data sin tableName");
+                return { error: "Falta el nombre de la tabla en la URI" };
+            }
+            if (params.first && (isNaN(first as number) || (first as number) <= 0)) {
+                return { error: "Parámetro 'first' debe ser un número positivo" };
+            }
+            if (params.skip && (isNaN(skip as number) || (skip as number) < 0)) {
+                return { error: "Parámetro 'skip' debe ser un número no negativo" };
+            }
+
+            logger.info(`Accediendo al recurso /tables/${tableName}/data (first: ${first}, skip: ${skip})`);
+            try {
+                // Construir la consulta base
+                let sql = `SELECT * FROM "${tableName}"`; // Asegurar comillas por si acaso
+
+                // Firebird usa FIRST y SKIP
+                if (first !== undefined) {
+                    sql += ` FIRST ${first}`;
+                }
+                if (skip > 0) {
+                    sql += ` SKIP ${skip}`;
                 }
 
-                const sql = `SELECT FIRST 20 * FROM "${tableName}"`;
-                const data = await executeQuery(sql);
-
-                return {
-                    contents: [{
-                        uri: uri.href,
-                        text: stringifyCompact(data)
-                    }]
-                };
-            } catch (error) {
-                logger.error(`Error al obtener datos de tabla ${tableName}: ${error}`);
-                return {
-                    contents: [{
-                        uri: uri.href,
-                        text: stringifyCompact({ error: `Error al obtener datos de ${tableName}`, message: String(error) })
-                    }]
-                };
+                const results = await executeQuery(sql);
+                return { data: results };
+            } catch (error: any) {
+                logger.error(`Error al obtener datos para el recurso /tables/${tableName}/data: ${error.message || error}`);
+                return { error: `Error interno al obtener datos para ${tableName}`, details: error.message || String(error) };
             }
         }
-    );
+    };
+    // URI puede incluir placeholders para query params, pero el matching debe hacerse en el handler de index.ts
+    resources.set("/tables/{tableName}/data", tableDataResource); // Clave base sin query params
+
+    // Añadir más recursos aquí...
+
+    logger.info(`Definidos ${resources.size} recursos de base de datos.`);
+    return resources;
 };

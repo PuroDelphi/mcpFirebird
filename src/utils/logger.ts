@@ -1,26 +1,26 @@
 export interface Logger {
-  info(message: string): void;
-  error(message: string): void;
-  warn(message: string): void;
-  debug(message: string): void;
+  info(message: string, ...args: any[]): void;
+  error(message: string, ...args: any[]): void;
+  warn(message: string, ...args: any[]): void;
+  debug(message: string, ...args: any[]): void;
 }
 
 export function createLogger(name: string): Logger {
   const prefix = `[${name}]`;
   
   return {
-    info: (message: string) => {
-      console.log(`${prefix} INFO: ${message}`);
+    info: (message: string, ...args: any[]) => {
+      console.error(`${prefix} INFO: ${message}`, ...args);
     },
-    error: (message: string) => {
-      console.error(`${prefix} ERROR: ${message}`);
+    error: (message: string, ...args: any[]) => {
+      console.error(`${prefix} ERROR: ${message}`, ...args);
     },
-    warn: (message: string) => {
-      console.warn(`${prefix} WARN: ${message}`);
+    warn: (message: string, ...args: any[]) => {
+      console.error(`${prefix} WARN: ${message}`, ...args);
     },
-    debug: (message: string) => {
+    debug: (message: string, ...args: any[]) => {
       if (process.env.NODE_ENV !== 'production') {
-        console.debug(`${prefix} DEBUG: ${message}`);
+        console.error(`${prefix} DEBUG: ${message}`, ...args);
       }
     }
   };

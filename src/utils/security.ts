@@ -1,4 +1,4 @@
-import { MCPConfig, MCPQuery } from '../types';
+import { MCPConfig, MCPQuery } from '../types.js';
 
 export function validateConfig(config: MCPConfig): MCPConfig {
   if (!config.host) {
