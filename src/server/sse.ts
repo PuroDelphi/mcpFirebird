@@ -8,92 +8,97 @@ import cors from 'cors';
 import { createLogger } from '../utils/logger.js';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
-// Import types from express
 
 const logger = createLogger('server:sse');
 
-// Map to store active transports by session ID
-const activeTransports = new Map<string, SSEServerTransport>();
-
 /**
  * Create and start an SSE server
- * @param {McpServer} server - The MCP server instance
+ * @param {Server} server - The MCP server instance
  * @param {number} port - The port to listen on
- * @returns {Promise<{ app: express.Express, cleanup: () => Promise<void> }>} The Express app and cleanup function
+ * @returns {Promise<{ app: any, cleanup: () => Promise<void> }>} The Express app and cleanup function
  */
 export async function startSseServer(
     server: Server<any, any, any>,
-    port: number = 3001
+    port: number = 3003
 ): Promise<{ app: any, cleanup: () => Promise<void> }> {
     const app = express();
 
     // Enable CORS
-    app.use(cors());
+    app.use(cors({
+        origin: '*',
+        methods: ['GET', 'POST', 'OPTIONS'],
+        allowedHeaders: ['Content-Type', 'X-Session-ID', 'Authorization']
+    }));
 
     // Parse JSON bodies
     app.use(express.json());
 
-    // SSE endpoint
-    app.get('/sse', async (req: any, res: any) => {
+    // Global transport variable
+    let transport: SSEServerTransport | null = null;
+
+    // SSE endpoint - both root and /sse path
+    const handleSseRequest = async (req: any, res: any) => {
         try {
-            // Generate a unique session ID
-            const sessionId = req.query.sessionId?.toString() ||
-                              `session-${Math.random().toString(36).substring(2, 15)}`;
-
-            logger.info(`New SSE connection established with session ID: ${sessionId}`);
-
-            // Set headers for SSE
-            res.setHeader('Content-Type', 'text/event-stream');
-            res.setHeader('Cache-Control', 'no-cache');
-            res.setHeader('Connection', 'keep-alive');
+            logger.info(`New SSE connection request received from ${req.url}`);
+            logger.info(`Headers: ${JSON.stringify(req.headers)}`);
+            logger.info(`Query: ${JSON.stringify(req.query)}`);
 
             // Create a new SSE transport
-            const transport = new SSEServerTransport('/message', res);
-
-            // Store the transport with the session ID
-            activeTransports.set(sessionId, transport);
+            transport = new SSEServerTransport('/message', res);
 
             // Connect the transport to the server
             await server.connect(transport);
 
-            // Handle client disconnect
-            req.on('close', () => {
-                logger.info(`SSE connection closed for session ID: ${sessionId}`);
-                activeTransports.delete(sessionId);
-            });
+            logger.info('SSE transport connected to server');
 
-            // Send initial message to confirm connection
-            res.write(`data: ${JSON.stringify({ type: 'connection', sessionId })}\n\n`);
+            // Set up cleanup on server close
+            server.onclose = async () => {
+                logger.info('Server closing, cleaning up SSE transport');
+                if (transport) {
+                    await transport.close().catch(error => {
+                        logger.error(`Error closing transport: ${error.message}`);
+                    });
+                }
+            };
         } catch (error: any) {
             logger.error(`Error establishing SSE connection: ${error.message}`);
-            res.status(500).send({ error: 'Failed to establish SSE connection' });
+            // Only send a response if headers haven't been sent yet
+            if (!res.headersSent) {
+                res.status(500).send({ error: 'Failed to establish SSE connection' });
+            }
         }
-    });
+    };
+
+    // Register the handler for both root and /sse paths
+    app.get('/', handleSseRequest);
+    app.get('/sse', handleSseRequest);
 
     // Message endpoint for client-to-server communication
     app.post('/message', async (req: any, res: any) => {
         try {
-            const sessionId = req.query.sessionId?.toString();
-
-            if (!sessionId) {
-                logger.error('No session ID provided in message request');
-                return res.status(400).send({ error: 'No session ID provided' });
-            }
-
-            const transport = activeTransports.get(sessionId);
+            logger.info('Received message from client');
 
             if (!transport) {
-                logger.error(`No active transport found for session ID: ${sessionId}`);
-                return res.status(404).send({ error: 'Session not found' });
+                logger.error('No active transport found');
+                return res.status(404).send({ error: 'No active transport found' });
             }
-
-            logger.debug(`Received message for session ID: ${sessionId}`);
 
             // Handle the message
             await transport.handlePostMessage(req, res);
         } catch (error: any) {
             logger.error(`Error handling message: ${error.message}`);
-            res.status(500).send({ error: 'Failed to process message' });
+            // Only send a response if headers haven't been sent yet
+            if (!res.headersSent) {
+                res.status(500).send({
+                    jsonrpc: '2.0',
+                    id: req.body?.id,
+                    error: {
+                        code: -32603,
+                        message: 'Internal server error',
+                        data: error.message
+                    }
+                });
+            }
         }
     });
 
@@ -101,7 +106,7 @@ export async function startSseServer(
     app.get('/health', (req: any, res: any) => {
         res.status(200).send({
             status: 'ok',
-            activeSessions: activeTransports.size
+            hasActiveTransport: !!transport
         });
     });
 
@@ -113,6 +118,7 @@ export async function startSseServer(
     // Cleanup function
     const cleanup = async (): Promise<void> => {
         return new Promise((resolve) => {
+            // Close the HTTP server
             httpServer.close(() => {
                 logger.info('SSE server closed');
                 resolve();
@@ -122,5 +128,3 @@ export async function startSseServer(
 
     return { app, cleanup };
 }
-
-
