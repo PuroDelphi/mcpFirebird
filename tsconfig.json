@@ -1,8 +1,8 @@
 {
   "compilerOptions": {
     "target": "ES2020",
-    "module": "ES2020",
-    "moduleResolution": "node",
+    "module": "NodeNext", // Update module to support import assertions
+    "moduleResolution": "NodeNext", // Update moduleResolution accordingly
     "outDir": "./dist",
     "rootDir": "./src",
     "strict": true,
@@ -20,4 +20,4 @@
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", "src/__tests__"]
-} 
+}

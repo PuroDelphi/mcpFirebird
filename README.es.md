@@ -4,7 +4,7 @@ Implementación del protocolo MCP de Anthropic para bases de datos Firebird.
 
 ## ¿Qué es MCP Firebird y para qué sirve?
 
-MCP Firebird es un servidor que implementa el [Protocolo de Contexto de Modelo (MCP)](https://github.com/anthropics/anthropic-cookbook/tree/main/model_context_protocol) de Anthropic para bases de datos Firebird SQL. Permite a los Modelos de Lenguaje de Gran Tamaño (LLMs) como Claude acceder, analizar y manipular datos en bases de datos Firebird de manera segura y controlada.
+MCP Firebird es un servidor que implementa el [Protocolo de Contexto de Modelo (MCP)](https://github.com/anthropics/anthropic-cookbook/tree/main/model_context_protocol) de Anthropic para bases de datos [Firebird SQL](https://firebirdsql.org/). Permite a los Modelos de Lenguaje de Gran Tamaño (LLMs) como Claude acceder, analizar y manipular datos en bases de datos Firebird de manera segura y controlada.
 
 Más abajo encontrarás casos y ejemplos de uso.
 
@@ -44,6 +44,41 @@ Puedes ejecutar el servidor directamente con npx:
 ```bash
 npx mcp-firebird --host localhost --port 3050 --database /path/to/database.fdb --user SYSDBA --password masterkey
 ```
+
+### Uso con SSE (Server-Sent Events)
+
+El servidor MCP Firebird también soporta transporte SSE, que permite a los clientes conectarse a través de HTTP:
+
+```bash
+# Configura el tipo de transporte como SSE en tu archivo .env
+TRANSPORT_TYPE=sse
+SSE_PORT=3003
+
+# Ejecuta el servidor con transporte SSE
+npm run sse
+```
+
+Puedes conectarte al servidor usando el Inspector MCP:
+
+```bash
+npx @modelcontextprotocol/inspector http://localhost:3003
+```
+
+O usar el script proporcionado:
+
+```bash
+npm run inspector-sse
+```
+
+#### Ejemplos de clientes SSE
+
+Proporcionamos varios ejemplos de clientes que demuestran cómo conectarse al servidor MCP Firebird usando SSE:
+
+- **HTML/JavaScript**: Ver `examples/sse-client.html` para un cliente basado en navegador
+- **Node.js**: Ver `examples/sse-client.js` para un cliente Node.js
+- **Python**: Ver `examples/sse_client.py` para un cliente Python
+
+Para documentación detallada sobre el uso del transporte SSE, consulta `docs/sse-examples.md`.
 
 ## Configuración con Claude Desktop
 
@@ -135,7 +170,33 @@ El servidor MCP Firebird ofrece:
    }
    ```
 
+5. **analyze-query-performance**: Analiza el rendimiento de una consulta SQL
+   ```json
+   {
+     "sql": "SELECT * FROM EMPLOYEES WHERE DEPARTMENT_ID = 10",
+     "params": [],  // Parámetros opcionales para consultas preparadas
+     "iterations": 3  // Número opcional de iteraciones para promediar (predeterminado: 3)
+   }
+   ```
+
+6. **get-execution-plan**: Obtiene el plan de ejecución de una consulta SQL
+   ```json
+   {
+     "sql": "SELECT * FROM EMPLOYEES WHERE DEPARTMENT_ID = 10",
+     "params": []  // Parámetros opcionales para consultas preparadas
+   }
+   ```
+
+7. **analyze-missing-indexes**: Analiza una consulta SQL para identificar índices faltantes
+   ```json
+   {
+     "sql": "SELECT * FROM EMPLOYEES WHERE DEPARTMENT_ID = 10"
+   }
+   ```
+
 La herramienta **get-field-descriptions** es especialmente útil para los modelos de IA, ya que obtiene los comentarios de metadatos RDB$DESCRIPTION de Firebird, proporcionando contexto semántico adicional sobre el propósito de cada campo.
+
+Las herramientas de análisis de rendimiento (**analyze-query-performance**, **get-execution-plan** y **analyze-missing-indexes**) ayudan a optimizar las consultas de base de datos proporcionando información sobre el tiempo de ejecución, los planes de ejecución y las recomendaciones de índices.
 
 ## Prompts disponibles
 
@@ -176,26 +237,26 @@ async function main() {
     '--user', 'SYSDBA',
     '--password', 'masterkey'
   ]);
-  
+
   // Crear un transporte y un cliente MCP
   const transport = new ChildProcessTransport(serverProcess);
   const client = new McpClient(transport);
-  
+
   try {
     // Obtener información del servidor
     const serverInfo = await client.getServerInfo();
     console.log('Servidor MCP:', serverInfo);
-    
+
     // Listar tablas disponibles
     const tablesResult = await client.executeTool('list-tables', {});
     console.log('Tablas disponibles:', tablesResult);
-    
+
     // Ejecutar una consulta SQL
     const queryResult = await client.executeTool('execute-query', {
       sql: 'SELECT FIRST 10 * FROM EMPLOYEES'
     });
     console.log('Resultados de la consulta:', queryResult);
-    
+
     // Utilizar un prompt para generar SQL
     const sqlGeneration = await client.executePrompt('generate-sql', {
       description: 'Obtener todos los clientes premium'
@@ -231,7 +292,7 @@ class McpFirebirdClient:
             text=True,
             bufsize=1
         )
-        
+
     def send_request(self, method, params={}):
         request = {
             'id': 1,
@@ -241,33 +302,33 @@ class McpFirebirdClient:
         # Enviar la solicitud al servidor
         self.process.stdin.write(json.dumps(request) + '\n')
         self.process.stdin.flush()
-        
+
         # Leer la respuesta
         response_line = self.process.stdout.readline()
         while not response_line.strip() or response_line.startswith('['):
             response_line = self.process.stdout.readline()
-            
+
         # Parsear y devolver la respuesta JSON
         return json.loads(response_line)
-    
+
     def get_server_info(self):
         return self.send_request('getServerInfo')
-    
+
     def list_tables(self):
         return self.send_request('executeTool', {'name': 'list-tables', 'args': {}})
-    
+
     def execute_query(self, sql, params=[]):
         return self.send_request('executeTool', {
             'name': 'execute-query',
             'args': {'sql': sql, 'params': params}
         })
-    
+
     def generate_sql(self, description):
         return self.send_request('executePrompt', {
             'name': 'generate-sql',
             'args': {'description': description}
         })
-    
+
     def close(self):
         self.process.terminate()
 
@@ -277,15 +338,15 @@ try:
     # Obtener información del servidor
     server_info = client.get_server_info()
     print(f"Servidor MCP: {server_info}")
-    
+
     # Listar tablas
     tables = client.list_tables()
     print(f"Tablas disponibles: {tables}")
-    
+
     # Ejecutar una consulta
     results = client.execute_query("SELECT FIRST 10 * FROM EMPLOYEES")
     print(f"Resultados: {results}")
-    
+
     # Generar SQL
     sql = client.generate_sql("Listar los productos más vendidos")
     print(f"SQL generado: {sql}")
@@ -310,13 +371,13 @@ type
   private
     FProcess: TProcess; //Para Delphi cambiar por TProcessDelphi y agregue https://github.com/ferruhkoroglu/TProcessDelphi
     FRequestId: Integer;
-    
+
     function SendRequest(const Method: string; const Params: TJSONObject = nil): TJSONObject;
     function ReadResponse: string;
   public
     constructor Create(const DatabasePath, User, Password: string);
     destructor Destroy; override;
-    
+
     function GetServerInfo: TJSONObject;
     function ListTables: TJSONObject;
     function ExecuteQuery(const SQL: string; Params: TArray<Variant> = nil): TJSONObject;
@@ -327,7 +388,7 @@ constructor TMcpFirebirdClient.Create(const DatabasePath, User, Password: string
 begin
   inherited Create;
   FRequestId := 1;
-  
+
   // Crear y configurar el proceso
   FProcess := TProcess.Create(nil);
   FProcess.Executable := 'npx';
@@ -338,10 +399,10 @@ begin
   FProcess.Parameters.Add(User);
   FProcess.Parameters.Add('--password');
   FProcess.Parameters.Add(Password);
-  
+
   FProcess.Options := [poUsePipes, poStderrToOutPut];
   FProcess.Execute;
-  
+
   // Esperar a que el servidor se inicie
   Sleep(2000);
 end;
@@ -363,17 +424,17 @@ begin
     Request.AddPair('id', TJSONNumber.Create(FRequestId));
     Inc(FRequestId);
     Request.AddPair('method', Method);
-    
+
     if Assigned(Params) then
       Request.AddPair('params', Params)
     else
       Request.AddPair('params', TJSONObject.Create);
-    
+
     RequestStr := Request.ToString + #10;
-    
+
     // Enviar la solicitud al proceso
     FProcess.Input.Write(RequestStr[1], Length(RequestStr) * 2);
-    
+
     // Leer la respuesta
     ResponseStr := ReadResponse;
     Result := TJSONObject.ParseJSONValue(ResponseStr) as TJSONObject;
@@ -390,7 +451,7 @@ var
 begin
   SetLength(Buffer, 4096);
   ResponseStr := '';
-  
+
   repeat
     BytesRead := FProcess.Output.Read(Buffer[0], Length(Buffer));
     if BytesRead > 0 then
@@ -399,7 +460,7 @@ begin
       ResponseStr := ResponseStr + TEncoding.UTF8.GetString(Buffer);
     end;
   until BytesRead = 0;
-  
+
   Result := ResponseStr;
 end;
 
@@ -431,11 +492,11 @@ begin
   RequestParams := TJSONObject.Create;
   Args := TJSONObject.Create;
   ParamsArray := TJSONArray.Create;
-  
+
   try
     // Configurar los argumentos
     Args.AddPair('sql', SQL);
-    
+
     if Length(Params) > 0 then
     begin
       for I := 0 to Length(Params) - 1 do
@@ -448,11 +509,11 @@ begin
         end;
       end;
     end;
-    
+
     Args.AddPair('params', ParamsArray);
     RequestParams.AddPair('name', 'execute-query');
     RequestParams.AddPair('args', Args);
-    
+
     Result := SendRequest('executeTool', RequestParams);
   finally
     RequestParams.Free;
@@ -465,12 +526,12 @@ var
 begin
   RequestParams := TJSONObject.Create;
   Args := TJSONObject.Create;
-  
+
   try
     Args.AddPair('description', Description);
     RequestParams.AddPair('name', 'generate-sql');
     RequestParams.AddPair('args', Args);
-    
+
     Result := SendRequest('executePrompt', RequestParams);
   finally
     RequestParams.Free;
@@ -484,22 +545,22 @@ var
 begin
   try
     WriteLn('Iniciando cliente MCP Firebird...');
-    
+
     // Crear el cliente
     Client := TMcpFirebirdClient.Create('C:\Databases\example.fdb', 'SYSDBA', 'masterkey');
     try
       // Obtener información del servidor
       ServerInfo := Client.GetServerInfo;
       WriteLn('Información del servidor: ', ServerInfo.ToString);
-      
+
       // Listar tablas
       Tables := Client.ListTables;
       WriteLn('Tablas disponibles: ', Tables.ToString);
-      
+
       // Ejecutar una consulta
       QueryResults := Client.ExecuteQuery("SELECT FIRST 10 * FROM EMPLOYEES");
       WriteLn('Resultados: ', QueryResults.ToString);
-      
+
       // Generar SQL
       GeneratedSQL := Client.GenerateSQL("Listar los productos más vendidos");
       WriteLn('SQL generado: ', GeneratedSQL.ToString);
@@ -510,7 +571,7 @@ begin
     on E: Exception do
       WriteLn('Error: ', E.Message);
   end;
-  
+
   WriteLn('Presiona ENTER para salir...');
   ReadLn;
 end.
@@ -528,23 +589,23 @@ Puedes restringir qué tablas y vistas están disponibles para el servidor MCP u
 // En tu configuración personalizada (config.js)
 module.exports = {
   // Configuración básica...
-  
+
   security: {
     // Sólo permitir acceso a estas tablas
     allowedTables: [
-      'CUSTOMERS', 
-      'PRODUCTS', 
+      'CUSTOMERS',
+      'PRODUCTS',
       'ORDERS',
       'ORDER_ITEMS'
     ],
-    
+
     // Excluir estas tablas explícitamente (tiene precedencia sobre allowedTables)
     forbiddenTables: [
       'USERS',
       'USER_CREDENTIALS',
       'AUDIT_LOG'
     ],
-    
+
     // Filtro de patrón de nombre (expresión regular)
     tableNamePattern: '^(?!TMP_|TEMP_|BAK_).*$'  // Excluir tablas temporales/backup
   }
@@ -565,17 +626,17 @@ Puedes restringir qué operaciones SQL están permitidas:
 // En tu configuración personalizada
 module.exports = {
   // Configuración básica...
-  
+
   security: {
     // Operaciones SQL permitidas
     allowedOperations: ['SELECT', 'EXECUTE'],  // Solo consultas y procedimientos almacenados
-    
+
     // Bloquear estas operaciones específicamente
     forbiddenOperations: ['DROP', 'TRUNCATE', 'ALTER', 'GRANT', 'REVOKE'],
-    
+
     // Número máximo de filas que se pueden devolver en una consulta
     maxRows: 1000,
-    
+
     // Tiempo máximo de ejecución para consultas (en ms)
     queryTimeout: 5000
   }
@@ -589,7 +650,7 @@ Puedes configurar reglas para enmascarar o filtrar datos sensibles:
 ```javascript
 module.exports = {
   // Configuración básica...
-  
+
   security: {
     dataMasking: [
       {
@@ -605,7 +666,7 @@ module.exports = {
         replacement: '$1***$3'
       }
     ],
-    
+
     // Filtros de línea para excluir datos sensibles
     rowFilters: {
       'CUSTOMERS': 'GDPR_CONSENT = 1',  // Solo mostrar clientes con consentimiento GDPR
@@ -622,24 +683,24 @@ Configura registro detallado de todas las operaciones realizadas a través del M
 ```javascript
 module.exports = {
   // Configuración básica...
-  
+
   security: {
     audit: {
       // Habilitar auditoría
       enabled: true,
-      
+
       // Destino del log de auditoría
       destination: 'database',  // opciones: 'file', 'database', 'both'
-      
+
       // Si destination incluye 'file'
       auditFile: '/path/to/audit.log',
-      
+
       // Si destination incluye 'database'
       auditTable: 'MCP_AUDIT_LOG',
-      
+
       // Nivel de detalle
       detailLevel: 'full',  // 'basic', 'medium', 'full'
-      
+
       // Qué registrar
       logQueries: true,
       logResponses: true,
@@ -669,12 +730,12 @@ CREATE TABLE MCP_AUDIT_LOG (
 
 -- Ejemplo de registro
 INSERT INTO MCP_AUDIT_LOG (
-  LOG_ID, CLIENT_INFO, OPERATION_TYPE, TARGET_OBJECT, 
-  QUERY_TEXT, PARAMETERS, AFFECTED_ROWS, 
+  LOG_ID, CLIENT_INFO, OPERATION_TYPE, TARGET_OBJECT,
+  QUERY_TEXT, PARAMETERS, AFFECTED_ROWS,
   EXECUTION_TIME, USER_IDENTIFIER, SUCCESS
 ) VALUES (
   NEXT VALUE FOR SEQ_AUDIT_LOG, 'Claude/agent', 'SELECT', 'CUSTOMERS',
-  'SELECT CUSTOMER_NAME, CITY FROM CUSTOMERS WHERE REGION = ?', 
+  'SELECT CUSTOMER_NAME, CITY FROM CUSTOMERS WHERE REGION = ?',
   '["East"]', 24, 45, 'claude-session-123', TRUE
 );
 ```
@@ -686,21 +747,21 @@ Configura límites para evitar consultas que consuman demasiados recursos:
 ```javascript
 module.exports = {
   // Configuración básica...
-  
+
   security: {
     resourceLimits: {
       // Límite de filas por consulta
       maxRowsPerQuery: 5000,
-      
+
       // Límite de tamaño de resultados (en bytes)
       maxResponseSize: 1024 * 1024 * 5,  // 5 MB
-      
+
       // Límite de tiempo de CPU por consulta (ms)
       maxQueryCpuTime: 10000,
-      
+
       // Límite de consultas por sesión
       maxQueriesPerSession: 100,
-      
+
       // Intervalo de limitación (consultas por minuto)
       rateLimit: {
         queriesPerMinute: 60,
@@ -718,12 +779,12 @@ MCP Firebird se puede integrar con sistemas de autorización externos para un co
 ```javascript
 module.exports = {
   // Configuración básica...
-  
+
   security: {
     authorization: {
       // Usar un servicio de autorización externo
       type: 'oauth2',
-      
+
       // Configuración para OAuth2
       oauth2: {
         tokenVerifyUrl: 'https://auth.example.com/verify',
@@ -731,7 +792,7 @@ module.exports = {
         clientSecret: process.env.OAUTH_CLIENT_SECRET,
         scope: 'database:read'
       },
-      
+
       // Mapeo de roles a permisos
       rolePermissions: {
         'analyst': {
@@ -762,17 +823,17 @@ module.exports = {
   database: process.env.FIREBIRD_DATABASE,
   user: process.env.FIREBIRD_USER,
   password: process.env.FIREBIRD_PASSWORD,
-  
+
   security: {
     // Acceso limitado a tablas de ventas
     allowedTables: [
       'SALES', 'PRODUCTS', 'CUSTOMERS', 'REGIONS',
       'SALES_TARGETS', 'PRODUCT_CATEGORIES'
     ],
-    
+
     // Solo permitir consultas SELECT
     allowedOperations: ['SELECT'],
-    
+
     // Enmascarar datos sensibles de clientes
     dataMasking: [
       {
@@ -781,7 +842,7 @@ module.exports = {
         replacement: '[REDACTED]'
       }
     ],
-    
+
     // Límites de recursos
     resourceLimits: {
       maxRowsPerQuery: 10000,
@@ -816,22 +877,22 @@ module.exports = {
   database: process.env.FIREBIRD_DATABASE,
   user: process.env.FIREBIRD_USER,
   password: process.env.FIREBIRD_PASSWORD,
-  
+
   security: {
     // Acceso a tablas de inventario
     allowedTables: [
-      'INVENTORY', 'PRODUCTS', 'WAREHOUSES', 
+      'INVENTORY', 'PRODUCTS', 'WAREHOUSES',
       'STOCK_MOVEMENTS', 'SUPPLIERS'
     ],
-    
+
     // Permitir operaciones de lectura y escritura limitadas
     allowedOperations: ['SELECT', 'INSERT', 'UPDATE'],
-    
+
     // Prevenir modificación de registros históricos
     rowFilters: {
       'STOCK_MOVEMENTS': 'MOVEMENT_DATE > DATEADD(-30 DAY TO CURRENT_DATE)'
     },
-    
+
     // Auditoría completa
     audit: {
       enabled: true,
@@ -852,21 +913,21 @@ module.exports = {
   database: process.env.FIREBIRD_DATABASE_DEV,
   user: process.env.FIREBIRD_USER_DEV,
   password: process.env.FIREBIRD_PASSWORD_DEV,
-  
+
   security: {
     // En desarrollo, permitir más operaciones
     allowedOperations: ['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'CREATE'],
-    
+
     // Excluir sólo tablas críticas
     forbiddenTables: ['SYSTEM_CONFIG', 'APP_SECRETS'],
-    
+
     // Limitar impacto de consultas pesadas
     resourceLimits: {
       maxRowsPerQuery: 1000,
       maxQueryCpuTime: 3000,
       queriesPerMinute: 120
     },
-    
+
     // Auditoría básica
     audit: {
       enabled: true,

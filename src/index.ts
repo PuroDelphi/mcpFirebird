@@ -1,9 +1,12 @@
 // MCP Firebird - Punto de entrada principal
+import dotenv from 'dotenv';
+dotenv.config(); // Load environment variables from .env file
 import './utils/stdout-guard.js';
 import { createLogger } from './utils/logger.js';
-import { initializeServer } from './server/index.js';
+import { main } from './server/index.js';
 import { FirebirdError } from './db/connection.js';
-import { version } from '../package.json';
+import pkg from '../package.json' with { type: 'json' };
+const { version } = pkg;
 import * as os from 'os';
 import * as process from 'process';
 
@@ -142,39 +145,20 @@ async function performHealthCheck(): Promise<boolean> {
 }
 
 // Entrada principal
-(async () => {
-    // Configurar manejadores de señales
-    setupSignalHandlers();
-    
-    // Logger principal
-    const logger = createLogger('main');
-    
-    try {
-        // Mostrar información del sistema
-        logSystemInfo();
-        
-        // Realizar comprobación de salud
-        const healthCheckPassed = await performHealthCheck();
-        if (!healthCheckPassed) {
-            logger.warn('La comprobación de salud ha detectado problemas, continuando con precaución...');
-        }
-        
-        // Cargar módulos MCP
-        const { serverModule, stdioModule } = await loadMCPModules();
-        
-        // Crear transporte STDIO conforme a MCP
-        logger.info('Creando transporte STDIO...');
-        const transport = new stdioModule.StdioServerTransport();
-        process.stderr.write("[INIT] Transporte STDIO creado\n");
-        
-        // Inicializar servidor MCP
-        logger.info('Inicializando servidor MCP...');
-        await initializeServer(serverModule, transport);
-        logger.info('Servidor MCP inicializado correctamente');
-        
-    } catch (error) {
-        handleFatalError(error);
+const logger = createLogger('index'); // Use a simple name
+logger.info(`Starting MCP Firebird Server v${version}...`);
+
+const logFilePath = process.env.MCP_LOG_FILE || 'mcp-firebird.log';
+
+main().catch(error => {
+    // Log the error using the configured logger
+    if (error instanceof FirebirdError) {
+        logger.error(`Firebird specific error: ${error.message}`, { type: error.type, originalError: error.originalError });
+    } else if (error instanceof Error) {
+        logger.error(`Unhandled error during startup: ${error.message}`, { stack: error.stack });
+    } else {
+        logger.error('An unknown error occurred during startup', { error });
     }
-})().catch((error) => {
-    handleFatalError(error);
+    // Ensure the process exits with an error code
+    process.exit(1);
 });
