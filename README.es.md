@@ -45,6 +45,31 @@ Puedes ejecutar el servidor directamente con npx:
 npx mcp-firebird --host localhost --port 3050 --database /path/to/database.fdb --user SYSDBA --password masterkey
 ```
 
+### Uso con SSE (Server-Sent Events)
+
+El servidor MCP Firebird también soporta transporte SSE, que permite a los clientes conectarse a través de HTTP:
+
+```bash
+# Configura el tipo de transporte como SSE en tu archivo .env
+TRANSPORT_TYPE=sse
+SSE_PORT=3003
+
+# Ejecuta el servidor con transporte SSE
+npm run sse
+```
+
+Puedes conectarte al servidor usando el Inspector MCP:
+
+```bash
+npx @modelcontextprotocol/inspector http://localhost:3003
+```
+
+O usar el script proporcionado:
+
+```bash
+npm run inspector-sse
+```
+
 ## Configuración con Claude Desktop
 
 Para usar el servidor MCP de Firebird con Claude Desktop:

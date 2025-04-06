@@ -23,6 +23,7 @@ process.on('unhandledRejection', (reason, promise) => {
 // --- SDK Imports ---
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { startSseServer } from "./sse.js";
 import {
     CallToolRequestSchema,
     ListToolsRequestSchema,
@@ -253,18 +254,49 @@ export async function main() {
             return { resourceTemplates: [] };
         });
 
-        // 4. Start the server with the transport
-        logger.info('Configuring stdio transport...');
-        const transport = new StdioServerTransport();
-        logger.info('Connecting server to transport...');
+        // 4. Start the server with the appropriate transport
+        const transportType = process.env.TRANSPORT_TYPE || 'stdio';
+        logger.info(`Configuring ${transportType} transport...`);
 
-        await server.connect(transport);
+        if (transportType === 'sse') {
+            // Start SSE server
+            const ssePort = parseInt(process.env.SSE_PORT || '3003', 10);
+            logger.info(`Starting SSE server on port ${ssePort}...`);
 
-        logger.info('MCP Firebird server connected and ready to receive requests.');
-        logger.info(`Server waiting for requests...`);
+            const { cleanup } = await startSseServer(server, ssePort);
 
-        // Keep the process alive indefinitely
-        await new Promise(() => {});
+            // Handle cleanup on process exit
+            process.on('SIGINT', async () => {
+                logger.info('Received SIGINT signal, cleaning up...');
+                await cleanup();
+                process.exit(0);
+            });
+
+            process.on('SIGTERM', async () => {
+                logger.info('Received SIGTERM signal, cleaning up...');
+                await cleanup();
+                process.exit(0);
+            });
+
+            logger.info('MCP Firebird server with SSE transport ready to receive requests.');
+            logger.info(`SSE server listening on port ${ssePort}...`);
+
+            // Keep the process alive indefinitely
+            await new Promise(() => {});
+        } else {
+            // Default to stdio transport
+            logger.info('Configuring stdio transport...');
+            const transport = new StdioServerTransport();
+            logger.info('Connecting server to transport...');
+
+            await server.connect(transport);
+
+            logger.info('MCP Firebird server with stdio transport connected and ready to receive requests.');
+            logger.info(`Server waiting for requests...`);
+
+            // Keep the process alive indefinitely
+            await new Promise(() => {});
+        }
 
     } catch (error) {
         logger.error('Fatal error during server initialization or execution:', error);
