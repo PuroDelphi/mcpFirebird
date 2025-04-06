@@ -448,6 +448,12 @@ export const describeTable = async (tableName: string, config = DEFAULT_CONFIG):
  * @throws {FirebirdError} Si hay un error de conexión o de consulta
  */
 export const listTables = async (config = DEFAULT_CONFIG): Promise<string[]> => {
+    // Try to load config from global variable first
+    const globalConfig = getGlobalConfig();
+    if (globalConfig && globalConfig.database) {
+        logger.info(`Using global configuration for listTables: ${globalConfig.database}`);
+        config = globalConfig;
+    }
     try {
         logger.info('Obteniendo lista de tablas de usuario');
 
