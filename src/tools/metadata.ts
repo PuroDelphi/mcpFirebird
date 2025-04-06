@@ -60,7 +60,7 @@ export const setupMetadataTools = (
 
                 return {
                     content: [{
-                        type: 'json',
+                        type: 'text',
                         text: stringifyCompact({ success: true, tools: toolDescriptions })
                     }]
                 };
@@ -68,7 +68,7 @@ export const setupMetadataTools = (
                 logger.error(`Error en get-methods: ${error.message}`);
                 return {
                     content: [{
-                        type: 'json',
+                        type: 'text',
                         text: stringifyCompact({ success: false, error: 'Error al obtener la lista de herramientas.', message: error.message })
                     }]
                 };
@@ -95,10 +95,10 @@ export const setupMetadataTools = (
                 if (!toolDef) {
                     return {
                         content: [{
-                            type: 'json',
-                            text: stringifyCompact({ 
-                                success: false, 
-                                error: `Herramienta (método) '${toolName}' no encontrada.` 
+                            type: 'text',
+                            text: stringifyCompact({
+                                success: false,
+                                error: `Herramienta (método) '${toolName}' no encontrada.`
                             })
                         }]
                     };
@@ -124,7 +124,7 @@ export const setupMetadataTools = (
 
                 return {
                     content: [{
-                        type: 'json',
+                        type: 'text',
                         // Usar la clave 'tool' consistentemente
                         text: stringifyCompact({ success: true, tool: toolDescription })
                     }]
@@ -134,11 +134,11 @@ export const setupMetadataTools = (
                 logger.error(`Error en describe-method: ${error.message}`);
                 return {
                     content: [{
-                        type: 'json',
-                        text: stringifyCompact({ 
-                            success: false, 
-                            error: 'Error al obtener la descripción de la herramienta (método).', 
-                            message: error.message 
+                        type: 'text',
+                        text: stringifyCompact({
+                            success: false,
+                            error: 'Error al obtener la descripción de la herramienta (método).',
+                            message: error.message
                         })
                     }]
                 };
@@ -154,9 +154,9 @@ export const setupMetadataTools = (
             logger.info("Ping recibido");
             return {
                 content: [{
-                    type: 'json',
-                    text: stringifyCompact({ 
-                        success: true, 
+                    type: 'text',
+                    text: stringifyCompact({
+                        success: true,
                         message: "Firebird MCP server is online",
                         timestamp: new Date().toISOString()
                     })

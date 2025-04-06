@@ -123,7 +123,7 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
 
                 return {
                     content: [{
-                        type: "json",
+                        type: "text",
                         text: stringifyCompact(wrapSuccess(result))
                     }]
                 };
@@ -133,7 +133,7 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
 
                 return {
                     content: [{
-                        type: "json",
+                        type: "text",
                         text: stringifyCompact(errorResponse)
                     }]
                 };
@@ -154,7 +154,7 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
 
                 return {
                     content: [{
-                        type: "json",
+                        type: "text",
                         text: stringifyCompact(wrapSuccess({ tables }))
                     }]
                 };
@@ -164,7 +164,7 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
 
                 return {
                     content: [{
-                        type: "json",
+                        type: "text",
                         text: stringifyCompact(errorResponse)
                     }]
                 };
@@ -186,7 +186,7 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
 
                 return {
                     content: [{
-                        type: "json",
+                        type: "text",
                         text: stringifyCompact(wrapSuccess({ schema }))
                     }]
                 };
@@ -195,7 +195,7 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
                 logger.error(`Error describiendo tabla ${tableName}: ${errorResponse.error} [${errorResponse.errorType || 'UNKNOWN'}]`);
                 return {
                     content: [{
-                        type: "json",
+                        type: "text",
                         text: stringifyCompact(errorResponse)
                     }]
                 };
@@ -217,7 +217,7 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
 
                 return {
                     content: [{
-                        type: "json",
+                        type: "text",
                         text: stringifyCompact(wrapSuccess({ fieldDescriptions }))
                     }]
                 };
@@ -227,7 +227,7 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
 
                 return {
                     content: [{
-                        type: "json",
+                        type: "text",
                         text: stringifyCompact(errorResponse)
                     }]
                 };
@@ -253,7 +253,7 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
 
                 return {
                     content: [{
-                        type: "json",
+                        type: "text",
                         text: stringifyCompact(wrapSuccess(result))
                     }]
                 };
@@ -263,7 +263,7 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
 
                 return {
                     content: [{
-                        type: "json",
+                        type: "text",
                         text: stringifyCompact(errorResponse)
                     }]
                 };
@@ -285,7 +285,7 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
 
                 return {
                     content: [{
-                        type: "json",
+                        type: "text",
                         text: stringifyCompact(wrapSuccess(result))
                     }]
                 };
@@ -295,7 +295,7 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
 
                 return {
                     content: [{
-                        type: "json",
+                        type: "text",
                         text: stringifyCompact(errorResponse)
                     }]
                 };
@@ -317,7 +317,7 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
 
                 return {
                     content: [{
-                        type: "json",
+                        type: "text",
                         text: stringifyCompact(wrapSuccess(result))
                     }]
                 };
@@ -327,7 +327,7 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
 
                 return {
                     content: [{
-                        type: "json",
+                        type: "text",
                         text: stringifyCompact(errorResponse)
                     }]
                 };
@@ -349,7 +349,7 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
 
                 return {
                     content: [{
-                        type: "json",
+                        type: "text",
                         text: stringifyCompact(wrapSuccess(result))
                     }]
                 };
@@ -359,7 +359,7 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
 
                 return {
                     content: [{
-                        type: "json",
+                        type: "text",
                         text: stringifyCompact(errorResponse)
                     }]
                 };
@@ -381,7 +381,7 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
 
                 return {
                     content: [{
-                        type: "json",
+                        type: "text",
                         text: stringifyCompact(wrapSuccess(result))
                     }]
                 };
@@ -391,7 +391,7 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
 
                 return {
                     content: [{
-                        type: "json",
+                        type: "text",
                         text: stringifyCompact(errorResponse)
                     }]
                 };
@@ -413,7 +413,7 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
 
                 return {
                     content: [{
-                        type: "json",
+                        type: "text",
                         text: stringifyCompact(wrapSuccess(result))
                     }]
                 };
@@ -423,7 +423,7 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
 
                 return {
                     content: [{
-                        type: "json",
+                        type: "text",
                         text: stringifyCompact(errorResponse)
                     }]
                 };
