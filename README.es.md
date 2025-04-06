@@ -4,7 +4,7 @@ Implementación del protocolo MCP de Anthropic para bases de datos Firebird.
 
 ## ¿Qué es MCP Firebird y para qué sirve?
 
-MCP Firebird es un servidor que implementa el [Protocolo de Contexto de Modelo (MCP)](https://github.com/anthropics/anthropic-cookbook/tree/main/model_context_protocol) de Anthropic para bases de datos Firebird SQL. Permite a los Modelos de Lenguaje de Gran Tamaño (LLMs) como Claude acceder, analizar y manipular datos en bases de datos Firebird de manera segura y controlada.
+MCP Firebird es un servidor que implementa el [Protocolo de Contexto de Modelo (MCP)](https://github.com/anthropics/anthropic-cookbook/tree/main/model_context_protocol) de Anthropic para bases de datos [Firebird SQL](https://firebirdsql.org/). Permite a los Modelos de Lenguaje de Gran Tamaño (LLMs) como Claude acceder, analizar y manipular datos en bases de datos Firebird de manera segura y controlada.
 
 Más abajo encontrarás casos y ejemplos de uso.
 
@@ -69,6 +69,16 @@ O usar el script proporcionado:
 ```bash
 npm run inspector-sse
 ```
+
+#### Ejemplos de clientes SSE
+
+Proporcionamos varios ejemplos de clientes que demuestran cómo conectarse al servidor MCP Firebird usando SSE:
+
+- **HTML/JavaScript**: Ver `examples/sse-client.html` para un cliente basado en navegador
+- **Node.js**: Ver `examples/sse-client.js` para un cliente Node.js
+- **Python**: Ver `examples/sse_client.py` para un cliente Python
+
+Para documentación detallada sobre el uso del transporte SSE, consulta `docs/sse-examples.md`.
 
 ## Configuración con Claude Desktop
 
