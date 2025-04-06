@@ -7,74 +7,45 @@
 
 // Process command line arguments first
 import minimist from 'minimist';
-import { normalizeDatabasePath, ConfigOptions } from './db/connection.js';
 const argv = minimist(process.argv.slice(2));
 
 // Debug: Log all command line arguments
 console.error('Command line arguments:', JSON.stringify(argv));
 console.error('Raw process.argv:', JSON.stringify(process.argv));
 
-// Create database configuration object directly from command line arguments
-export const dbConfig: ConfigOptions = {
-  host: argv.host || 'localhost',
-  port: argv.port ? parseInt(argv.port, 10) : 3050,
-  database: argv.database ? normalizeDatabasePath(argv.database) : '',
-  user: argv.user || 'SYSDBA',
-  password: argv.password || 'masterkey',
-  role: argv.role,
-  pageSize: 4096
-};
-
-// Make the configuration globally available
-(global as any).MCP_FIREBIRD_CONFIG = dbConfig;
-
-// Load security configuration if provided
-if (argv['security-config']) {
-  try {
-    const fs = await import('fs');
-    const securityConfigPath = argv['security-config'];
-    console.error(`Loading security configuration from ${securityConfigPath}`);
-    const securityConfigContent = fs.readFileSync(securityConfigPath, 'utf8');
-    const securityConfig = JSON.parse(securityConfigContent);
-    console.error('Security configuration loaded successfully');
-    console.error(`Security config: ${JSON.stringify(securityConfig, null, 2)}`);
-    (global as any).MCP_SECURITY_CONFIG = securityConfig;
-  } catch (error) {
-    console.error(`Error loading security configuration: ${error instanceof Error ? error.message : String(error)}`);
-  }
-}
-
-// Also set environment variables for backward compatibility
+// Convert command line arguments to environment variables
 if (argv.database) {
   process.env.FIREBIRD_DATABASE = argv.database;
-  process.env.FB_DATABASE = argv.database;
   console.error(`Setting FIREBIRD_DATABASE to ${argv.database}`);
 }
 if (argv.user) {
   process.env.FIREBIRD_USER = argv.user;
-  process.env.FB_USER = argv.user;
   console.error(`Setting FIREBIRD_USER to ${argv.user}`);
 }
 if (argv.password) {
   process.env.FIREBIRD_PASSWORD = argv.password;
-  process.env.FB_PASSWORD = argv.password;
   console.error('Setting FIREBIRD_PASSWORD (value hidden)');
 }
 if (argv.host) {
   process.env.FIREBIRD_HOST = argv.host;
-  process.env.FB_HOST = argv.host;
   console.error(`Setting FIREBIRD_HOST to ${argv.host}`);
 }
 if (argv.port) {
   process.env.FIREBIRD_PORT = argv.port;
-  process.env.FB_PORT = argv.port;
   console.error(`Setting FIREBIRD_PORT to ${argv.port}`);
 }
 if (argv.role) {
   process.env.FIREBIRD_ROLE = argv.role;
-  process.env.FB_ROLE = argv.role;
   console.error(`Setting FIREBIRD_ROLE to ${argv.role}`);
 }
+
+// Also check for FB_ prefixed variables for compatibility
+if (argv.database) process.env.FB_DATABASE = argv.database;
+if (argv.user) process.env.FB_USER = argv.user;
+if (argv.password) process.env.FB_PASSWORD = argv.password;
+if (argv.host) process.env.FB_HOST = argv.host;
+if (argv.port) process.env.FB_PORT = argv.port;
+if (argv.role) process.env.FB_ROLE = argv.role;
 
 // Load environment variables from .env file (will not override existing env vars)
 import dotenv from 'dotenv';
@@ -101,12 +72,12 @@ async function main() {
 
   // Log the database connection parameters (without sensitive info)
   logger.info(`Database connection parameters:`);
-  logger.info(`- Host: ${dbConfig.host}`);
-  logger.info(`- Port: ${dbConfig.port}`);
-  logger.info(`- Database: ${dbConfig.database || 'Not specified'}`);
-  logger.info(`- User: ${dbConfig.user}`);
+  logger.info(`- Host: ${process.env.FIREBIRD_HOST || 'localhost'}`);
+  logger.info(`- Port: ${process.env.FIREBIRD_PORT || '3050'}`);
+  logger.info(`- Database: ${process.env.FIREBIRD_DATABASE || 'Not specified'}`);
+  logger.info(`- User: ${process.env.FIREBIRD_USER || 'SYSDBA'}`);
   // Don't log the password
-  logger.info(`- Role: ${dbConfig.role || 'Not specified'}`);
+  logger.info(`- Role: ${process.env.FIREBIRD_ROLE || 'Not specified'}`);
 
   try {
     // Create the server

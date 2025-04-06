@@ -7,8 +7,7 @@ import {
     queryDatabase,
     DEFAULT_CONFIG,
     FirebirdDatabase,
-    ConfigOptions,
-    getGlobalConfig
+    ConfigOptions
 } from './connection.js';
 import { FirebirdError } from '../utils/errors.js';
 import { validateSql } from '../utils/security.js';
@@ -74,29 +73,18 @@ export interface ExecutionPlanResult {
  * @param {string} sql - SQL query to execute (Firebird uses FIRST/ROWS for pagination instead of LIMIT)
  * @param {any[]} params - Parameters for the SQL query (optional)
  * @param {ConfigOptions} config - Database connection configuration (optional)
- * @param {boolean} skipSecurityCheck - If true, skips security validation (for internal use)
  * @returns {Promise<any[]>} Results of the query execution
  * @throws {FirebirdError} If there is a connection or query error
  */
-export const executeQuery = async (sql: string, params: any[] = [], config = DEFAULT_CONFIG, skipSecurityCheck = false): Promise<any[]> => {
-    // Try to load config from global variable first
-    const globalConfig = getGlobalConfig();
-    if (globalConfig && globalConfig.database) {
-        logger.info(`Using global configuration for executeQuery: ${globalConfig.database}`);
-        config = globalConfig;
-    }
+export const executeQuery = async (sql: string, params: any[] = [], config = DEFAULT_CONFIG): Promise<any[]> => {
     let db: FirebirdDatabase | null = null;
     try {
-        // Validar la consulta SQL para prevenir inyección solo si no se omite la validación
-        if (!skipSecurityCheck) {
-            // Usar la configuración de seguridad global si está disponible
-            const securityConfig = (global as any).MCP_SECURITY_CONFIG;
-            if (!validateSql(sql, securityConfig)) {
-                throw new FirebirdError(
-                    `Consulta SQL potencialmente insegura: ${sql.substring(0, 100)}${sql.length > 100 ? '...' : ''}`,
-                    'SECURITY_ERROR'
-                );
-            }
+        // Validar la consulta SQL para prevenir inyección
+        if (!validateSql(sql)) {
+            throw new FirebirdError(
+                `Consulta SQL potencialmente insegura: ${sql.substring(0, 100)}${sql.length > 100 ? '...' : ''}`,
+                'SECURITY_ERROR'
+            );
         }
 
         db = await connectToDatabase(config);
@@ -168,12 +156,6 @@ export const getDatabases = (): DatabaseInfo[] => {
  * @throws {FirebirdError} Si hay un error de conexión o de consulta
  */
 export const getTables = async (config = DEFAULT_CONFIG): Promise<TableInfo[]> => {
-    // Try to load config from global variable first
-    const globalConfig = getGlobalConfig();
-    if (globalConfig && globalConfig.database) {
-        logger.info(`Using global configuration for getTables: ${globalConfig.database}`);
-        config = globalConfig;
-    }
     try {
         logger.info('Obteniendo lista de tablas');
 
@@ -185,8 +167,7 @@ export const getTables = async (config = DEFAULT_CONFIG): Promise<TableInfo[]> =
             ORDER BY RDB$RELATION_NAME
         `;
 
-        // Pasar skipSecurityCheck como true para omitir la validación de seguridad en consultas internas
-        const tables = await executeQuery(sql, [], config, true);
+        const tables = await executeQuery(sql, [], config);
 
         const tableInfos = tables.map((table: any) => ({
             name: table.NAME,
@@ -214,12 +195,6 @@ export const getTables = async (config = DEFAULT_CONFIG): Promise<TableInfo[]> =
  * @throws {FirebirdError} Si hay un error de conexión o de consulta
  */
 export const getViews = async (config = DEFAULT_CONFIG): Promise<TableInfo[]> => {
-    // Try to load config from global variable first
-    const globalConfig = getGlobalConfig();
-    if (globalConfig && globalConfig.database) {
-        logger.info(`Using global configuration for getViews: ${globalConfig.database}`);
-        config = globalConfig;
-    }
     try {
         logger.info('Obteniendo lista de vistas');
 
@@ -231,8 +206,7 @@ export const getViews = async (config = DEFAULT_CONFIG): Promise<TableInfo[]> =>
             ORDER BY RDB$RELATION_NAME
         `;
 
-        // Pasar skipSecurityCheck como true para omitir la validación de seguridad en consultas internas
-        const views = await executeQuery(sql, [], config, true);
+        const views = await executeQuery(sql, [], config);
 
         const viewInfos = views.map((view: any) => ({
             name: view.NAME,
@@ -299,12 +273,6 @@ export const getProcedures = async (config = DEFAULT_CONFIG): Promise<TableInfo[
  * @throws {FirebirdError} Si hay un error de conexión, de consulta o el nombre de tabla es inválido
  */
 export const getFieldDescriptions = async (tableName: string, config = DEFAULT_CONFIG): Promise<FieldInfo[]> => {
-    // Try to load config from global variable first
-    const globalConfig = getGlobalConfig();
-    if (globalConfig && globalConfig.database) {
-        logger.info(`Using global configuration for getFieldDescriptions: ${globalConfig.database}`);
-        config = globalConfig;
-    }
     try {
         logger.info(`Obteniendo descripciones de campos para la tabla: ${tableName}`);
 
@@ -324,8 +292,7 @@ export const getFieldDescriptions = async (tableName: string, config = DEFAULT_C
             ORDER BY f.RDB$FIELD_POSITION
         `;
 
-        // Pasar skipSecurityCheck como true para omitir la validación de seguridad en consultas internas
-        const fields = await executeQuery(sql, [tableName], config, true);
+        const fields = await executeQuery(sql, [tableName], config);
 
         if (fields.length === 0) {
             logger.warn(`No se encontraron campos para la tabla: ${tableName}`);
@@ -357,12 +324,6 @@ export const getFieldDescriptions = async (tableName: string, config = DEFAULT_C
  * @throws {FirebirdError} Si hay un error de conexión, de consulta o el nombre de tabla es inválido
  */
 export const describeTable = async (tableName: string, config = DEFAULT_CONFIG): Promise<ColumnInfo[]> => {
-    // Try to load config from global variable first
-    const globalConfig = getGlobalConfig();
-    if (globalConfig && globalConfig.database) {
-        logger.info(`Using global configuration for describeTable: ${globalConfig.database}`);
-        config = globalConfig;
-    }
     try {
         logger.info(`Obteniendo estructura de la tabla: ${tableName}`);
 
@@ -415,8 +376,7 @@ export const describeTable = async (tableName: string, config = DEFAULT_CONFIG):
             ORDER BY rf.RDB$FIELD_POSITION
         `;
 
-        // Pasar skipSecurityCheck como true para omitir la validación de seguridad en consultas internas
-        const columns = await executeQuery(sql, [tableName], config, true);
+        const columns = await executeQuery(sql, [tableName], config);
 
         if (columns.length === 0) {
             logger.warn(`No se encontraron columnas para la tabla: ${tableName}`);

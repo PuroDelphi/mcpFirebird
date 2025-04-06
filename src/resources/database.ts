@@ -115,8 +115,7 @@ export const setupDatabaseResources = (): Map<string, ResourceDefinition> => {
                     sql += ` SKIP ${skip}`;
                 }
 
-                // Pasar skipSecurityCheck como true para omitir la validación de seguridad en recursos internos
-                const results = await executeQuery(sql, [], undefined, true);
+                const results = await executeQuery(sql);
                 return { data: results };
             } catch (error: any) {
                 logger.error(`Error al obtener datos para el recurso /tables/${tableName}/data: ${error.message || error}`);
