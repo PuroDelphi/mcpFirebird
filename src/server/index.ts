@@ -279,12 +279,13 @@ export async function main() {
             const transport = new StdioServerTransport();
             logger.info('Connecting server to transport...');
 
+            // Conectar el servidor al transporte - siguiendo el patrón del ejemplo oficial
             await server.connect(transport);
 
             logger.info('MCP Firebird server with stdio transport connected and ready to receive requests.');
             logger.info(`Server waiting for requests...`);
 
-            // Keep the process alive indefinitely
+            // Mantener el proceso vivo indefinidamente
             await new Promise(() => {});
         }
 

@@ -7,23 +7,12 @@
 const originalStdoutWrite = process.stdout.write.bind(process.stdout);
 
 // Reemplazar stdout.write para prevenir escrituras accidentales
+// Simplificado para máxima compatibilidad con Claude Desktop
 process.stdout.write = function(buffer: string | Uint8Array | any): boolean {
-    // Si parece JSON válido o está en formato esperado por el protocolo, permitirlo
-    if (buffer && typeof buffer === 'string') {
-        const trimmed = buffer.trim();
-        // Permitir JSON y mensajes del protocolo MCP
-        if (trimmed.startsWith('{') || trimmed.startsWith('[') ||
-            trimmed.includes('jsonrpc') || trimmed.includes('method') ||
-            trimmed.includes('params') || trimmed.includes('id')) {
-            return originalStdoutWrite(buffer);
-        }
-    } else if (buffer) {
-        // Permitir buffers binarios y otros tipos de datos
+    // Permitir cualquier tipo de buffer para asegurar compatibilidad
+    if (buffer) {
         return originalStdoutWrite(buffer);
     }
-
-    // De lo contrario, redirigir a stderr con más información para depuración
-    process.stderr.write(`[WARN] Redirigido a stderr: ${typeof buffer === 'string' ? buffer : 'Buffer no string'} (tipo: ${typeof buffer})\n`);
     return true;
 };
 
@@ -35,11 +24,24 @@ export function restoreStdout(): void {
 // Manejar excepciones no capturadas para evitar que rompan el protocolo
 process.on('uncaughtException', (error: Error) => {
     process.stderr.write(`[FATAL] Excepción no capturada: ${error?.stack || error}\n`);
+    process.stderr.write(`[INFO] El proceso continuará ejecutándose para mantener la comunicación con el cliente\n`);
     // No terminamos el proceso para permitir que continúe la comunicación
 });
 
 process.on('unhandledRejection', (reason: any) => {
     process.stderr.write(`[FATAL] Promesa rechazada no capturada: ${reason?.stack || reason}\n`);
+    process.stderr.write(`[INFO] El proceso continuará ejecutándose para mantener la comunicación con el cliente\n`);
+    // No terminamos el proceso para permitir que continúe la comunicación
+});
+
+// Manejar señales del sistema para evitar cierres inesperados
+process.on('SIGINT', () => {
+    process.stderr.write(`[INFO] Recibida señal SIGINT, pero el proceso continuará ejecutándose\n`);
+    // No terminamos el proceso para permitir que continúe la comunicación
+});
+
+process.on('SIGTERM', () => {
+    process.stderr.write(`[INFO] Recibida señal SIGTERM, pero el proceso continuará ejecutándose\n`);
     // No terminamos el proceso para permitir que continúe la comunicación
 });
 
