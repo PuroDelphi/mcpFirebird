@@ -27,19 +27,19 @@ const createAssistantTextMessage = (text: string) => ({
 
 const analyzeTablePrompt: PromptDefinition = {
     name: "analyze-table",
-    description: "Analiza la estructura de una tabla específica y devuelve su esquema.",
+    description: "Analyzes the structure of a specific table and returns its schema.",
     inputSchema: z.object({
-        tableName: z.string().min(1).describe("Nombre de la tabla a analizar")
+        tableName: z.string().min(1).describe("Name of the table to analyze")
     }),
     handler: async (params: { tableName: string }) => {
-        logger.info(`Ejecutando prompt analyze-table para: ${params.tableName}`);
+        logger.info(`Executing analyze-table prompt for: ${params.tableName}`);
         try {
             const schema = await getTableSchema(params.tableName);
-            const resultText = `Esquema para la tabla '${params.tableName}':\n\`\`\`json\n${stringifyCompact(schema)}\n\`\`\``;
+            const resultText = `Schema for table '${params.tableName}':\n\`\`\`json\n${stringifyCompact(schema)}\n\`\`\``;
             return createAssistantTextMessage(resultText);
         } catch (error: any) {
-            logger.error(`Error en prompt analyze-table para ${params.tableName}: ${error.message || error}`);
-            const errorText = `Error analizando tabla ${params.tableName}: ${error.message || String(error)}`;
+            logger.error(`Error in analyze-table prompt for ${params.tableName}: ${error.message || error}`);
+            const errorText = `Error analyzing table ${params.tableName}: ${error.message || String(error)}`;
             return createAssistantTextMessage(errorText); // Wrap error in message structure
         }
     }
@@ -47,42 +47,42 @@ const analyzeTablePrompt: PromptDefinition = {
 
 const listTablesPrompt: PromptDefinition = {
     name: "list-tables-prompt",
-    description: "Lista todas las tablas disponibles en la base de datos.",
-    inputSchema: z.object({}), // Sin parámetros
+    description: "Lists all available tables in the database.",
+    inputSchema: z.object({}), // No parameters
     handler: async () => {
-        logger.info('Ejecutando prompt list-tables-prompt');
+        logger.info('Executing list-tables-prompt');
         try {
             const tables = await listTables();
-            const tableListText = `Tablas disponibles:\n- ${tables.join('\n- ')}`;
+            const tableListText = `Available tables:\n- ${tables.join('\n- ')}`;
             return createAssistantTextMessage(tableListText);
         } catch (error: any) {
-            logger.error(`Error en prompt list-tables-prompt: ${error.message || error}`);
-            const errorText = `Error listando tablas: ${error.message || String(error)}`;
+            logger.error(`Error in list-tables-prompt: ${error.message || error}`);
+            const errorText = `Error listing tables: ${error.message || String(error)}`;
             return createAssistantTextMessage(errorText);
         }
     }
 };
 
-// Array con todas las definiciones de prompts de base de datos
+// Array with all database prompt definitions
 const databasePrompts: PromptDefinition[] = [
     analyzeTablePrompt,
     listTablesPrompt
-    // Añadir más prompts aquí...
+    // Add more prompts here...
 ];
 
-// --- Función de Configuración --- //
+// --- Configuration Function --- //
 
 /**
- * Configura los prompts relacionados con la estructura de la base de datos
- * y devuelve un mapa con sus definiciones.
- * @returns {Map<string, PromptDefinition>} Mapa con las definiciones de prompts.
+ * Sets up prompts related to database structure
+ * and returns a map with their definitions.
+ * @returns {Map<string, PromptDefinition>} Map with prompt definitions.
  */
 export const setupDatabasePrompts = (): Map<string, PromptDefinition> => {
     const promptsMap = new Map<string, PromptDefinition>();
     databasePrompts.forEach(prompt => {
         promptsMap.set(prompt.name, prompt);
-        logger.debug(`Definición de prompt de base de datos cargada: ${prompt.name}`);
+        logger.debug(`Database prompt definition loaded: ${prompt.name}`);
     });
-    logger.info(`Definidos ${promptsMap.size} prompts de base de datos.`);
+    logger.info(`Defined ${promptsMap.size} database prompts.`);
     return promptsMap;
 };

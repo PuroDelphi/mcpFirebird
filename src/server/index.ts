@@ -1,7 +1,7 @@
 // src/server/index.ts
 import { z } from 'zod';
 import UrlPattern from 'url-pattern';
-import { zodToJsonSchema } from 'zod-to-json-schema'; // Import zodToJsonSchema
+import { zodToJsonSchema } from 'zod-to-json-schema';
 
 // --- Global Error Handlers ---
 import { createLogger as createRootLogger } from '../utils/logger.js';
@@ -20,19 +20,18 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 // ------------------------------------
 
-// --- SDK Imports --- Revert to McpServer, use corrected Schema names ---
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"; // Revert to McpServer
+// --- SDK Imports ---
+import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import {
-    // GetCapabilitiesRequestSchema, // Removed, likely implicit
-    CallToolRequestSchema,          // Corrected from ExecuteToolRequestSchema
-    // GetResourceDescriptorsRequestSchema, // Removed, likely implicit
-    ReadResourceRequestSchema,      // Corrected from AccessResourceRequestSchema
-    // CallPromptRequestSchema,        // Removed, invalid schema name
-    GetPromptRequestSchema,         // Correct
-    // GetResourceRequestSchema      // Removed, potentially uses ReadResourceRequestSchema or implicit
-    // PromptDescriptorSchema,    // Removed, invalid type
-    // ResourceDescriptorSchema  // Removed, invalid type
+    CallToolRequestSchema,
+    ListToolsRequestSchema,
+    ListPromptsRequestSchema,
+    GetPromptRequestSchema,
+    ListResourcesRequestSchema,
+    ReadResourceRequestSchema,
+    ListResourceTemplatesRequestSchema,
+    ToolSchema
 } from "@modelcontextprotocol/sdk/types.js";
 
 // --- Local Type Imports ---
@@ -45,16 +44,20 @@ import { setupMetadataTools } from '../tools/metadata.js';
 import { setupDatabasePrompts } from '../prompts/database.js';
 import { setupSqlPrompts } from '../prompts/sql.js';
 import { createLogger } from '../utils/logger.js';
-import { wrapSuccess, wrapError } from '../utils/jsonHelper.js';
+import { initSecurity } from '../security/index.js';
 import pkg from '../../package.json' with { type: 'json' };
 
 export async function main() {
     const logger = createLogger('server:index');
-    logger.info(`Iniciando servidor MCP Firebird - Nombre: ${pkg.name}, Versión: ${pkg.version}`);
+    logger.info(`Starting MCP Firebird Server - Name: ${pkg.name}, Version: ${pkg.version}`);
 
     try {
-        // 1. Cargar herramientas, prompts y recursos
-        logger.info('Cargando definiciones de herramientas, prompts y recursos...');
+        // 1. Initialize security module
+        logger.info('Initializing security module...');
+        await initSecurity();
+
+        // 2. Load tools, prompts and resources
+        logger.info('Loading tool, prompt and resource definitions...');
         const databaseTools = setupDatabaseTools();
         const metadataTools = setupMetadataTools(databaseTools);
         const databasePrompts = setupDatabasePrompts();
@@ -62,39 +65,152 @@ export async function main() {
         const allResources: Map<string, ResourceDefinition> = setupDatabaseResources();
         const allPrompts = new Map<string, PromptDefinition>([...databasePrompts, ...sqlPrompts]);
         const allTools = new Map<string, DbToolDefinition | MetaToolDefinition>([...databaseTools, ...metadataTools]);
+
+        // Log loaded prompts
+        logger.info('Loaded prompts:');
+        allPrompts.forEach((prompt, name) => {
+            logger.info(`  - ${name}: ${prompt.description}`);
+        });
+
         logger.info(
-            `Cargadas: ${allTools.size} herramientas, ${allPrompts.size} prompts, ${allResources.size} recursos.`
+            `Loaded: ${allTools.size} tools, ${allPrompts.size} prompts, ${allResources.size} resources.`
         );
 
-        // 2. Define Handlers
-        const handleExecuteToolRequest = async (req: z.infer<typeof CallToolRequestSchema>["params"]) => {
-            // Add check for toolName to satisfy TypeScript
-            if (!req?.toolName || typeof req.toolName !== 'string') { 
-                return wrapError('Solicitud ExecuteTool inválida: Falta toolName o no es string');
+        // 2. Create MCP server instance
+        logger.info('Creating MCP server instance...');
+        const server = new Server(
+            {
+                name: pkg.name,
+                version: pkg.version
+            },
+            {
+                capabilities: {
+                    tools: { list: true, execute: true },
+                    prompts: { list: true, get: true, call: true },
+                    resources: { list: true, read: true },
+                    resourceTemplates: { list: true }
+                }
             }
-            const toolName: string = req.toolName; 
-            logger.info(`Recibida solicitud ExecuteTool: ${toolName}`);
-            const tool = allTools.get(toolName);
-            if (!tool) {
-                return wrapError(`Herramienta desconocida: ${toolName}`);
-            }
-            try {
-                const result = await tool.handler(req.inputs as any); 
-                return wrapSuccess(result);
-            } catch (error) {
-                logger.error(`Error ejecutando herramienta ${toolName}:`, error);
-                const message = error instanceof Error ? error.message : 'Error desconocido';
-                return wrapError(`Error ejecutando herramienta ${toolName}: ${message}`);
-            }
-        };
+        );
+        logger.info('MCP server instance created.');
 
-        const handleAccessResourceRequest = async (req: z.infer<typeof ReadResourceRequestSchema>["params"]) => {
-             // Add check for uri
-            if (!req?.uri) {
-                return wrapError(`Solicitud AccessResource inválida: URI faltante`);
+        // 3. Configure request handlers
+        logger.info('Configuring request handlers...');
+
+        // Handler for listing tools
+        server.setRequestHandler(ListToolsRequestSchema, async () => {
+            logger.info('Received ListTools request');
+            const tools = Array.from(allTools.entries()).map(([name, tool]) => ({
+                name,
+                description: tool.description,
+                inputSchema: tool.inputSchema ? zodToJsonSchema(tool.inputSchema) : undefined
+            }));
+            return { tools };
+        });
+
+        // Handler for executing tools
+        server.setRequestHandler(CallToolRequestSchema, async (request) => {
+            const { name, arguments: args } = request.params;
+            logger.info(`Received CallTool request: ${name}`);
+
+            const tool = allTools.get(name);
+            if (!tool) {
+                return {
+                    content: [{ type: "text", text: `Error: Unknown tool: ${name}` }],
+                    isError: true
+                };
             }
-            const uri: string = req.uri; 
-            logger.info(`Recibida solicitud AccessResource: ${uri}`);
+
+            try {
+                const result = await tool.handler(args);
+
+                // Si el resultado es un objeto con success: false, lo devolvemos como JSON sin secuencias de escape
+                if (typeof result === 'object' && result !== null && 'success' in result && result.success === false) {
+                    return {
+                        content: [{ type: "text", text: JSON.stringify(result) }],
+                        isError: true
+                    };
+                }
+
+                // Para otros resultados, devolvemos como texto plano
+                return {
+                    content: [{ type: "text", text: JSON.stringify(result) }]
+                };
+            } catch (error) {
+                logger.error(`Error executing tool ${name}:`, error);
+                const message = error instanceof Error ? error.message : 'Unknown error';
+                return {
+                    content: [{ type: "text", text: `Error executing tool ${name}: ${message}` }],
+                    isError: true
+                };
+            }
+        });
+
+        // Handler for listing prompts
+        server.setRequestHandler(ListPromptsRequestSchema, async () => {
+            logger.info('Received ListPrompts request');
+            const prompts = Array.from(allPrompts.entries()).map(([name, prompt]) => ({
+                name,
+                description: prompt.description
+            }));
+            return { prompts };
+        });
+
+        // Handler for getting or executing a prompt
+        server.setRequestHandler(GetPromptRequestSchema, async (request) => {
+            const { name, arguments: args } = request.params;
+            logger.info(`Received GetPrompt request: ${name}`);
+
+            const promptDef = allPrompts.get(name as string);
+            if (!promptDef) {
+                throw new Error(`Unknown prompt: ${name}`);
+            }
+
+            // If there are no arguments, just return the prompt definition
+            if (!args) {
+                return {
+                    prompt: {
+                        name: name,
+                        description: promptDef.description,
+                        inputSchema: promptDef.inputSchema ? zodToJsonSchema(promptDef.inputSchema) : undefined
+                    }
+                };
+            }
+
+            // If there are arguments, execute the prompt
+            try {
+                // Execute the prompt handler with the provided arguments
+                const result = await promptDef.handler(args);
+
+                // Make sure the result has the correct format
+                if (!result || !result.messages || !Array.isArray(result.messages)) {
+                    logger.error(`The prompt handler for ${name} did not return a valid format`);
+                    throw new Error(`Internal error: invalid response format`);
+                }
+
+                return result;
+            } catch (error) {
+                logger.error(`Error executing prompt ${name}:`, error);
+                throw error;
+            }
+        });
+
+        // Handler for listing resources
+        server.setRequestHandler(ListResourcesRequestSchema, async () => {
+            logger.info('Received ListResources request');
+            const resources = Array.from(allResources.keys()).map(uriTemplate => ({
+                uri: uriTemplate,
+                name: `Resource: ${uriTemplate}`,
+                mimeType: "application/json"
+            }));
+            return { resources };
+        });
+
+        // Handler for reading a specific resource
+        server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+            const { uri } = request.params;
+            logger.info(`Received ReadResource request: ${uri}`);
+
             let matchedResourceDef: ResourceDefinition | undefined;
             let uriParams: Record<string, string> = {};
 
@@ -109,79 +225,49 @@ export async function main() {
             }
 
             if (!matchedResourceDef) {
-                return wrapError(`Recurso desconocido o patrón de URI no coincide: ${uri}`);
+                throw new Error(`Unknown resource or URI pattern does not match: ${uri}`);
             }
 
             try {
-                const result = await matchedResourceDef.handler(uriParams as any); 
-                return wrapSuccess(result);
+                const result = await matchedResourceDef.handler(uriParams);
+
+                return {
+                    contents: [
+                        {
+                            uri: request.params.uri,
+                            mimeType: "application/json",
+                            text: JSON.stringify(result, null, 2)
+                        }
+                    ]
+                };
             } catch (error) {
-                logger.error(`Error accediendo al recurso ${uri}:`, error);
-                const message = error instanceof Error ? error.message : 'Error desconocido';
-                return wrapError(`Error accediendo al recurso ${uri}: ${message}`);
+                logger.error(`Error accessing resource ${uri}:`, error);
+                throw error;
             }
-        };
-
-        // Removed handleCallPromptRequest as schema is invalid
-
-        const handleGetPromptRequest = async (req: z.infer<typeof GetPromptRequestSchema>["params"]) => {
-            // Add check for promptName
-             if (!req?.promptName || typeof req.promptName !== 'string') { 
-                 return wrapError('Solicitud GetPrompt inválida: Falta promptName o no es string');
-             }
-             const promptName: string = req.promptName; 
-            logger.info(`Recibida solicitud GetPrompt: ${promptName}`);
-            const promptDef = allPrompts.get(promptName);
-            if (!promptDef) {
-                 return wrapError(`Prompt desconocido: ${promptName}`);
-            }
-            // Return the definition directly (or map to a simplified object if needed)
-             // We need zodToJsonSchema if we expose inputSchema
-             const responsePayload = {
-                 name: promptName,
-                 description: promptDef.description,
-                 inputSchema: promptDef.inputSchema ? zodToJsonSchema(promptDef.inputSchema) : undefined,
-             };
-             return wrapSuccess({ prompt: responsePayload });
-        };
-
-        // 3. Configurar transporte stdio
-        logger.info('Configurando transporte stdio...');
-        const transport = new StdioServerTransport(process.stdin, process.stdout);
-        logger.info('Transporte stdio configurado.');
-
-        // 4. Create McpServer instance
-        logger.info('Creando instancia del servidor MCP...');
-        const server = new McpServer({
-            name: pkg.name,
-            version: pkg.version,
-            transport,
-            // Adjust capabilities: remove 'call' for prompts
-             capabilities: {
-                 tools: { list: true, execute: true },
-                 prompts: { list: true, get: true }, // Removed call: true
-                 resources: { list: true, read: true },
-             },
-            // Pass handlers (handleCallPromptRequest removed)
-            handleExecuteToolRequest,
-            handleAccessResourceRequest,
-            handleGetPromptRequest,
         });
-        logger.info('Instancia del servidor MCP creada y lista.');
 
-        logger.info('Iniciando ejecución del servidor...');
-        // Wrap the wait logic in try...catch
-        try {
-          // The server implicitly starts handling requests via the transport.
-          logger.info('Servidor esperando solicitudes...');
-          // Keep the process alive indefinitely
-          await new Promise(() => { });
-        } catch (runError) {
-          logger.error('Error durante la ejecución del servidor o al esperar:', runError);
-          process.exit(1); // Exit if server run fails
-        }
+        // Handler for listing resource templates
+        server.setRequestHandler(ListResourceTemplatesRequestSchema, async () => {
+            logger.info('Received ListResourceTemplates request');
+            // For now, return an empty list as we don't have any templates defined
+            return { resourceTemplates: [] };
+        });
+
+        // 4. Start the server with the transport
+        logger.info('Configuring stdio transport...');
+        const transport = new StdioServerTransport();
+        logger.info('Connecting server to transport...');
+
+        await server.connect(transport);
+
+        logger.info('MCP Firebird server connected and ready to receive requests.');
+        logger.info(`Server waiting for requests...`);
+
+        // Keep the process alive indefinitely
+        await new Promise(() => {});
+
     } catch (error) {
-        logger.error('Error fatal durante la inicialización o ejecución del servidor:', error);
+        logger.error('Fatal error during server initialization or execution:', error);
         process.exit(1);
     }
 }

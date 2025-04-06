@@ -27,14 +27,22 @@ export interface ConfigOptions {
     pageSize?: number;
 }
 
-// Configuración por defecto para la conexión
+import * as path from 'path';
+
+// Normalize database path for Windows
+function normalizeDatabasePath(dbPath: string | undefined): string {
+    if (!dbPath) return '';
+    return path.normalize(dbPath);
+}
+
+// Default configuration for the connection
 export const DEFAULT_CONFIG: ConfigOptions = {
-    host: process.env.FB_HOST || 'localhost',
-    port: parseInt(process.env.FB_PORT || '3050', 10),
-    database: process.env.FB_DATABASE || '',
-    user: process.env.FB_USER || 'SYSDBA',
-    password: process.env.FB_PASSWORD || 'masterkey',
-    role: process.env.FB_ROLE || undefined,
+    host: process.env.FB_HOST || process.env.FIREBIRD_HOST || 'localhost',
+    port: parseInt(process.env.FB_PORT || process.env.FIREBIRD_PORT || '3050', 10),
+    database: normalizeDatabasePath(process.env.FB_DATABASE || process.env.FIREBIRD_DATABASE),
+    user: process.env.FB_USER || process.env.FIREBIRD_USER || 'SYSDBA',
+    password: process.env.FB_PASSWORD || process.env.FIREBIRD_PASSWORD || 'masterkey',
+    role: process.env.FB_ROLE || process.env.FIREBIRD_ROLE || undefined,
     pageSize: 4096
 };
 
@@ -62,11 +70,11 @@ export class FirebirdError extends Error {
 export const connectToDatabase = (config = DEFAULT_CONFIG): Promise<FirebirdDatabase> => {
     return new Promise((resolve, reject) => {
         logger.info(`Conectando a ${config.host}:${config.port}/${config.database}`);
-        
-        // Verificar parámetros mínimos
+
+        // Verify minimum parameters
         if (!config.database) {
             reject(new FirebirdError(
-                'No se ha especificado una base de datos. Configura FB_DATABASE o FIREBIRD_DATABASE.',
+                'No database specified. Configure FB_DATABASE or FIREBIRD_DATABASE environment variable with the path to your database file.',
                 'CONFIGURATION_ERROR'
             ));
             return;
@@ -77,7 +85,7 @@ export const connectToDatabase = (config = DEFAULT_CONFIG): Promise<FirebirdData
                 // Categorizar el error para mejor manejo
                 let errorType = 'CONNECTION_ERROR';
                 let errorMsg = `Error conectando a la base de datos: ${err.message}`;
-                
+
                 if (err.message.includes('service is not defined')) {
                     errorType = 'SERVICE_UNDEFINED';
                     errorMsg = 'El servicio Firebird no está disponible. Verifica que el servidor Firebird esté en ejecución.';
@@ -91,7 +99,7 @@ export const connectToDatabase = (config = DEFAULT_CONFIG): Promise<FirebirdData
                     errorType = 'AUTHENTICATION_ERROR';
                     errorMsg = 'Error de autenticación. Verifica usuario y contraseña.';
                 }
-                
+
                 logger.error(errorMsg);
                 reject(new FirebirdError(errorMsg, errorType, err));
                 return;
@@ -114,12 +122,12 @@ export const connectToDatabase = (config = DEFAULT_CONFIG): Promise<FirebirdData
 export const queryDatabase = (db: FirebirdDatabase, sql: string, params: any[] = []): Promise<any[]> => {
     return new Promise((resolve, reject) => {
         logger.info(`Ejecutando consulta: ${sql.substring(0, 100)}${sql.length > 100 ? '...' : ''}`);
-        
+
         db.query(sql, params, (err: Error | null, result: any) => {
             if (err) {
                 // Categorizar el error para mejor manejo
                 let errorType = 'QUERY_ERROR';
-                
+
                 // Intentar categorizar el error según su contenido
                 if (err.message.includes('syntax error')) {
                     errorType = 'SYNTAX_ERROR';
@@ -132,19 +140,19 @@ export const queryDatabase = (db: FirebirdDatabase, sql: string, params: any[] =
                 } else if (err.message.includes('timeout')) {
                     errorType = 'TIMEOUT_ERROR';
                 }
-                
+
                 // Crear un error más informativo
                 const error = new FirebirdError(
                     `Error al ejecutar consulta: ${err.message}`,
                     errorType,
                     err
                 );
-                
+
                 logger.error(`${error.message} [${errorType}]`);
                 reject(error);
                 return;
             }
-            
+
             // Si no hay resultados, devolver un array vacío
             if (!result) {
                 result = [];

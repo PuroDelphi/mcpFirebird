@@ -31,7 +31,7 @@ export const setupDatabaseResources = (): Map<string, ResourceDefinition> => {
                 return { tables };
             } catch (error: any) {
                 logger.error(`Error al obtener la lista de tablas para el recurso /tables: ${error.message || error}`);
-                return { error: "Error interno al listar tablas", details: error.message || String(error) };
+                return { contents: [], error: "Error interno al listar tablas", details: error.message || String(error) };
             }
         }
     };
@@ -44,7 +44,7 @@ export const setupDatabaseResources = (): Map<string, ResourceDefinition> => {
             const tableName = params.tableName;
             if (!tableName) {
                 logger.warn("Intento de acceso a /tables/{tableName}/schema sin tableName");
-                return { error: "Falta el nombre de la tabla en la URI" };
+                return { contents: [], error: "Falta el nombre de la tabla en la URI" };
             }
             logger.info(`Accediendo al recurso /tables/${tableName}/schema`);
             try {
@@ -52,7 +52,7 @@ export const setupDatabaseResources = (): Map<string, ResourceDefinition> => {
                 return schema;
             } catch (error: any) {
                 logger.error(`Error al obtener el esquema para el recurso /tables/${tableName}/schema: ${error.message || error}`);
-                return { error: `Error interno al obtener esquema para ${tableName}`, details: error.message || String(error) };
+                return { contents: [], error: `Error interno al obtener esquema para ${tableName}`, details: error.message || String(error) };
             }
         }
     };
@@ -66,7 +66,7 @@ export const setupDatabaseResources = (): Map<string, ResourceDefinition> => {
             const tableName = params.tableName;
             if (!tableName) {
                 logger.warn("Intento de acceso a /tables/{tableName}/description sin tableName");
-                return { error: "Falta el nombre de la tabla en la URI" };
+                return { contents: [], error: "Falta el nombre de la tabla en la URI" };
             }
             logger.info(`Accediendo al recurso /tables/${tableName}/description`);
             try {
@@ -75,7 +75,7 @@ export const setupDatabaseResources = (): Map<string, ResourceDefinition> => {
                 return description;
             } catch (error: any) {
                 logger.error(`Error al obtener la descripción para el recurso /tables/${tableName}/description: ${error.message || error}`);
-                return { error: `Error interno al obtener descripción para ${tableName}`, details: error.message || String(error) };
+                return { contents: [], error: `Error interno al obtener descripción para ${tableName}`, details: error.message || String(error) };
             }
         }
     };
@@ -93,13 +93,13 @@ export const setupDatabaseResources = (): Map<string, ResourceDefinition> => {
 
             if (!tableName) {
                 logger.warn("Intento de acceso a /tables/{tableName}/data sin tableName");
-                return { error: "Falta el nombre de la tabla en la URI" };
+                return { contents: [], error: "Falta el nombre de la tabla en la URI" };
             }
             if (params.first && (isNaN(first as number) || (first as number) <= 0)) {
-                return { error: "Parámetro 'first' debe ser un número positivo" };
+                return { contents: [], error: "Parámetro 'first' debe ser un número positivo" };
             }
             if (params.skip && (isNaN(skip as number) || (skip as number) < 0)) {
-                return { error: "Parámetro 'skip' debe ser un número no negativo" };
+                return { contents: [], error: "Parámetro 'skip' debe ser un número no negativo" };
             }
 
             logger.info(`Accediendo al recurso /tables/${tableName}/data (first: ${first}, skip: ${skip})`);
@@ -119,7 +119,7 @@ export const setupDatabaseResources = (): Map<string, ResourceDefinition> => {
                 return { data: results };
             } catch (error: any) {
                 logger.error(`Error al obtener datos para el recurso /tables/${tableName}/data: ${error.message || error}`);
-                return { error: `Error interno al obtener datos para ${tableName}`, details: error.message || String(error) };
+                return { contents: [], error: `Error interno al obtener datos para ${tableName}`, details: error.message || String(error) };
             }
         }
     };
