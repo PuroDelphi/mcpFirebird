@@ -138,7 +138,7 @@ async function performHealthCheck(): Promise<boolean> {
 
         // Verificar variables de entorno necesarias
         logger.info('Verificando variables de entorno...');
-        const requiredEnvVars = ['FB_DATABASE', 'FB_HOST', 'FB_PORT', 'FB_USER', 'FB_PASSWORD'];
+        const requiredEnvVars = ['FIREBIRD_DATABASE', 'FIREBIRD_HOST', 'FIREBIRD_PORT', 'FIREBIRD_USER', 'FIREBIRD_PASSWORD'];
         const missingEnvVars = requiredEnvVars.filter(varName => !process.env[varName]);
 
         if (missingEnvVars.length > 0) {

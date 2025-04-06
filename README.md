@@ -26,12 +26,12 @@ You can configure the server using environment variables:
 
 ```bash
 # Basic configuration
-export FIREBIRD_HOST=localhost     # or FB_HOST
-export FIREBIRD_PORT=3050          # or FB_PORT
-export FIREBIRD_DATABASE=/path/to/database.fdb  # or FB_DATABASE
-export FIREBIRD_USER=SYSDBA        # or FB_USER
-export FIREBIRD_PASSWORD=masterkey # or FB_PASSWORD
-export FIREBIRD_ROLE=undefined     # or FB_ROLE (Optional)
+export FIREBIRD_HOST=localhost
+export FIREBIRD_PORT=3050
+export FIREBIRD_DATABASE=/path/to/database.fdb
+export FIREBIRD_USER=SYSDBA
+export FIREBIRD_PASSWORD=masterkey
+export FIREBIRD_ROLE=undefined  # Optional
 
 # Directory configuration (alternative)
 export FIREBIRD_DATABASE_DIR=/path/to/databases  # Directory with databases

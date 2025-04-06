@@ -42,12 +42,12 @@ function normalizeDatabasePath(dbPath: string | undefined): string {
 
 // Default configuration for the connection
 export const DEFAULT_CONFIG: ConfigOptions = {
-    host: process.env.FB_HOST || process.env.FIREBIRD_HOST || 'localhost',
-    port: parseInt(process.env.FB_PORT || process.env.FIREBIRD_PORT || '3050', 10),
-    database: normalizeDatabasePath(process.env.FB_DATABASE || process.env.FIREBIRD_DATABASE),
-    user: process.env.FB_USER || process.env.FIREBIRD_USER || 'SYSDBA',
-    password: process.env.FB_PASSWORD || process.env.FIREBIRD_PASSWORD || 'masterkey',
-    role: process.env.FB_ROLE || process.env.FIREBIRD_ROLE || undefined,
+    host: process.env.FIREBIRD_HOST || process.env.FB_HOST || 'localhost', // FB_HOST is deprecated
+    port: parseInt(process.env.FIREBIRD_PORT || process.env.FB_PORT || '3050', 10), // FB_PORT is deprecated
+    database: normalizeDatabasePath(process.env.FIREBIRD_DATABASE || process.env.FB_DATABASE), // FB_DATABASE is deprecated
+    user: process.env.FIREBIRD_USER || process.env.FB_USER || 'SYSDBA', // FB_USER is deprecated
+    password: process.env.FIREBIRD_PASSWORD || process.env.FB_PASSWORD || 'masterkey', // FB_PASSWORD is deprecated
+    role: process.env.FIREBIRD_ROLE || process.env.FB_ROLE || undefined, // FB_ROLE is deprecated
     pageSize: 4096
 };
 
@@ -66,7 +66,7 @@ export const connectToDatabase = (config = DEFAULT_CONFIG): Promise<FirebirdData
         // Verify minimum parameters
         if (!config.database) {
             reject(new FirebirdError(
-                'No database specified. Configure FB_DATABASE or FIREBIRD_DATABASE environment variable with the path to your database file.',
+                'No database specified. Configure FIREBIRD_DATABASE environment variable with the path to your database file.',
                 ErrorTypes.CONFIG_MISSING
             ));
             return;
