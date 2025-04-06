@@ -117,8 +117,8 @@ export async function createServer() {
                 // Call the tool handler
                 const result = await tool.handler(validatedArgs);
 
-                // Return the result
-                return { result };
+                // Return the result directly
+                return result;
             } catch (error) {
                 logger.error(`Error executing tool ${name}: ${error instanceof Error ? error.message : String(error)}`, { error });
                 throw error;
