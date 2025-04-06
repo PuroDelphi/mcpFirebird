@@ -1,0 +1,20 @@
+[33md1ce7e4[m[33m ([m[1;36mHEAD -> [m[1;32mmain[m[33m, [m[1;33mtag: v2.0.3[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/hotfix-2.0.3[m[33m, [m[1;32mhotfix-2.0.3[m[33m)[m Fix: Corregir problemas de compatibilidad con Claude Desktop y evitar apertura de Visual Studio Code
+[33m7861818[m[33m ([m[1;33mtag: v2.0.2[m[33m, [m[1;31morigin/hotfix-2.0.2[m[33m, [m[1;32mhotfix-2.0.2[m[33m)[m Fix: Simplificar código para mejorar compatibilidad con Claude Desktop
+[33mb2703b3[m[33m ([m[1;33mtag: v2.0.1[m[33m, [m[1;31morigin/hotfix-2.0.1[m[33m, [m[1;32mhotfix-2.0.1[m[33m)[m Fix: Corregir problemas de compatibilidad con Claude Desktop en la versión 2.0.1
+[33m5f9590b[m Actualizar versión a 2.0.0
+[33m513909f[m[33m ([m[1;33mtag: v2.0.0[m[33m)[m Merge branch 'Alpha2.0'
+[33m8bb07fc[m[33m ([m[1;31morigin/Alpha2.0[m[33m, [m[1;32mAlpha2.0[m[33m)[m Actualizar implementación de SSE y añadir script para ejecutar el inspector con SSE
+[33m145f855[m Añadir ejemplos detallados y documentación para el transporte SSE
+[33m1294438[m Añadir soporte para SSE (Server-Sent Events)
+[33m75f3863[m Mejoras importantes: Traducción a inglés, herramientas de gestión de BD, análisis de rendimiento y opciones de seguridad
+[33m949a66f[m Alpha2.0 version updates
+[33m954a33a[m Update README.md
+[33m9961c44[m Refactor: Remove unused version.js
+[33mcd20c37[m[33m ([m[1;33mtag: v1.1.11[m[33m)[m Refactor(metadata): Rename methods to tools, remove duplicate get-methods
+[33m9803fea[m[33m ([m[1;33mtag: v1.1.10[m[33m)[m Refactor: Remove duplicate executeQuery, ensure compact JSON responses, bump version to 1.1.10
+[33m2bb2140[m chore: eliminar archivos innecesarios para mantener el proyecto limpio según los lineamientos MCP
+[33ma257604[m chore: actualizar a versión 1.1.9 basada en la implementación estable 1.0.95 que cumple correctamente con MCP
+[33m64610ff[m[33m ([m[1;33mtag: v1.0.95[m[33m)[m 1.0.95
+[33m91bc89a[m Agregar flujo de trabajo de publicación automatizada en npm
+[33m5395f90[m Mejoras significativas en documentación y código siguiendo MCP: - Actualización de README (inglés y español) - Adición de sección 'Recent Updates' - Mejoras en interfaces TypeScript - Manejo de errores más robusto - Documentación JSDoc mejorada
+[33m331ddd9[m Actualización de versión a 1.0.94
