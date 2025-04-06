@@ -1,53 +1,53 @@
 # MCP Firebird
 
-Implementación del protocolo MCP de Anthropic para bases de datos Firebird.
+Implementation of Anthropic's MCP protocol for Firebird databases.
 
-## ¿Qué es MCP Firebird y para qué sirve?
+## What is MCP Firebird and what is it for?
 
-MCP Firebird es un servidor que implementa el [Protocolo de Contexto de Modelo (MCP)](https://github.com/anthropics/anthropic-cookbook/tree/main/model_context_protocol) de Anthropic para bases de datos Firebird SQL. Permite a los Modelos de Lenguaje de Gran Tamaño (LLMs) como Claude acceder, analizar y manipular datos en bases de datos Firebird de manera segura y controlada.
+MCP Firebird is a server that implements Anthropic's [Model Context Protocol (MCP)](https://github.com/anthropics/anthropic-cookbook/tree/main/model_context_protocol) for Firebird SQL databases. It allows Large Language Models (LLMs) like Claude to access, analyze, and manipulate data in Firebird databases securely and in a controlled manner.
 
-Más abajo encontrarás casos y ejemplos de uso.
+You'll find use cases and examples below.
 
-## Instalación
+## Installation
 
 ```bash
-# Instalación global
+# Global installation
 npm install -g mcp-firebird
 
-# Instalación en un proyecto
+# Project installation
 npm install mcp-firebird
 ```
 
-## Configuración
+## Configuration
 
-### Variables de entorno
+### Environment Variables
 
-Puedes configurar el servidor usando variables de entorno:
+You can configure the server using environment variables:
 
 ```bash
-# Configuración básica
+# Basic configuration
 export FIREBIRD_HOST=localhost
 export FIREBIRD_PORT=3050
 export FIREBIRD_DATABASE=/path/to/database.fdb
 export FIREBIRD_USER=SYSDBA
 export FIREBIRD_PASSWORD=masterkey
-export FIREBIRD_ROLE=undefined  # Opcional
+export FIREBIRD_ROLE=undefined  # Optional
 
-# Configuración de directorio (alternativa)
-export FIREBIRD_DATABASE_DIR=/path/to/databases  # Directorio con bases de datos
+# Directory configuration (alternative)
+export FIREBIRD_DATABASE_DIR=/path/to/databases  # Directory with databases
 ```
 
-### Uso con npx
+### Using with npx
 
-Puedes ejecutar el servidor directamente con npx:
+You can run the server directly with npx:
 
 ```bash
 npx mcp-firebird --host localhost --port 3050 --database /path/to/database.fdb --user SYSDBA --password masterkey
 ```
 
-## Configuración con Claude Desktop
+## Configuration with Claude Desktop
 
-Para usar el servidor MCP de Firebird con Claude Desktop:
+To use the Firebird MCP server with Claude Desktop:
 
 <Tabs>
   <Tab title="MacOS/Linux">
@@ -62,7 +62,7 @@ Para usar el servidor MCP de Firebird con Claude Desktop:
   </Tab>
 </Tabs>
 
-Añade la siguiente configuración:
+Add the following configuration:
 
 ```json
 {
@@ -88,88 +88,88 @@ Añade la siguiente configuración:
 ```
 
 <Warning>
-  Asegúrate de usar rutas absolutas en la configuración.
+  Make sure to use absolute paths in the configuration.
 </Warning>
 
 <Note>
-  Después de guardar el archivo, necesitas reiniciar Claude Desktop completamente.
+  After saving the file, you need to restart Claude Desktop completely.
 </Note>
 
-## Recursos y Funcionalidades
+## Resources and Features
 
-El servidor MCP Firebird ofrece:
+The MCP Firebird server offers:
 
-- **Bases de datos**: Listado de todas las bases de datos disponibles
-- **Tablas**: Lista de todas las tablas en la base de datos
-- **Vistas**: Lista de todas las vistas en la base de datos
-- **Procedimientos almacenados**: Acceso a los procedimientos en la base de datos
-- **Esquemas de tablas**: Estructura detallada de cada tabla
-- **Datos**: Acceso a los datos de las tablas
+- **Databases**: List of all available databases
+- **Tables**: List of all tables in the database
+- **Views**: List of all views in the database
+- **Stored procedures**: Access to procedures in the database
+- **Table schemas**: Detailed structure of each table
+- **Data**: Access to table data
 
-## Herramientas disponibles
+## Available Tools
 
-1. **list-tables**: Lista todas las tablas en la base de datos
+1. **list-tables**: Lists all tables in the database
    ```json
-   {}  // No requiere parámetros
+   {}  // No parameters required
    ```
 
-2. **describe-table**: Describe la estructura de una tabla
+2. **describe-table**: Describes the structure of a table
    ```json
    {
      "tableName": "EMPLOYEES"
    }
    ```
 
-3. **execute-query**: Ejecuta una consulta SQL en la base de datos
+3. **execute-query**: Executes an SQL query in the database
    ```json
    {
      "sql": "SELECT * FROM EMPLOYEES WHERE DEPARTMENT_ID = 10",
-     "params": []  // Parámetros opcionales para consultas preparadas
+     "params": []  // Optional parameters for prepared queries
    }
    ```
 
-4. **get-field-descriptions**: Obtiene las descripciones de los campos
+4. **get-field-descriptions**: Gets field descriptions
    ```json
    {
      "tableName": "EMPLOYEES"
    }
    ```
 
-La herramienta **get-field-descriptions** es especialmente útil para los modelos de IA, ya que obtiene los comentarios de metadatos RDB$DESCRIPTION de Firebird, proporcionando contexto semántico adicional sobre el propósito de cada campo.
+The **get-field-descriptions** tool is especially useful for AI models, as it retrieves comments from Firebird's RDB$DESCRIPTION metadata, providing additional semantic context about the purpose of each field.
 
-## Prompts disponibles
+## Available Prompts
 
-1. **query-data**: Consulta datos usando lenguaje natural
+1. **query-data**: Query data using natural language
    ```
-   Encuentra todos los empleados del departamento de ventas contratados en 2023
-   ```
-
-2. **analyze-table**: Analiza la estructura de una tabla
-   ```
-   Analiza la tabla EMPLOYEES y explica su estructura
+   Find all employees in the sales department hired in 2023
    ```
 
-3. **optimize-query**: Optimiza una consulta SQL
+2. **analyze-table**: Analyze the structure of a table
    ```
-   Optimiza: SELECT * FROM EMPLOYEES WHERE LAST_NAME = 'Smith'
-   ```
-
-4. **generate-sql**: Genera SQL a partir de una descripción
-   ```
-   Genera una consulta para obtener los 10 productos más vendidos
+   Analyze the EMPLOYEES table and explain its structure
    ```
 
-## Uso desde diferentes lenguajes
+3. **optimize-query**: Optimize an SQL query
+   ```
+   Optimize: SELECT * FROM EMPLOYEES WHERE LAST_NAME = 'Smith'
+   ```
+
+4. **generate-sql**: Generate SQL from a description
+   ```
+   Generate a query to get the 10 best-selling products
+   ```
+
+## Usage from Different Languages
 
 ### TypeScript/JavaScript
 
 ```typescript
-// Ejemplo con TypeScript
+// Example with TypeScript
 import { McpClient, ChildProcessTransport } from '@modelcontextprotocol/sdk';
 import { spawn } from 'child_process';
 
 async function main() {
-  // Iniciar el proceso del servidor MCP
+  // Start the MCP server process
   const serverProcess = spawn('npx', [
     'mcp-firebird',
     '--database', '/path/to/database.fdb',
@@ -177,34 +177,34 @@ async function main() {
     '--password', 'masterkey'
   ]);
   
-  // Crear un transporte y un cliente MCP
+  // Create a transport and an MCP client
   const transport = new ChildProcessTransport(serverProcess);
   const client = new McpClient(transport);
   
   try {
-    // Obtener información del servidor
+    // Get server information
     const serverInfo = await client.getServerInfo();
-    console.log('Servidor MCP:', serverInfo);
+    console.log('MCP Server:', serverInfo);
     
-    // Listar tablas disponibles
+    // List available tables
     const tablesResult = await client.executeTool('list-tables', {});
-    console.log('Tablas disponibles:', tablesResult);
+    console.log('Available tables:', tablesResult);
     
-    // Ejecutar una consulta SQL
+    // Execute an SQL query
     const queryResult = await client.executeTool('execute-query', {
       sql: 'SELECT FIRST 10 * FROM EMPLOYEES'
     });
-    console.log('Resultados de la consulta:', queryResult);
+    console.log('Query results:', queryResult);
     
-    // Utilizar un prompt para generar SQL
+    // Use a prompt to generate SQL
     const sqlGeneration = await client.executePrompt('generate-sql', {
-      description: 'Obtener todos los clientes premium'
+      description: 'Get all premium customers'
     });
-    console.log('SQL generado:', sqlGeneration);
+    console.log('Generated SQL:', sqlGeneration);
   } catch (error) {
     console.error('Error:', error);
   } finally {
-    // Cerrar el proceso del servidor
+    // Close the server process
     serverProcess.kill();
   }
 }
@@ -215,14 +215,14 @@ main().catch(console.error);
 ### Python
 
 ```python
-# Ejemplo con Python
+# Example with Python
 import json
 import subprocess
 from subprocess import PIPE
 
 class McpFirebirdClient:
     def __init__(self, database_path, user='SYSDBA', password='masterkey'):
-        # Iniciar el proceso del servidor MCP
+        # Start the MCP server process
         self.process = subprocess.Popen(
             ['npx', 'mcp-firebird', '--database', database_path, '--user', user, '--password', password],
             stdin=PIPE,
@@ -238,16 +238,16 @@ class McpFirebirdClient:
             'method': method,
             'params': params
         }
-        # Enviar la solicitud al servidor
+        # Send the request to the server
         self.process.stdin.write(json.dumps(request) + '\n')
         self.process.stdin.flush()
         
-        # Leer la respuesta
+        # Read the response
         response_line = self.process.stdout.readline()
         while not response_line.strip() or response_line.startswith('['):
             response_line = self.process.stdout.readline()
             
-        # Parsear y devolver la respuesta JSON
+        # Parse and return the JSON response
         return json.loads(response_line)
     
     def get_server_info(self):
@@ -271,32 +271,32 @@ class McpFirebirdClient:
     def close(self):
         self.process.terminate()
 
-# Uso del cliente
+# Client usage
 client = McpFirebirdClient('/path/to/database.fdb')
 try:
-    # Obtener información del servidor
+    # Get server information
     server_info = client.get_server_info()
-    print(f"Servidor MCP: {server_info}")
+    print(f"MCP Server: {server_info}")
     
-    # Listar tablas
+    # List tables
     tables = client.list_tables()
-    print(f"Tablas disponibles: {tables}")
+    print(f"Available tables: {tables}")
     
-    # Ejecutar una consulta
+    # Execute a query
     results = client.execute_query("SELECT FIRST 10 * FROM EMPLOYEES")
-    print(f"Resultados: {results}")
+    print(f"Results: {results}")
     
-    # Generar SQL
-    sql = client.generate_sql("Listar los productos más vendidos")
-    print(f"SQL generado: {sql}")
+    # Generate SQL
+    sql = client.generate_sql("List the best-selling products")
+    print(f"Generated SQL: {sql}")
 finally:
     client.close()
 ```
 
-### Delphi
+### Delphi and Lazurus
 
 ```delphi
-// Ejemplo con Delphi
+// Example with Delphi
 program McpFirebirdClient;
 
 {$APPTYPE CONSOLE}
@@ -308,7 +308,7 @@ uses
 type
   TMcpFirebirdClient = class
   private
-    FProcess: TProcess; //Para Delphi cambiar por TProcessDelphi y agregue https://github.com/ferruhkoroglu/TProcessDelphi
+    FProcess: TProcess; //For Delphi change to TProcessDelphi and add https://github.com/ferruhkoroglu/TProcessDelphi
     FRequestId: Integer;
     
     function SendRequest(const Method: string; const Params: TJSONObject = nil): TJSONObject;
@@ -328,7 +328,7 @@ begin
   inherited Create;
   FRequestId := 1;
   
-  // Crear y configurar el proceso
+  // Create and configure the process
   FProcess := TProcess.Create(nil);
   FProcess.Executable := 'npx';
   FProcess.Parameters.Add('mcp-firebird');
@@ -342,7 +342,7 @@ begin
   FProcess.Options := [poUsePipes, poStderrToOutPut];
   FProcess.Execute;
   
-  // Esperar a que el servidor se inicie
+  // Wait for the server to start
   Sleep(2000);
 end;
 
@@ -357,7 +357,7 @@ var
   Request: TJSONObject;
   RequestStr, ResponseStr: string;
 begin
-  // Crear la solicitud JSON
+  // Create the JSON request
   Request := TJSONObject.Create;
   try
     Request.AddPair('id', TJSONNumber.Create(FRequestId));
@@ -371,10 +371,10 @@ begin
     
     RequestStr := Request.ToString + #10;
     
-    // Enviar la solicitud al proceso
+    // Send the request to the process
     FProcess.Input.Write(RequestStr[1], Length(RequestStr) * 2);
     
-    // Leer la respuesta
+    // Read the response
     ResponseStr := ReadResponse;
     Result := TJSONObject.ParseJSONValue(ResponseStr) as TJSONObject;
   finally
@@ -433,7 +433,7 @@ begin
   ParamsArray := TJSONArray.Create;
   
   try
-    // Configurar los argumentos
+    // Configure the arguments
     Args.AddPair('sql', SQL);
     
     if Length(Params) > 0 then
@@ -483,26 +483,26 @@ var
 
 begin
   try
-    WriteLn('Iniciando cliente MCP Firebird...');
+    WriteLn('Starting MCP Firebird client...');
     
-    // Crear el cliente
+    // Create the client
     Client := TMcpFirebirdClient.Create('C:\Databases\example.fdb', 'SYSDBA', 'masterkey');
     try
-      // Obtener información del servidor
+      // Get server information
       ServerInfo := Client.GetServerInfo;
-      WriteLn('Información del servidor: ', ServerInfo.ToString);
+      WriteLn('Server information: ', ServerInfo.ToString);
       
-      // Listar tablas
+      // List tables
       Tables := Client.ListTables;
-      WriteLn('Tablas disponibles: ', Tables.ToString);
+      WriteLn('Available tables: ', Tables.ToString);
       
-      // Ejecutar una consulta
-      QueryResults := Client.ExecuteQuery("SELECT FIRST 10 * FROM EMPLOYEES");
-      WriteLn('Resultados: ', QueryResults.ToString);
+      // Execute a query
+      QueryResults := Client.ExecuteQuery('SELECT FIRST 10 * FROM EMPLOYEES');
+      WriteLn('Query results: ', QueryResults.ToString);
       
-      // Generar SQL
-      GeneratedSQL := Client.GenerateSQL("Listar los productos más vendidos");
-      WriteLn('SQL generado: ', GeneratedSQL.ToString);
+      // Generate SQL
+      GeneratedSQL := Client.GenerateSQL('Get all premium customers');
+      WriteLn('Generated SQL: ', GeneratedSQL.ToString);
     finally
       Client.Free;
     end;
@@ -511,26 +511,213 @@ begin
       WriteLn('Error: ', E.Message);
   end;
   
-  WriteLn('Presiona ENTER para salir...');
+  WriteLn('Press ENTER to exit...');
   ReadLn;
 end.
 ```
 
-## Configuración de seguridad
+## Docker Configuration
 
-La seguridad es una prioridad en MCP Firebird. A continuación, se detallan opciones avanzadas para controlar el acceso y las operaciones permitidas.
+You can run the MCP Firebird server in a Docker container:
 
-### Limitación de acceso a tablas y vistas
+### Dockerfile
 
-Puedes restringir qué tablas y vistas están disponibles para el servidor MCP usando filtros de inclusión y exclusión:
+```dockerfile
+FROM node:18-alpine
+
+# Install necessary dependencies for Firebird
+RUN apk add --no-cache firebird-client
+
+# Create application directory
+WORKDIR /app
+
+# Copy project files
+COPY package*.json ./
+RUN npm install
+
+# Copy source code
+COPY . .
+
+# Compile the TypeScript project
+RUN npm run build
+
+# Expose port if HTTP is used (optional)
+# EXPOSE 3000
+
+# Set default environment variables
+ENV FIREBIRD_HOST=firebird-db
+ENV FIREBIRD_PORT=3050
+ENV FIREBIRD_USER=SYSDBA
+ENV FIREBIRD_PASSWORD=masterkey
+ENV FIREBIRD_DATABASE=/firebird/data/database.fdb
+
+# Start command
+CMD ["node", "dist/index.js"]
+```
+
+### Docker Compose
+
+```yaml
+version: '3.8'
+
+services:
+  # Firebird database server
+  firebird-db:
+    image: jacobalberty/firebird:3.0
+    environment:
+      ISC_PASSWORD: masterkey
+      FIREBIRD_DATABASE: database.fdb
+      FIREBIRD_USER: SYSDBA
+    volumes:
+      - firebird-data:/firebird/data
+    ports:
+      - "3050:3050"
+    networks:
+      - mcp-network
+
+  # MCP Firebird server
+  mcp-firebird:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      FIREBIRD_HOST: firebird-db
+      FIREBIRD_PORT: 3050
+      FIREBIRD_USER: SYSDBA
+      FIREBIRD_PASSWORD: masterkey
+      FIREBIRD_DATABASE: /firebird/data/database.fdb
+    depends_on:
+      - firebird-db
+    networks:
+      - mcp-network
+    # For use with Claude Desktop, expose STDIO
+    stdin_open: true
+    tty: true
+
+networks:
+  mcp-network:
+    driver: bridge
+
+volumes:
+  firebird-data:
+```
+
+### Running with Docker
+
+```bash
+# Build and run with Docker Compose
+docker compose up -d
+
+# Check logs
+docker compose logs -f mcp-firebird
+
+# Stop services
+docker compose down
+```
+
+### Use Cases
+
+1. **Data Analysis with AI**:
+   - Analyze historical sales trends
+   - Identify patterns in financial data
+   - Detect anomalies in transaction records
+
+2. **SQL Query Generation**:
+   - Create complex queries from natural language descriptions
+   - Optimize existing queries to improve performance
+   - Translate queries between different SQL dialects
+
+3. **Automated Documentation**:
+   - Generate documentation about database structure
+   - Explain relationships between tables and schemas
+   - Create detailed data dictionaries
+
+4. **Development Assistance**:
+   - Suggest indexes to improve performance
+   - Propose schema normalizations
+   - Help with data migration between systems
+
+### Example of Sales Analysis Usage
+
+Interaction with Claude:
+
+```
+User: Connect to my Firebird database and analyze sales trends by region in the last quarter.
+
+Claude: I'll connect to your Firebird database to analyze regional sales trends.
+
+[Claude uses MCP Firebird to execute several SQL queries]
+
+Based on data from the last quarter, I've identified the following trends:
+
+1. The North region has experienced 12.5% growth compared to the previous quarter
+2. The South region shows a 3.2% decrease in electronics products
+3. The "Laptop Pro X" product is the best-selling across all regions
+4. Sales in the East region show a cyclical pattern with peaks on weekends
+
+Graphically, the distribution of sales by region is:
+[Graph generated by Claude based on the data]
+
+Would you like to delve deeper into any specific region or product category?
+```
+
+### Example of Query Optimization
+
+```
+User: I have this query that's running slowly, can you optimize it?
+SELECT c.CUSTOMER_NAME, SUM(o.ORDER_TOTAL) 
+FROM CUSTOMERS c 
+JOIN ORDERS o ON c.CUSTOMER_ID = o.CUSTOMER_ID 
+WHERE o.ORDER_DATE > '2024-01-01' 
+GROUP BY c.CUSTOMER_NAME 
+ORDER BY SUM(o.ORDER_TOTAL) DESC
+
+Claude: I'll analyze this query to optimize it.
+
+[Claude uses MCP Firebird to analyze the schema and query]
+
+I've identified several optimization opportunities:
+
+1. The current query doesn't efficiently use indexes
+2. The calculation of SUM(o.ORDER_TOTAL) is performed twice
+
+Here's the optimized version:
+
+```sql
+SELECT c.CUSTOMER_NAME, total_sales
+FROM CUSTOMERS c 
+JOIN (
+  SELECT CUSTOMER_ID, SUM(ORDER_TOTAL) as total_sales
+  FROM ORDERS 
+  WHERE ORDER_DATE > '2024-01-01'
+  GROUP BY CUSTOMER_ID
+) o ON c.CUSTOMER_ID = o.CUSTOMER_ID 
+ORDER BY total_sales DESC
+```
+
+This version:
+- Reduces the dataset before joining
+- Calculates the sum only once
+- Could benefit from an index on ORDERS(ORDER_DATE, CUSTOMER_ID, ORDER_TOTAL)
+
+When running both queries on your database, the optimized version is approximately 45% faster.
+```
+
+## Security Configuration
+
+Security is a priority in MCP Firebird. Below are advanced options to control access and permitted operations.
+
+### Limiting Access to Tables and Views
+
+You can restrict which tables and views are available to the MCP server using inclusion and exclusion filters:
 
 ```javascript
-// En tu configuración personalizada (config.js)
+// In your custom configuration (config.js)
 module.exports = {
-  // Configuración básica...
+  // Basic configuration...
   
   security: {
-    // Sólo permitir acceso a estas tablas
+    // Only allow access to these tables
     allowedTables: [
       'CUSTOMERS', 
       'PRODUCTS', 
@@ -538,109 +725,109 @@ module.exports = {
       'ORDER_ITEMS'
     ],
     
-    // Excluir estas tablas explícitamente (tiene precedencia sobre allowedTables)
+    // Explicitly exclude these tables (takes precedence over allowedTables)
     forbiddenTables: [
       'USERS',
       'USER_CREDENTIALS',
       'AUDIT_LOG'
     ],
     
-    // Filtro de patrón de nombre (expresión regular)
-    tableNamePattern: '^(?!TMP_|TEMP_|BAK_).*$'  // Excluir tablas temporales/backup
+    // Table name pattern filter (regular expression)
+    tableNamePattern: '^(?!TMP_|TEMP_|BAK_).*$'  // Exclude temporary/backup tables
   }
 };
 ```
 
-Para usar esta configuración:
+To use this configuration:
 
 ```bash
 npx mcp-firebird --config ./config.js
 ```
 
-### Limitación de operaciones SQL
+### Limiting SQL Operations
 
-Puedes restringir qué operaciones SQL están permitidas:
+You can restrict which SQL operations are allowed:
 
 ```javascript
-// En tu configuración personalizada
+// In your custom configuration
 module.exports = {
-  // Configuración básica...
+  // Basic configuration...
   
   security: {
-    // Operaciones SQL permitidas
-    allowedOperations: ['SELECT', 'EXECUTE'],  // Solo consultas y procedimientos almacenados
+    // Allowed SQL operations
+    allowedOperations: ['SELECT', 'EXECUTE'],  // Only queries and stored procedures
     
-    // Bloquear estas operaciones específicamente
+    // Specifically block these operations
     forbiddenOperations: ['DROP', 'TRUNCATE', 'ALTER', 'GRANT', 'REVOKE'],
     
-    // Número máximo de filas que se pueden devolver en una consulta
+    // Maximum number of rows that can be returned in a query
     maxRows: 1000,
     
-    // Tiempo máximo de ejecución para consultas (en ms)
+    // Maximum query execution time (in ms)
     queryTimeout: 5000
   }
 };
 ```
 
-### Restricción de datos sensibles
+### Restricting Sensitive Data
 
-Puedes configurar reglas para enmascarar o filtrar datos sensibles:
+You can configure rules to mask or filter sensitive data:
 
 ```javascript
 module.exports = {
-  // Configuración básica...
+  // Basic configuration...
   
   security: {
     dataMasking: [
       {
-        // Enmascarar columnas específicas
+        // Mask specific columns
         columns: ['CREDIT_CARD_NUMBER', 'SSN', 'PASSWORD'],
         pattern: /^.*/,
         replacement: '************'
       },
       {
-        // Enmascarar parcialmente emails
+        // Partially mask emails
         columns: ['EMAIL'],
         pattern: /^(.{3})(.*)(@.*)$/,
         replacement: '$1***$3'
       }
     ],
     
-    // Filtros de línea para excluir datos sensibles
+    // Row filters to exclude sensitive data
     rowFilters: {
-      'CUSTOMERS': 'GDPR_CONSENT = 1',  // Solo mostrar clientes con consentimiento GDPR
-      'EMPLOYEES': 'IS_PUBLIC_PROFILE = 1'  // Solo perfiles públicos de empleados
+      'CUSTOMERS': 'GDPR_CONSENT = 1',  // Only show customers with GDPR consent
+      'EMPLOYEES': 'IS_PUBLIC_PROFILE = 1'  // Only public employee profiles
     }
   }
 };
 ```
 
-### Registro de auditoría
+### Audit Logging
 
-Configura registro detallado de todas las operaciones realizadas a través del MCP:
+Configure detailed logging of all operations performed through MCP:
 
 ```javascript
 module.exports = {
-  // Configuración básica...
+  // Basic configuration...
   
   security: {
     audit: {
-      // Habilitar auditoría
+      // Enable auditing
       enabled: true,
       
-      // Destino del log de auditoría
-      destination: 'database',  // opciones: 'file', 'database', 'both'
+      // Audit log destination
+      destination: 'database',  // options: 'file', 'database', 'both'
       
-      // Si destination incluye 'file'
+      // If destination includes 'file'
       auditFile: '/path/to/audit.log',
       
-      // Si destination incluye 'database'
+      // If destination includes 'database'
       auditTable: 'MCP_AUDIT_LOG',
       
-      // Nivel de detalle
+      // Detail level
       detailLevel: 'full',  // 'basic', 'medium', 'full'
       
-      // Qué registrar
+      // What to log
       logQueries: true,
       logResponses: true,
       logParameters: true
@@ -649,10 +836,10 @@ module.exports = {
 };
 ```
 
-### Ejemplo de registro de auditoría
+### Audit Logging Example
 
 ```sql
--- Estructura de tabla para auditoría
+-- Table structure for auditing
 CREATE TABLE MCP_AUDIT_LOG (
   LOG_ID INT NOT NULL PRIMARY KEY,
   TIMESTAMP TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -667,7 +854,7 @@ CREATE TABLE MCP_AUDIT_LOG (
   SUCCESS BOOLEAN
 );
 
--- Ejemplo de registro
+-- Example log entry
 INSERT INTO MCP_AUDIT_LOG (
   LOG_ID, CLIENT_INFO, OPERATION_TYPE, TARGET_OBJECT, 
   QUERY_TEXT, PARAMETERS, AFFECTED_ROWS, 
@@ -679,29 +866,29 @@ INSERT INTO MCP_AUDIT_LOG (
 );
 ```
 
-### Limitación por volumen de datos
+### Data Volume Limitations
 
-Configura límites para evitar consultas que consuman demasiados recursos:
+Configure limits to prevent queries that consume too many resources:
 
 ```javascript
 module.exports = {
-  // Configuración básica...
+  // Basic configuration...
   
   security: {
     resourceLimits: {
-      // Límite de filas por consulta
+      // Row limit per query
       maxRowsPerQuery: 5000,
       
-      // Límite de tamaño de resultados (en bytes)
+      // Result size limit (in bytes)
       maxResponseSize: 1024 * 1024 * 5,  // 5 MB
       
-      // Límite de tiempo de CPU por consulta (ms)
+      // CPU time limit per query (ms)
       maxQueryCpuTime: 10000,
       
-      // Límite de consultas por sesión
+      // Query limit per session
       maxQueriesPerSession: 100,
       
-      // Intervalo de limitación (consultas por minuto)
+      // Rate limiting (queries per minute)
       rateLimit: {
         queriesPerMinute: 60,
         burstLimit: 20
@@ -711,20 +898,20 @@ module.exports = {
 };
 ```
 
-### Integración con sistemas de autorización externos
+### Integration with External Authorization Systems
 
-MCP Firebird se puede integrar con sistemas de autorización externos para un control de acceso más preciso:
+MCP Firebird can integrate with external authorization systems for more precise access control:
 
 ```javascript
 module.exports = {
-  // Configuración básica...
+  // Basic configuration...
   
   security: {
     authorization: {
-      // Usar un servicio de autorización externo
+      // Use an external authorization service
       type: 'oauth2',
       
-      // Configuración para OAuth2
+      // Configuration for OAuth2
       oauth2: {
         tokenVerifyUrl: 'https://auth.example.com/verify',
         clientId: 'mcp-firebird-client',
@@ -732,7 +919,7 @@ module.exports = {
         scope: 'database:read'
       },
       
-      // Mapeo de roles a permisos
+      // Role to permission mapping
       rolePermissions: {
         'analyst': {
           tables: ['SALES', 'PRODUCTS', 'CUSTOMERS'],
@@ -752,9 +939,9 @@ module.exports = {
 };
 ```
 
-### Ejemplos prácticos de seguridad
+### Practical Security Examples
 
-#### Ejemplo 1: Servidor MCP para análisis de ventas
+#### Example 1: MCP Server for Sales Analysis
 
 ```javascript
 // config-sales-analysis.js
@@ -764,16 +951,16 @@ module.exports = {
   password: process.env.FIREBIRD_PASSWORD,
   
   security: {
-    // Acceso limitado a tablas de ventas
+    // Limited access to sales tables
     allowedTables: [
       'SALES', 'PRODUCTS', 'CUSTOMERS', 'REGIONS',
       'SALES_TARGETS', 'PRODUCT_CATEGORIES'
     ],
     
-    // Solo permitir consultas SELECT
+    // Only allow SELECT queries
     allowedOperations: ['SELECT'],
     
-    // Enmascarar datos sensibles de clientes
+    // Mask sensitive customer data
     dataMasking: [
       {
         columns: ['CUSTOMER_EMAIL', 'CUSTOMER_PHONE'],
@@ -782,7 +969,7 @@ module.exports = {
       }
     ],
     
-    // Límites de recursos
+    // Resource limits
     resourceLimits: {
       maxRowsPerQuery: 10000,
       maxQueryCpuTime: 5000
@@ -808,7 +995,7 @@ Claude Desktop config:
 }
 ```
 
-#### Ejemplo 2: Servidor MCP para gestión de inventario
+#### Example 2: MCP Server for Inventory Management
 
 ```javascript
 // config-inventory.js
@@ -818,21 +1005,21 @@ module.exports = {
   password: process.env.FIREBIRD_PASSWORD,
   
   security: {
-    // Acceso a tablas de inventario
+    // Access to inventory tables
     allowedTables: [
       'INVENTORY', 'PRODUCTS', 'WAREHOUSES', 
       'STOCK_MOVEMENTS', 'SUPPLIERS'
     ],
     
-    // Permitir operaciones de lectura y escritura limitadas
+    // Allow limited read and write operations
     allowedOperations: ['SELECT', 'INSERT', 'UPDATE'],
     
-    // Prevenir modificación de registros históricos
+    // Prevent modification of historical records
     rowFilters: {
       'STOCK_MOVEMENTS': 'MOVEMENT_DATE > DATEADD(-30 DAY TO CURRENT_DATE)'
     },
     
-    // Auditoría completa
+    // Full auditing
     audit: {
       enabled: true,
       destination: 'both',
@@ -844,7 +1031,7 @@ module.exports = {
 };
 ```
 
-#### Ejemplo 3: Configuración para desarrollo y pruebas
+#### Example 3: Configuration for Development and Testing
 
 ```javascript
 // config-development.js
@@ -854,20 +1041,20 @@ module.exports = {
   password: process.env.FIREBIRD_PASSWORD_DEV,
   
   security: {
-    // En desarrollo, permitir más operaciones
+    // In development, allow more operations
     allowedOperations: ['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'CREATE'],
     
-    // Excluir sólo tablas críticas
+    // Exclude only critical tables
     forbiddenTables: ['SYSTEM_CONFIG', 'APP_SECRETS'],
     
-    // Limitar impacto de consultas pesadas
+    // Limit impact of heavy queries
     resourceLimits: {
       maxRowsPerQuery: 1000,
       maxQueryCpuTime: 3000,
       queriesPerMinute: 120
     },
     
-    // Auditoría básica
+    // Basic auditing
     audit: {
       enabled: true,
       destination: 'file',
@@ -878,164 +1065,68 @@ module.exports = {
 };
 ```
 
-Estos ejemplos ilustran cómo MCP Firebird puede configurarse para diferentes casos de uso, cada uno con sus propias consideraciones de seguridad y acceso a datos.
+These examples illustrate how MCP Firebird can be configured for different use cases, each with its own security and data access considerations.
 
-## Integración con agentes IA
+## Integration with AI Agents
 
-### Claude en la terminal
+### Claude in the Terminal
 
-Puedes usar el servidor MCP Firebird con Claude en la terminal:
+You can use the MCP Firebird server with Claude in the terminal:
 
 ```bash
-# Iniciar el servidor MCP en una terminal
+# Start the MCP server in one terminal
 npx mcp-firebird --database /path/to/database.fdb --user SYSDBA --password masterkey
 
-# En otra terminal, usar anthropic CLI con MCP
+# In another terminal, use anthropic CLI with MCP
 anthropic messages create \
   --model claude-3-opus-20240229 \
   --max-tokens 4096 \
   --mcp "npx mcp-firebird --database /path/to/database.fdb --user SYSDBA --password masterkey" \
-  --message "Analiza la estructura de mi base de datos Firebird"
+  --message "Analyze the structure of my Firebird database"
 ```
 
-### Otros agentes IA
+### Other AI Agents
 
-El servidor MCP Firebird es compatible con cualquier agente que implemente el protocolo MCP, simplemente proporcionando el comando para iniciar el servidor:
+The MCP Firebird server is compatible with any agent that implements the MCP protocol, simply by providing the command to start the server:
 
 ```
 npx mcp-firebird --database /path/to/database.fdb --user SYSDBA --password masterkey
 ```
 
-## Seguridad
+## Security
 
-El servidor implementa las siguientes medidas de seguridad:
+The server implements the following security measures:
 
-- Validación de entradas con Zod
-- Sanitización de consultas SQL
-- Manejo seguro de credenciales
-- Prevención de inyección SQL
-- Limitación de operaciones destructivas
+- Input validation with Zod
+- SQL query sanitization
+- Secure credential handling
+- SQL injection prevention
+- Restriction of destructive operations
 
-## Depuración y solución de problemas
+## Debugging and Troubleshooting
 
-Para habilitar el modo de depuración:
+To enable debug mode:
 
 ```bash
 export LOG_LEVEL=debug
 ```
 
-### Problemas comunes
+### Common Issues
 
-1. **Error de conexión a la base de datos**:
-   - Verifica las credenciales y ruta de la base de datos
-   - Asegúrate de que el servidor Firebird esté en ejecución
-   - Comprueba que el usuario tenga permisos suficientes
+1. **Database connection error**:
+   - Verify credentials and database path
+   - Make sure the Firebird server is running
+   - Check that the user has sufficient permissions
 
-2. **El servidor no aparece en Claude Desktop**:
-   - Reinicia Claude Desktop
-   - Verifica la configuración en `claude_desktop_config.json`
-   - Asegúrate de que la ruta de la base de datos sea absoluta
+2. **Server doesn't appear in Claude Desktop**:
+   - Restart Claude Desktop
+   - Verify the configuration in `claude_desktop_config.json`
+   - Make sure the database path is absolute
 
-3. **Problemas con STDIO**:
-   - Asegúrate de que la salida estándar no esté siendo redirigida
-   - No utilices `console.log` para depuración (usa `console.error`)
+3. **STDIO issues**:
+   - Ensure standard output is not being redirected
+   - Don't use `console.log` for debugging (use `console.error` instead)
 
-## Actualizaciones Recientes
-
-### Versión 1.0.93 (Actualizada desde 1.0.91)
-
-MCP Firebird ha sido mejorado significativamente con:
-
-1. **Interfaces TypeScript mejoradas**:
-   - Nuevas interfaces para mejor tipado (FirebirdDatabase, ConfigOptions, DatabaseInfo, TableInfo, etc.)
-   - Tipado más estricto para todos los parámetros y valores de retorno
-
-2. **Manejo de errores mejorado**:
-   - Clase personalizada `FirebirdError` para mejor categorización de errores
-   - Detección detallada de diferentes tipos de errores (conexión, sintaxis, permisos, etc.)
-   - Mensajes de error más informativos para facilitar la depuración
-
-3. **Nuevas características y herramientas**:
-   - Herramienta `get-methods` para descubrimiento de API
-   - Nuevos prompts para analizar tablas y optimizar consultas
-   - Función `describeTable` para obtener estructura detallada de tablas
-   - Función `listTables` para listar nombres de tablas de manera simple
-
-4. **Mejor documentación**:
-   - JSDoc completo para todas las funciones
-   - Descripciones mejoradas de herramientas MCP con información específica de Firebird
-   - Especificación clara de que Firebird usa FIRST/ROWS en lugar de LIMIT para paginación
-
-5. **Mejoras de seguridad**:
-   - Validación explícita de parámetros SQL
-   - Prevención mejorada de inyecciones SQL
-   - Restricciones de acceso configurables para tablas y operaciones
-
-6. **Calidad del código**:
-   - Eliminación de archivos innecesarios (server.js, server.new.js, test-*.js, etc.)
-   - Respuestas JSON más compactas (eliminación de espacios innecesarios)
-   - Enfoque consistente de registro de actividad
-
-## Integración con agentes IA
-
-### Claude en la terminal
-
-Puedes usar el servidor MCP Firebird con Claude en la terminal:
-
-```bash
-# Iniciar el servidor MCP en una terminal
-npx mcp-firebird --database /path/to/database.fdb --user SYSDBA --password masterkey
-
-# En otra terminal, usar anthropic CLI con MCP
-anthropic messages create \
-  --model claude-3-opus-20240229 \
-  --max-tokens 4096 \
-  --mcp "npx mcp-firebird --database /path/to/database.fdb --user SYSDBA --password masterkey" \
-  --message "Analiza la estructura de mi base de datos Firebird"
-```
-
-### Otros agentes IA
-
-El servidor MCP Firebird es compatible con cualquier agente que implemente el protocolo MCP, simplemente proporcionando el comando para iniciar el servidor:
-
-```
-npx mcp-firebird --database /path/to/database.fdb --user SYSDBA --password masterkey
-```
-
-## Seguridad
-
-El servidor implementa las siguientes medidas de seguridad:
-
-- Validación de entradas con Zod
-- Sanitización de consultas SQL
-- Manejo seguro de credenciales
-- Prevención de inyección SQL
-- Limitación de operaciones destructivas
-
-## Depuración y solución de problemas
-
-Para habilitar el modo de depuración:
-
-```bash
-export LOG_LEVEL=debug
-```
-
-### Problemas comunes
-
-1. **Error de conexión a la base de datos**:
-   - Verifica las credenciales y ruta de la base de datos
-   - Asegúrate de que el servidor Firebird esté en ejecución
-   - Comprueba que el usuario tenga permisos suficientes
-
-2. **El servidor no aparece en Claude Desktop**:
-   - Reinicia Claude Desktop
-   - Verifica la configuración en `claude_desktop_config.json`
-   - Asegúrate de que la ruta de la base de datos sea absoluta
-
-3. **Problemas con STDIO**:
-   - Asegúrate de que la salida estándar no esté siendo redirigida
-   - No utilices `console.log` para depuración (usa `console.error`)
-
-## Licencia
+## License
 
 MIT
