@@ -35,13 +35,37 @@ export interface ConfigOptions {
 import * as path from 'path';
 
 // Normalize database path for Windows
-function normalizeDatabasePath(dbPath: string | undefined): string {
+export function normalizeDatabasePath(dbPath: string | undefined): string {
     if (!dbPath) return '';
     return path.normalize(dbPath);
 }
 
+// Get configuration from global variable
+export const getGlobalConfig = (): ConfigOptions | null => {
+    try {
+        if ((global as any).MCP_FIREBIRD_CONFIG) {
+            const config = (global as any).MCP_FIREBIRD_CONFIG;
+            console.error('Using global database configuration');
+            console.error(`Global config: database=${config.database}, host=${config.host}, port=${config.port}, user=${config.user}`);
+            return config;
+        } else {
+            console.error('No global database configuration found');
+        }
+    } catch (error) {
+        console.error(`Error getting global configuration: ${error instanceof Error ? error.message : String(error)}`);
+    }
+    return null;
+};
+
 // Default configuration for the connection
 export const getDefaultConfig = (): ConfigOptions => {
+    // First try to load from global configuration
+    const globalConfig = getGlobalConfig();
+    if (globalConfig && globalConfig.database) {
+        console.error('Using global configuration');
+        return globalConfig;
+    }
+
     // Debug: Log all environment variables related to database connection
     console.error('Environment variables for database connection:');
     console.error(`FIREBIRD_DATABASE: ${process.env.FIREBIRD_DATABASE || 'not set'}`);
