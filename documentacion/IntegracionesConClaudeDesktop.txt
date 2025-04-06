@@ -1,0 +1,27 @@
+Getting logs from Claude for Desktop
+
+Claude.app logging related to MCP is written to log files in ~/Library/Logs/Claude:
+
+mcp.log will contain general logging about MCP connections and connection failures.
+Files named mcp-server-SERVERNAME.log will contain error (stderr) logging from the named server.
+You can run the following command to list recent logs and follow along with any new ones:
+
+
+Copy
+# Check Claude's logs for errors
+tail -n 20 -f ~/Library/Logs/Claude/mcp*.log
+Server not showing up in Claude
+
+Check your claude_desktop_config.json file syntax
+Make sure the path to your project is absolute and not relative
+Restart Claude for Desktop completely
+Tool calls failing silently
+
+If Claude attempts to use the tools but they fail:
+
+Check Claude’s logs for errors
+Verify your server builds and runs without errors
+Try restarting Claude for Desktop
+None of this is working. What do I do?
+
+Please refer to our debugging guide for better debugging tools and more detailed guidance.

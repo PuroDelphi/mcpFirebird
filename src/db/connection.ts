@@ -1,6 +1,11 @@
-// Módulo de conexión a la base de datos
+/**
+ * Database connection module for MCP Firebird
+ * Provides functionality for connecting to Firebird databases
+ */
+
 import Firebird from 'node-firebird';
 import { createLogger } from '../utils/logger.js';
+import { FirebirdError, ErrorTypes } from '../utils/errors.js';
 
 const logger = createLogger('db:connection');
 
@@ -46,66 +51,53 @@ export const DEFAULT_CONFIG: ConfigOptions = {
     pageSize: 4096
 };
 
-/**
- * Clase personalizada para los errores de la base de datos Firebird
- */
-export class FirebirdError extends Error {
-    type: string;
-    originalError?: any;
-
-    constructor(message: string, type: string, originalError?: any) {
-        super(message);
-        this.name = 'FirebirdError';
-        this.type = type;
-        this.originalError = originalError;
-    }
-}
+// FirebirdError is now imported from '../utils/errors.js'
 
 /**
  * Establece conexión con la base de datos
- * @param {ConfigOptions} config - Configuración de conexión a la base de datos
- * @returns {Promise<FirebirdDatabase>} Objeto de conexión a la base de datos
+ * @param config - Configuración de conexión a la base de datos
+ * @returns Objeto de conexión a la base de datos
  * @throws {FirebirdError} Error categorizado si la conexión falla
  */
 export const connectToDatabase = (config = DEFAULT_CONFIG): Promise<FirebirdDatabase> => {
     return new Promise((resolve, reject) => {
-        logger.info(`Conectando a ${config.host}:${config.port}/${config.database}`);
+        logger.info(`Connecting to ${config.host}:${config.port}/${config.database}`);
 
         // Verify minimum parameters
         if (!config.database) {
             reject(new FirebirdError(
                 'No database specified. Configure FB_DATABASE or FIREBIRD_DATABASE environment variable with the path to your database file.',
-                'CONFIGURATION_ERROR'
+                ErrorTypes.CONFIG_MISSING
             ));
             return;
         }
 
         Firebird.attach(config, (err: Error | null, db: any) => {
             if (err) {
-                // Categorizar el error para mejor manejo
-                let errorType = 'CONNECTION_ERROR';
-                let errorMsg = `Error conectando a la base de datos: ${err.message}`;
+                // Categorize the error for better handling
+                let errorType = ErrorTypes.DATABASE_CONNECTION;
+                let errorMsg = `Error connecting to database: ${err.message}`;
 
                 if (err.message.includes('service is not defined')) {
-                    errorType = 'SERVICE_UNDEFINED';
-                    errorMsg = 'El servicio Firebird no está disponible. Verifica que el servidor Firebird esté en ejecución.';
+                    errorType = ErrorTypes.DATABASE_CONNECTION;
+                    errorMsg = 'Firebird service is not available. Verify that the Firebird server is running.';
                 } else if (err.message.includes('ECONNREFUSED')) {
-                    errorType = 'CONNECTION_REFUSED';
-                    errorMsg = `Conexión rechazada en ${config.host}:${config.port}. Verifica que el servidor Firebird esté en ejecución y accesible.`;
+                    errorType = ErrorTypes.DATABASE_CONNECTION;
+                    errorMsg = `Connection refused at ${config.host}:${config.port}. Verify that the Firebird server is running and accessible.`;
                 } else if (err.message.includes('ENOENT')) {
-                    errorType = 'DATABASE_NOT_FOUND';
-                    errorMsg = `No se encuentra la base de datos: ${config.database}. Verifica la ruta y los permisos.`;
+                    errorType = ErrorTypes.DATABASE_CONNECTION;
+                    errorMsg = `Database not found: ${config.database}. Verify the path and permissions.`;
                 } else if (err.message.includes('password') || err.message.includes('user')) {
-                    errorType = 'AUTHENTICATION_ERROR';
-                    errorMsg = 'Error de autenticación. Verifica usuario y contraseña.';
+                    errorType = ErrorTypes.SECURITY_AUTHENTICATION;
+                    errorMsg = 'Authentication error. Verify username and password.';
                 }
 
-                logger.error(errorMsg);
+                logger.error(errorMsg, { originalError: err });
                 reject(new FirebirdError(errorMsg, errorType, err));
                 return;
             }
 
-            logger.info('Conexión establecida correctamente');
+            logger.info('Connection established successfully');
             resolve(db);
         });
     });

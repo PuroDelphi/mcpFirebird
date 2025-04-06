@@ -1,22 +1,33 @@
-// src/server/index.ts
+/**
+ * MCP Firebird Server Implementation
+ * Main server module that initializes and configures the MCP server
+ */
+
 import { z } from 'zod';
 import UrlPattern from 'url-pattern';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 
 // --- Global Error Handlers ---
-import { createLogger as createRootLogger } from '../utils/logger.js';
-const rootLogger = createRootLogger('global-error');
+import { createLogger } from '../utils/logger.js';
+import { MCPError } from '../utils/errors.js';
 
+const logger = createLogger('server:index');
+
+// Set up global error handlers
 process.on('uncaughtException', (err, origin) => {
-    rootLogger.error('----- UNCAUGHT EXCEPTION -----');
-    rootLogger.error(`Caught exception: ${err}\n` + `Exception origin: ${origin}`);
-    rootLogger.error('Server will exit.');
+    logger.error(`Uncaught exception: ${err instanceof Error ? err.message : String(err)}`, {
+        error: err,
+        origin
+    });
+    logger.error('Server will exit due to uncaught exception');
     process.exit(1);
 });
 
 process.on('unhandledRejection', (reason, promise) => {
-    rootLogger.error('----- UNHANDLED REJECTION -----');
-    rootLogger.error('Unhandled Rejection at:', promise, 'reason:', reason);
+    logger.error('Unhandled promise rejection', {
+        reason,
+        promise
+    });
 });
 // ------------------------------------
 
@@ -35,7 +46,7 @@ import {
     ToolSchema
 } from "@modelcontextprotocol/sdk/types.js";
 
-// --- Local Type Imports ---
+// --- Local Imports ---
 import { type ToolDefinition as DbToolDefinition } from '../tools/database.js';
 import { type ToolDefinition as MetaToolDefinition } from '../tools/metadata.js';
 import { type PromptDefinition } from '../prompts/database.js';
@@ -44,12 +55,15 @@ import { setupDatabaseTools } from '../tools/database.js';
 import { setupMetadataTools } from '../tools/metadata.js';
 import { setupDatabasePrompts } from '../prompts/database.js';
 import { setupSqlPrompts } from '../prompts/sql.js';
-import { createLogger } from '../utils/logger.js';
 import { initSecurity } from '../security/index.js';
+import { ConfigError, ErrorTypes } from '../utils/errors.js';
 import pkg from '../../package.json' with { type: 'json' };
 
+/**
+ * Main function to start the MCP Firebird server
+ * @returns A promise that resolves when the server is started
+ */
 export async function main() {
-    const logger = createLogger('server:index');
     logger.info(`Starting MCP Firebird Server - Name: ${pkg.name}, Version: ${pkg.version}`);
 
     try {
@@ -138,7 +152,7 @@ export async function main() {
                     content: [{ type: "text", text: JSON.stringify(result) }]
                 };
             } catch (error) {
-                logger.error(`Error executing tool ${name}:`, error);
+                logger.error(`Error executing tool ${name}: ${error instanceof Error ? error.message : String(error)}`, { error });
                 const message = error instanceof Error ? error.message : 'Unknown error';
                 return {
                     content: [{ type: "text", text: `Error executing tool ${name}: ${message}` }],
@@ -191,7 +205,7 @@ export async function main() {
 
                 return result;
             } catch (error) {
-                logger.error(`Error executing prompt ${name}:`, error);
+                logger.error(`Error executing prompt ${name}: ${error instanceof Error ? error.message : String(error)}`, { error });
                 throw error;
             }
         });
@@ -242,7 +256,7 @@ export async function main() {
                     ]
                 };
             } catch (error) {
-                logger.error(`Error accessing resource ${uri}:`, error);
+                logger.error(`Error accessing resource ${uri}: ${error instanceof Error ? error.message : String(error)}`, { error });
                 throw error;
             }
         });
@@ -255,52 +269,91 @@ export async function main() {
         });
 
         // 4. Start the server with the appropriate transport
-        const transportType = process.env.TRANSPORT_TYPE || 'stdio';
+        const transportType = process.env.TRANSPORT_TYPE?.toLowerCase() || 'stdio';
         logger.info(`Configuring ${transportType} transport...`);
 
-        if (transportType === 'sse') {
-            // Start SSE server
-            const ssePort = parseInt(process.env.SSE_PORT || '3003', 10);
-            logger.info(`Starting SSE server on port ${ssePort}...`);
+        // Set up signal handlers for graceful shutdown
+        let cleanup: (() => Promise<void>) | null = null;
 
-            const { cleanup } = await startSseServer(server, ssePort);
+        const setupSignalHandlers = (cleanupFn: () => Promise<void>) => {
+            cleanup = cleanupFn;
 
             // Handle cleanup on process exit
             process.on('SIGINT', async () => {
                 logger.info('Received SIGINT signal, cleaning up...');
-                await cleanup();
+                if (cleanup) await cleanup();
                 process.exit(0);
             });
 
             process.on('SIGTERM', async () => {
                 logger.info('Received SIGTERM signal, cleaning up...');
-                await cleanup();
+                if (cleanup) await cleanup();
                 process.exit(0);
             });
+        };
+
+        // Start the server with the appropriate transport
+        if (transportType === 'sse') {
+            // Start SSE server
+            const ssePort = parseInt(process.env.SSE_PORT || '3003', 10);
+            if (isNaN(ssePort)) {
+                throw new ConfigError(`Invalid SSE port: ${process.env.SSE_PORT}`);
+            }
+
+            logger.info(`Starting SSE server on port ${ssePort}...`);
+
+            const { cleanup: sseCleanup } = await startSseServer(server, ssePort);
+            setupSignalHandlers(sseCleanup);
 
             logger.info('MCP Firebird server with SSE transport ready to receive requests.');
             logger.info(`SSE server listening on port ${ssePort}...`);
 
             // Keep the process alive indefinitely
-            await new Promise(() => {});
-        } else {
-            // Default to stdio transport
+            await new Promise<void>(() => {});
+        } else if (transportType === 'stdio') {
+            // Use stdio transport
             logger.info('Configuring stdio transport...');
             const transport = new StdioServerTransport();
             logger.info('Connecting server to transport...');
 
-            // Conectar el servidor al transporte - siguiendo el patrón del ejemplo oficial
+            // Connect the server to the transport - following the official example pattern
             await server.connect(transport);
 
-            logger.info('MCP Firebird server with stdio transport connected and ready to receive requests.');
-            logger.info(`Server waiting for requests...`);
+            // Setup cleanup function
+            setupSignalHandlers(async () => {
+                logger.info('Closing stdio transport...');
+                await server.close();
+            });
 
-            // Mantener el proceso vivo indefinidamente
-            await new Promise(() => {});
+            logger.info('MCP Firebird server with stdio transport connected and ready to receive requests.');
+            logger.info('Server waiting for requests...');
+
+            // Keep the process alive indefinitely
+            await new Promise<void>(() => {});
+        } else {
+            throw new ConfigError(
+                `Unsupported transport type: ${transportType}. Supported types are 'stdio' and 'sse'.`,
+                undefined,
+                { transportType }
+            );
         }
 
     } catch (error) {
-        logger.error('Fatal error during server initialization or execution:', error);
+        if (error instanceof MCPError) {
+            logger.error(`Fatal error during server initialization: ${error.message}`, {
+                type: error.type,
+                context: error.context,
+                originalError: error.originalError
+            });
+        } else if (error instanceof Error) {
+            logger.error(`Fatal error during server initialization: ${error.message}`, {
+                stack: error.stack
+            });
+        } else {
+            logger.error(`Fatal error during server initialization: ${String(error)}`);
+        }
+
+        // Exit with error code
         process.exit(1);
     }
 }

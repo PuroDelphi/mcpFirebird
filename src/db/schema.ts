@@ -1,7 +1,8 @@
 // Esquema de tablas
 import { createLogger } from '../utils/logger.js';
 import { validateSql } from '../utils/security.js';
-import { DEFAULT_CONFIG, FirebirdError } from './connection.js';
+import { DEFAULT_CONFIG } from './connection.js';
+import { FirebirdError } from '../utils/errors.js';
 import { executeQuery } from './queries.js';
 
 const logger = createLogger('db:schema');

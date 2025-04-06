@@ -6,10 +6,10 @@ import {
     connectToDatabase,
     queryDatabase,
     DEFAULT_CONFIG,
-    FirebirdError,
     FirebirdDatabase,
     ConfigOptions
 } from './connection.js';
+import { FirebirdError } from '../utils/errors.js';
 import { validateSql } from '../utils/security.js';
 
 const logger = createLogger('db:queries');

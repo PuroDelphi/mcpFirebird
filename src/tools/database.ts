@@ -21,7 +21,7 @@ import {
 import { validateSql } from '../utils/security.js';
 import { createLogger } from '../utils/logger.js';
 import { stringifyCompact, wrapSuccess, wrapError } from '../utils/jsonHelper.js';
-import { FirebirdError } from '../db/connection.js';
+import { FirebirdError } from '../utils/errors.js';
 
 const logger = createLogger('tools:database');
 
