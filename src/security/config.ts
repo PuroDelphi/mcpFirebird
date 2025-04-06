@@ -24,6 +24,16 @@ export const DataMaskingSchema = z.array(z.object({
 export const RowFiltersSchema = z.record(z.string(), z.string());
 
 /**
+ * Schema for SQL security configuration
+ */
+export const SqlSecuritySchema = z.object({
+    allowSystemTables: z.boolean().default(false),
+    allowedSystemTables: z.array(z.string()).default([]),
+    allowDDL: z.boolean().default(false),
+    allowUnsafeQueries: z.boolean().default(false)
+});
+
+/**
  * Schema for audit configuration
  */
 export const AuditConfigSchema = z.object({
@@ -73,6 +83,7 @@ export const AuthorizationSchema = z.object({
  * Schema for security configuration
  */
 export const SecurityConfigSchema = z.object({
+    sql: SqlSecuritySchema.optional(),
     allowedTables: z.array(z.string()).optional(),
     forbiddenTables: z.array(z.string()).optional(),
     tableNamePattern: z.string().optional(),
@@ -88,9 +99,20 @@ export const SecurityConfigSchema = z.object({
 });
 
 /**
+ * Default SQL security configuration
+ */
+export const DEFAULT_SQL_SECURITY_CONFIG = {
+    allowSystemTables: false,
+    allowedSystemTables: [],
+    allowDDL: false,
+    allowUnsafeQueries: false
+};
+
+/**
  * Default security configuration
  */
 export const DEFAULT_SECURITY_CONFIG = {
+    sql: DEFAULT_SQL_SECURITY_CONFIG,
     allowedOperations: ['SELECT', 'EXECUTE'],
     forbiddenOperations: ['DROP', 'TRUNCATE', 'ALTER', 'GRANT', 'REVOKE'],
     maxRows: 1000,
@@ -223,10 +245,36 @@ export const securityConfig: SecurityConfig = { ...DEFAULT_SECURITY_CONFIG };
  * @param {string} configPath - Path to the configuration file
  */
 export function initSecurityConfig(configPath?: string): void {
-    const config = loadSecurityConfig(configPath);
+    // Check if there's a global security configuration
+    if ((global as any).MCP_SECURITY_CONFIG) {
+        try {
+            const globalConfig = (global as any).MCP_SECURITY_CONFIG;
+            logger.info('Using global security configuration');
 
-    // Update the global security configuration
-    Object.assign(securityConfig, config);
+            // Validate the configuration
+            const result = SecurityConfigSchema.safeParse(globalConfig);
+
+            if (result.success) {
+                // Update the global security configuration
+                Object.assign(securityConfig, DEFAULT_SECURITY_CONFIG, result.data);
+                logger.info('Global security configuration loaded successfully');
+            } else {
+                logger.error(`Invalid global security configuration: ${result.error.message}`);
+                logger.warn('Using file-based configuration if provided, or default configuration');
+                const config = loadSecurityConfig(configPath);
+                Object.assign(securityConfig, config);
+            }
+        } catch (error: any) {
+            logger.error(`Error loading global security configuration: ${error.message}`);
+            logger.warn('Using file-based configuration if provided, or default configuration');
+            const config = loadSecurityConfig(configPath);
+            Object.assign(securityConfig, config);
+        }
+    } else {
+        // No global config, use file-based config
+        const config = loadSecurityConfig(configPath);
+        Object.assign(securityConfig, config);
+    }
 
     // Initialize audit logging if enabled
     if (securityConfig.audit?.enabled) {

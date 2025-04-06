@@ -28,6 +28,22 @@ export const dbConfig: ConfigOptions = {
 // Make the configuration globally available
 (global as any).MCP_FIREBIRD_CONFIG = dbConfig;
 
+// Load security configuration if provided
+if (argv['security-config']) {
+  try {
+    const fs = await import('fs');
+    const securityConfigPath = argv['security-config'];
+    console.error(`Loading security configuration from ${securityConfigPath}`);
+    const securityConfigContent = fs.readFileSync(securityConfigPath, 'utf8');
+    const securityConfig = JSON.parse(securityConfigContent);
+    console.error('Security configuration loaded successfully');
+    console.error(`Security config: ${JSON.stringify(securityConfig, null, 2)}`);
+    (global as any).MCP_SECURITY_CONFIG = securityConfig;
+  } catch (error) {
+    console.error(`Error loading security configuration: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
 // Also set environment variables for backward compatibility
 if (argv.database) {
   process.env.FIREBIRD_DATABASE = argv.database;

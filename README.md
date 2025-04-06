@@ -58,8 +58,31 @@ LOG_LEVEL=info
 You can run the server directly with npx:
 
 ```bash
-npx mcp-firebird --host localhost --port 3050 --database /path/to/database.fdb --user SYSDBA --password masterkey
+npx mcp-firebird --host localhost --port 3050 --database /path/to/database.fdb --user SYSDBA --password masterkey --security-config /path/to/security-config.json
 ```
+
+### Security Configuration
+
+You can configure security settings using a JSON file. This allows you to control what types of SQL queries are allowed:
+
+```bash
+npx mcp-firebird --security-config /path/to/security-config.json
+```
+
+Example security configuration file:
+
+```json
+{
+  "sql": {
+    "allowSystemTables": true,
+    "allowedSystemTables": ["RDB$PROCEDURES", "RDB$PROCEDURE_PARAMETERS", "RDB$RELATIONS", "RDB$RELATION_FIELDS"],
+    "allowDDL": true,
+    "allowUnsafeQueries": false
+  }
+}
+```
+
+See [Security Documentation](./documentacion/seguridad.md) for more details.
 
 ### Using SSE (Server-Sent Events) transport
 
@@ -128,6 +151,8 @@ Add the following configuration:
         "3050",
         "--database",
         "C:\\Databases\\example.fdb",
+        "--security-config",
+        "C:\\path\\to\\security-config.json",
         "--user",
         "SYSDBA",
         "--password",

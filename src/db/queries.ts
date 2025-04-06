@@ -87,7 +87,9 @@ export const executeQuery = async (sql: string, params: any[] = [], config = DEF
     let db: FirebirdDatabase | null = null;
     try {
         // Validar la consulta SQL para prevenir inyección
-        if (!validateSql(sql)) {
+        // Usar la configuración de seguridad global si está disponible
+        const securityConfig = (global as any).MCP_SECURITY_CONFIG;
+        if (!validateSql(sql, securityConfig)) {
             throw new FirebirdError(
                 `Consulta SQL potencialmente insegura: ${sql.substring(0, 100)}${sql.length > 100 ? '...' : ''}`,
                 'SECURITY_ERROR'
