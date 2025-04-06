@@ -4,20 +4,10 @@ import UrlPattern from 'url-pattern';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 
 // --- Global Error Handlers ---
+// Nota: Los manejadores globales de errores están definidos en stdout-guard.ts
+// para evitar conflictos y asegurar que no se interrumpa la comunicación con el cliente
 import { createLogger as createRootLogger } from '../utils/logger.js';
 const rootLogger = createRootLogger('global-error');
-
-process.on('uncaughtException', (err, origin) => {
-    rootLogger.error('----- UNCAUGHT EXCEPTION -----');
-    rootLogger.error(`Caught exception: ${err}\n` + `Exception origin: ${origin}`);
-    rootLogger.error('Server will exit.');
-    process.exit(1);
-});
-
-process.on('unhandledRejection', (reason, promise) => {
-    rootLogger.error('----- UNHANDLED REJECTION -----');
-    rootLogger.error('Unhandled Rejection at:', promise, 'reason:', reason);
-});
 // ------------------------------------
 
 // --- SDK Imports ---

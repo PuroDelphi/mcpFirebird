@@ -26,7 +26,7 @@ interface MCPModules {
  */
 function handleFatalError(error: Error | FirebirdError | unknown, exit: boolean = true, exitCode: number = 1): void {
     const logger = createLogger('error-handler');
-    
+
     if (error instanceof FirebirdError) {
         logger.error(`Error fatal [${error.type}]: ${error.message}`);
         if (error.originalError) {
@@ -40,7 +40,7 @@ function handleFatalError(error: Error | FirebirdError | unknown, exit: boolean 
     } else {
         logger.error(`Error fatal desconocido: ${String(error)}`);
     }
-    
+
     if (exit) {
         logger.info(`Saliendo con código ${exitCode}`);
         process.exit(exitCode);
@@ -53,12 +53,12 @@ function handleFatalError(error: Error | FirebirdError | unknown, exit: boolean 
  */
 async function loadMCPModules(): Promise<MCPModules> {
     const logger = createLogger('module-loader');
-    
+
     try {
         logger.info('Cargando módulos MCP necesarios...');
         const serverModule = await import('@modelcontextprotocol/sdk/server/mcp.js');
         const stdioModule = await import('@modelcontextprotocol/sdk/server/stdio.js');
-        
+
         logger.info('Módulos MCP cargados correctamente');
         return { serverModule, stdioModule };
     } catch (error) {
@@ -76,7 +76,7 @@ async function loadMCPModules(): Promise<MCPModules> {
  */
 function logSystemInfo(): void {
     const logger = createLogger('system-info');
-    
+
     logger.info(`MCP Firebird v${version}`);
     logger.info(`Node.js ${process.version}`);
     logger.info(`OS: ${os.platform()} ${os.release()}`);
@@ -91,26 +91,20 @@ function logSystemInfo(): void {
  */
 function setupSignalHandlers(): void {
     const logger = createLogger('signal-handler');
-    
+
     process.on('SIGINT', () => {
         logger.info('Recibida señal SIGINT, cerrando...');
         process.exit(0);
     });
-    
+
     process.on('SIGTERM', () => {
         logger.info('Recibida señal SIGTERM, cerrando...');
         process.exit(0);
     });
-    
-    process.on('unhandledRejection', (reason) => {
-        logger.error('Promesa rechazada no manejada');
-        handleFatalError(reason || new Error('Promesa rechazada desconocida'), false);
-    });
-    
-    process.on('uncaughtException', (error) => {
-        logger.error('Excepción no capturada');
-        handleFatalError(error, true);
-    });
+
+    // Nota: Los manejadores para unhandledRejection y uncaughtException
+    // están definidos en stdout-guard.ts para evitar conflictos
+    // y asegurar que no se interrumpa la comunicación con el cliente
 }
 
 /**
@@ -119,23 +113,23 @@ function setupSignalHandlers(): void {
  */
 async function performHealthCheck(): Promise<boolean> {
     const logger = createLogger('health-check');
-    
+
     try {
         // Verificar disponibilidad de módulos críticos
         logger.info('Verificando módulos críticos...');
         await import('./db/connection.js');
         await import('./db/queries.js');
-        
+
         // Verificar variables de entorno necesarias
         logger.info('Verificando variables de entorno...');
         const requiredEnvVars = ['FB_DATABASE', 'FB_HOST', 'FB_PORT', 'FB_USER', 'FB_PASSWORD'];
         const missingEnvVars = requiredEnvVars.filter(varName => !process.env[varName]);
-        
+
         if (missingEnvVars.length > 0) {
             logger.warn(`Variables de entorno faltantes: ${missingEnvVars.join(', ')}`);
             logger.warn('Se utilizarán valores predeterminados donde sea posible');
         }
-        
+
         return true;
     } catch (error) {
         logger.error('Error durante la comprobación de salud');

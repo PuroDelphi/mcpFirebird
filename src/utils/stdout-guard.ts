@@ -8,15 +8,22 @@ const originalStdoutWrite = process.stdout.write.bind(process.stdout);
 
 // Reemplazar stdout.write para prevenir escrituras accidentales
 process.stdout.write = function(buffer: string | Uint8Array | any): boolean {
-    // Si parece JSON válido, permitirlo
-    if (buffer && 
-        typeof buffer === 'string' && 
-        (buffer.trim().startsWith('{') || buffer.trim().startsWith('['))) {
+    // Si parece JSON válido o está en formato esperado por el protocolo, permitirlo
+    if (buffer && typeof buffer === 'string') {
+        const trimmed = buffer.trim();
+        // Permitir JSON y mensajes del protocolo MCP
+        if (trimmed.startsWith('{') || trimmed.startsWith('[') ||
+            trimmed.includes('jsonrpc') || trimmed.includes('method') ||
+            trimmed.includes('params') || trimmed.includes('id')) {
+            return originalStdoutWrite(buffer);
+        }
+    } else if (buffer) {
+        // Permitir buffers binarios y otros tipos de datos
         return originalStdoutWrite(buffer);
     }
-    
-    // De lo contrario, redirigir a stderr
-    process.stderr.write(`[WARN] Intento de escribir a stdout redirigido a stderr: ${buffer}`);
+
+    // De lo contrario, redirigir a stderr con más información para depuración
+    process.stderr.write(`[WARN] Redirigido a stderr: ${typeof buffer === 'string' ? buffer : 'Buffer no string'} (tipo: ${typeof buffer})\n`);
     return true;
 };
 
@@ -38,4 +45,4 @@ process.on('unhandledRejection', (reason: any) => {
 
 export default {
     restoreStdout
-}; 
+};
