@@ -7,10 +7,7 @@
 
 // Process command line arguments first
 import minimist from 'minimist';
-import { normalizeDatabasePath } from './db/connection.js';
-import fs from 'fs';
-import path from 'path';
-import os from 'os';
+import { normalizeDatabasePath, ConfigOptions } from './db/connection.js';
 const argv = minimist(process.argv.slice(2));
 
 // Debug: Log all command line arguments
@@ -18,7 +15,7 @@ console.error('Command line arguments:', JSON.stringify(argv));
 console.error('Raw process.argv:', JSON.stringify(process.argv));
 
 // Create database configuration object directly from command line arguments
-const dbConfig = {
+export const dbConfig: ConfigOptions = {
   host: argv.host || 'localhost',
   port: argv.port ? parseInt(argv.port, 10) : 3050,
   database: argv.database ? normalizeDatabasePath(argv.database) : '',
@@ -28,17 +25,8 @@ const dbConfig = {
   pageSize: 4096
 };
 
-// Save the configuration to a temporary file that can be read by the database connection module
-if (argv.database) {
-  try {
-    const tempDir = os.tmpdir();
-    const configFilePath = path.join(tempDir, 'mcp-firebird-config.json');
-    fs.writeFileSync(configFilePath, JSON.stringify(dbConfig, null, 2));
-    console.error(`Saved database configuration to ${configFilePath}`);
-  } catch (error) {
-    console.error(`Error saving database configuration: ${error instanceof Error ? error.message : String(error)}`);
-  }
-}
+// Make the configuration globally available
+(global as any).MCP_FIREBIRD_CONFIG = dbConfig;
 
 // Also set environment variables for backward compatibility
 if (argv.database) {

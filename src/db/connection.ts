@@ -40,41 +40,30 @@ export function normalizeDatabasePath(dbPath: string | undefined): string {
     return path.normalize(dbPath);
 }
 
-// Try to load configuration from temporary file
-export const loadConfigFromTempFile = (): ConfigOptions | null => {
+// Get configuration from global variable
+export const getGlobalConfig = (): ConfigOptions | null => {
     try {
-        const fs = require('fs');
-        const path = require('path');
-        const os = require('os');
-        const tempDir = os.tmpdir();
-        const configFilePath = path.join(tempDir, 'mcp-firebird-config.json');
-
-        console.error(`Checking for config file at: ${configFilePath}`);
-
-        if (fs.existsSync(configFilePath)) {
-            console.error(`Config file exists at: ${configFilePath}`);
-            const configContent = fs.readFileSync(configFilePath, 'utf8');
-            console.error(`Config file content: ${configContent}`);
-            const config = JSON.parse(configContent);
-            console.error('Loaded database configuration from temporary file');
-            console.error(`Config from file: database=${config.database}, host=${config.host}, port=${config.port}, user=${config.user}`);
+        if ((global as any).MCP_FIREBIRD_CONFIG) {
+            const config = (global as any).MCP_FIREBIRD_CONFIG;
+            console.error('Using global database configuration');
+            console.error(`Global config: database=${config.database}, host=${config.host}, port=${config.port}, user=${config.user}`);
             return config;
         } else {
-            console.error(`Config file does not exist at: ${configFilePath}`);
+            console.error('No global database configuration found');
         }
     } catch (error) {
-        console.error(`Error loading configuration from temporary file: ${error instanceof Error ? error.message : String(error)}`);
+        console.error(`Error getting global configuration: ${error instanceof Error ? error.message : String(error)}`);
     }
     return null;
 };
 
 // Default configuration for the connection
 export const getDefaultConfig = (): ConfigOptions => {
-    // First try to load from temporary file
-    const tempConfig = loadConfigFromTempFile();
-    if (tempConfig && tempConfig.database) {
-        console.error('Using configuration from temporary file');
-        return tempConfig;
+    // First try to load from global configuration
+    const globalConfig = getGlobalConfig();
+    if (globalConfig && globalConfig.database) {
+        console.error('Using global configuration');
+        return globalConfig;
     }
 
     // Debug: Log all environment variables related to database connection

@@ -8,7 +8,7 @@ import {
     DEFAULT_CONFIG,
     FirebirdDatabase,
     ConfigOptions,
-    loadConfigFromTempFile
+    getGlobalConfig
 } from './connection.js';
 import { FirebirdError } from '../utils/errors.js';
 import { validateSql } from '../utils/security.js';
@@ -78,11 +78,11 @@ export interface ExecutionPlanResult {
  * @throws {FirebirdError} If there is a connection or query error
  */
 export const executeQuery = async (sql: string, params: any[] = [], config = DEFAULT_CONFIG): Promise<any[]> => {
-    // Try to load config from temp file first
-    const tempConfig = loadConfigFromTempFile();
-    if (tempConfig && tempConfig.database) {
-        logger.info(`Using configuration from temporary file for executeQuery: ${tempConfig.database}`);
-        config = tempConfig;
+    // Try to load config from global variable first
+    const globalConfig = getGlobalConfig();
+    if (globalConfig && globalConfig.database) {
+        logger.info(`Using global configuration for executeQuery: ${globalConfig.database}`);
+        config = globalConfig;
     }
     let db: FirebirdDatabase | null = null;
     try {
@@ -163,11 +163,11 @@ export const getDatabases = (): DatabaseInfo[] => {
  * @throws {FirebirdError} Si hay un error de conexión o de consulta
  */
 export const getTables = async (config = DEFAULT_CONFIG): Promise<TableInfo[]> => {
-    // Try to load config from temp file first
-    const tempConfig = loadConfigFromTempFile();
-    if (tempConfig && tempConfig.database) {
-        logger.info(`Using configuration from temporary file for getTables: ${tempConfig.database}`);
-        config = tempConfig;
+    // Try to load config from global variable first
+    const globalConfig = getGlobalConfig();
+    if (globalConfig && globalConfig.database) {
+        logger.info(`Using global configuration for getTables: ${globalConfig.database}`);
+        config = globalConfig;
     }
     try {
         logger.info('Obteniendo lista de tablas');
@@ -208,11 +208,11 @@ export const getTables = async (config = DEFAULT_CONFIG): Promise<TableInfo[]> =
  * @throws {FirebirdError} Si hay un error de conexión o de consulta
  */
 export const getViews = async (config = DEFAULT_CONFIG): Promise<TableInfo[]> => {
-    // Try to load config from temp file first
-    const tempConfig = loadConfigFromTempFile();
-    if (tempConfig && tempConfig.database) {
-        logger.info(`Using configuration from temporary file for getViews: ${tempConfig.database}`);
-        config = tempConfig;
+    // Try to load config from global variable first
+    const globalConfig = getGlobalConfig();
+    if (globalConfig && globalConfig.database) {
+        logger.info(`Using global configuration for getViews: ${globalConfig.database}`);
+        config = globalConfig;
     }
     try {
         logger.info('Obteniendo lista de vistas');
@@ -292,11 +292,11 @@ export const getProcedures = async (config = DEFAULT_CONFIG): Promise<TableInfo[
  * @throws {FirebirdError} Si hay un error de conexión, de consulta o el nombre de tabla es inválido
  */
 export const getFieldDescriptions = async (tableName: string, config = DEFAULT_CONFIG): Promise<FieldInfo[]> => {
-    // Try to load config from temp file first
-    const tempConfig = loadConfigFromTempFile();
-    if (tempConfig && tempConfig.database) {
-        logger.info(`Using configuration from temporary file for getFieldDescriptions: ${tempConfig.database}`);
-        config = tempConfig;
+    // Try to load config from global variable first
+    const globalConfig = getGlobalConfig();
+    if (globalConfig && globalConfig.database) {
+        logger.info(`Using global configuration for getFieldDescriptions: ${globalConfig.database}`);
+        config = globalConfig;
     }
     try {
         logger.info(`Obteniendo descripciones de campos para la tabla: ${tableName}`);
@@ -349,11 +349,11 @@ export const getFieldDescriptions = async (tableName: string, config = DEFAULT_C
  * @throws {FirebirdError} Si hay un error de conexión, de consulta o el nombre de tabla es inválido
  */
 export const describeTable = async (tableName: string, config = DEFAULT_CONFIG): Promise<ColumnInfo[]> => {
-    // Try to load config from temp file first
-    const tempConfig = loadConfigFromTempFile();
-    if (tempConfig && tempConfig.database) {
-        logger.info(`Using configuration from temporary file for describeTable: ${tempConfig.database}`);
-        config = tempConfig;
+    // Try to load config from global variable first
+    const globalConfig = getGlobalConfig();
+    if (globalConfig && globalConfig.database) {
+        logger.info(`Using global configuration for describeTable: ${globalConfig.database}`);
+        config = globalConfig;
     }
     try {
         logger.info(`Obteniendo estructura de la tabla: ${tableName}`);
