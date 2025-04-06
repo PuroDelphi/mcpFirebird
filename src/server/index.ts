@@ -319,17 +319,26 @@ export async function main() {
             // Connect the server to the transport - following the official example pattern
             await server.connect(transport);
 
-            // Setup cleanup function
-            setupSignalHandlers(async () => {
+            // Setup cleanup function for SIGINT (Ctrl+C)
+            process.on('SIGINT', async () => {
+                logger.info('Received SIGINT signal, cleaning up...');
                 logger.info('Closing stdio transport...');
                 await server.close();
+                logger.info('Server closed successfully');
+                process.exit(0);
+            });
+
+            // Setup cleanup function for SIGTERM
+            process.on('SIGTERM', async () => {
+                logger.info('Received SIGTERM signal, cleaning up...');
+                logger.info('Closing stdio transport...');
+                await server.close();
+                logger.info('Server closed successfully');
+                process.exit(0);
             });
 
             logger.info('MCP Firebird server with stdio transport connected and ready to receive requests.');
             logger.info('Server waiting for requests...');
-
-            // Keep the process alive indefinitely
-            await new Promise<void>(() => {});
         } else {
             throw new ConfigError(
                 `Unsupported transport type: ${transportType}. Supported types are 'stdio' and 'sse'.`,
