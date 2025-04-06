@@ -5,7 +5,19 @@
  * This is the main entry point for the MCP Firebird server when run from the command line
  */
 
-// Load environment variables from .env file
+// Process command line arguments first
+import minimist from 'minimist';
+const argv = minimist(process.argv.slice(2));
+
+// Convert command line arguments to environment variables
+if (argv.database) process.env.FIREBIRD_DATABASE = argv.database;
+if (argv.user) process.env.FIREBIRD_USER = argv.user;
+if (argv.password) process.env.FIREBIRD_PASSWORD = argv.password;
+if (argv.host) process.env.FIREBIRD_HOST = argv.host;
+if (argv.port) process.env.FIREBIRD_PORT = argv.port;
+if (argv.role) process.env.FIREBIRD_ROLE = argv.role;
+
+// Load environment variables from .env file (will not override existing env vars)
 import dotenv from 'dotenv';
 dotenv.config();
 
@@ -27,6 +39,15 @@ const logger = createLogger('cli');
 async function main() {
   logger.info(`Starting MCP Firebird Server v${version}...`);
   logger.info(`Platform: ${process.platform}, Node.js: ${process.version}`);
+
+  // Log the database connection parameters (without sensitive info)
+  logger.info(`Database connection parameters:`);
+  logger.info(`- Host: ${process.env.FIREBIRD_HOST || 'localhost'}`);
+  logger.info(`- Port: ${process.env.FIREBIRD_PORT || '3050'}`);
+  logger.info(`- Database: ${process.env.FIREBIRD_DATABASE || 'Not specified'}`);
+  logger.info(`- User: ${process.env.FIREBIRD_USER || 'SYSDBA'}`);
+  // Don't log the password
+  logger.info(`- Role: ${process.env.FIREBIRD_ROLE || 'Not specified'}`);
 
   try {
     // Create the server
