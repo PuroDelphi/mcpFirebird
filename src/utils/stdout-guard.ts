@@ -9,9 +9,18 @@ const originalStdoutWrite = process.stdout.write.bind(process.stdout);
 // Reemplazar stdout.write para prevenir escrituras accidentales
 // Simplificado para máxima compatibilidad con Claude Desktop
 process.stdout.write = function(buffer: string | Uint8Array | any): boolean {
-    // Permitir cualquier tipo de buffer para asegurar compatibilidad
-    if (buffer) {
-        return originalStdoutWrite(buffer);
+    try {
+        // Permitir cualquier tipo de buffer para asegurar compatibilidad
+        if (buffer) {
+            // Si es un string, verificar si es un mensaje de inicialización
+            if (typeof buffer === 'string' && buffer.includes('initialize')) {
+                process.stderr.write(`[DEBUG] Mensaje de inicialización detectado\n`);
+            }
+            return originalStdoutWrite(buffer);
+        }
+    } catch (error) {
+        // En caso de error, registrar y continuar
+        process.stderr.write(`[ERROR] Error en stdout-guard: ${error}\n`);
     }
     return true;
 };

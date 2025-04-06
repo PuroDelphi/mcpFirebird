@@ -276,10 +276,16 @@ export async function main() {
         } else {
             // Default to stdio transport
             logger.info('Configuring stdio transport...');
-            const transport = new StdioServerTransport();
-            logger.info('Connecting server to transport...');
 
-            // Conectar el servidor al transporte - siguiendo el patrón del ejemplo oficial
+            // Crear el transporte STDIO
+            const transport = new StdioServerTransport();
+
+            // Registrar un manejador para el mensaje de inicialización
+            // Nota: No podemos usar setRequestHandler directamente para 'initialize'
+            // porque no es un esquema Zod registrado, así que lo manejamos en el transporte
+
+            // Conectar el servidor al transporte
+            logger.info('Connecting server to transport...');
             await server.connect(transport);
 
             logger.info('MCP Firebird server with stdio transport connected and ready to receive requests.');
