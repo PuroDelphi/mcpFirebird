@@ -41,7 +41,7 @@ export function normalizeDatabasePath(dbPath: string | undefined): string {
 }
 
 // Try to load configuration from temporary file
-const loadConfigFromTempFile = (): ConfigOptions | null => {
+export const loadConfigFromTempFile = (): ConfigOptions | null => {
     try {
         const fs = require('fs');
         const path = require('path');
@@ -49,11 +49,18 @@ const loadConfigFromTempFile = (): ConfigOptions | null => {
         const tempDir = os.tmpdir();
         const configFilePath = path.join(tempDir, 'mcp-firebird-config.json');
 
+        console.error(`Checking for config file at: ${configFilePath}`);
+
         if (fs.existsSync(configFilePath)) {
+            console.error(`Config file exists at: ${configFilePath}`);
             const configContent = fs.readFileSync(configFilePath, 'utf8');
+            console.error(`Config file content: ${configContent}`);
             const config = JSON.parse(configContent);
             console.error('Loaded database configuration from temporary file');
+            console.error(`Config from file: database=${config.database}, host=${config.host}, port=${config.port}, user=${config.user}`);
             return config;
+        } else {
+            console.error(`Config file does not exist at: ${configFilePath}`);
         }
     } catch (error) {
         console.error(`Error loading configuration from temporary file: ${error instanceof Error ? error.message : String(error)}`);
