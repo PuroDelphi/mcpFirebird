@@ -1,65 +1,84 @@
-// Prompts relacionados con SQL
-import { z } from 'zod';
+// SQL-related prompts
+import { z, ZodType } from 'zod';
 import { createLogger } from '../utils/logger.js';
+// Import the unified PromptDefinition
+import { PromptDefinition } from './database.js';
 
 const logger = createLogger('prompts:sql');
 
+// --- Prompt Definitions --- //
+
+const queryDataPrompt: PromptDefinition = {
+    name: "query-data",
+    description: "Executes and analyzes a SQL query in Firebird",
+    inputSchema: z.object({
+        sql: z.string().min(1).describe("SQL query to execute")
+    }),
+    handler: async ({ sql }: { sql: string }) => ({
+        messages: [{
+            role: "user",
+            content: {
+                type: "text",
+                text: `Please execute and analyze the following SQL query in the Firebird database:\n\n\`\`\`sql\n${sql}\n\`\`\`\n\nExplain the results clearly and concisely.`
+            }
+        }]
+    })
+};
+
+const optimizeQueryPrompt: PromptDefinition = {
+    name: "optimize-query",
+    description: "Optimizes a SQL query for Firebird",
+    inputSchema: z.object({
+        sql: z.string().min(1).describe("SQL query to optimize")
+    }),
+    handler: async ({ sql }: { sql: string }) => ({
+        messages: [{
+            role: "user",
+            content: {
+                type: "text",
+                text: `Please analyze and optimize the following SQL query for Firebird:\n\n\`\`\`sql\n${sql}\n\`\`\`\n\nExplain the improvements made and why they might enhance performance.`
+            }
+        }]
+    })
+};
+
+const generateSqlPrompt: PromptDefinition = {
+    name: "generate-sql",
+    description: "Generates a SQL query for Firebird based on a description",
+    inputSchema: z.object({
+        description: z.string().min(1).describe("Description of the query to be generated")
+    }),
+    handler: async ({ description }: { description: string }) => ({
+        messages: [{
+            role: "user",
+            content: {
+                type: "text",
+                text: `Please generate a SQL query for Firebird based on the following description:\n\n${description}\n\nExplain the generated query and how it works.`
+            }
+        }]
+    })
+};
+
+// Array with all SQL prompt definitions
+const sqlPrompts: PromptDefinition[] = [
+    queryDataPrompt,
+    optimizeQueryPrompt,
+    generateSqlPrompt
+];
+
+// --- Configuration Function --- //
+
 /**
- * Configura los prompts relacionados con SQL para el servidor MCP
- * @param {Object} server - Instancia del servidor MCP
+ * Sets up SQL-related prompts for the MCP server
+ * and returns a map with their definitions.
+ * @returns {Map<string, PromptDefinition>} Map with prompt definitions.
  */
-export const setupSqlPrompts = (server: any) => {
-    // Prompt para consultar datos
-    server.prompt(
-        "query-data",
-        "Ejecuta y analiza una consulta SQL en Firebird",
-        {
-            sql: z.string().min(1).describe("Consulta SQL a ejecutar")
-        },
-        ({ sql }: { sql: string }) => ({
-            messages: [{
-                role: "user",
-                content: {
-                    type: "text",
-                    text: `Por favor ejecuta y analiza la siguiente consulta SQL en la base de datos Firebird:\n\n\`\`\`sql\n${sql}\n\`\`\`\n\nExplica los resultados de manera clara y concisa.`
-                }
-            }]
-        })
-    );
-
-    // Prompt para optimizar consulta
-    server.prompt(
-        "optimize-query",
-        "Optimiza una consulta SQL para Firebird",
-        {
-            sql: z.string().min(1).describe("Consulta SQL a optimizar")
-        },
-        ({ sql }: { sql: string }) => ({
-            messages: [{
-                role: "user",
-                content: {
-                    type: "text",
-                    text: `Por favor analiza y optimiza la siguiente consulta SQL para Firebird:\n\n\`\`\`sql\n${sql}\n\`\`\`\n\nExplica las mejoras realizadas y por qué podrían mejorar el rendimiento.`
-                }
-            }]
-        })
-    );
-
-    // Prompt para generar SQL
-    server.prompt(
-        "generate-sql",
-        "Genera una consulta SQL para Firebird basada en una descripción",
-        {
-            description: z.string().min(1).describe("Descripción de la consulta que se desea generar")
-        },
-        ({ description }: { description: string }) => ({
-            messages: [{
-                role: "user",
-                content: {
-                    type: "text",
-                    text: `Por favor genera una consulta SQL para Firebird basada en la siguiente descripción:\n\n${description}\n\nExplica la consulta generada y cómo funciona.`
-                }
-            }]
-        })
-    );
+export const setupSqlPrompts = (): Map<string, PromptDefinition> => {
+    const promptsMap = new Map<string, PromptDefinition>();
+    sqlPrompts.forEach(prompt => {
+        promptsMap.set(prompt.name, prompt);
+        logger.debug(`SQL prompt definition loaded: ${prompt.name}`);
+    });
+    logger.info(`Defined ${promptsMap.size} SQL prompts.`);
+    return promptsMap;
 };

@@ -1,23 +1,28 @@
 {
   "name": "mcp-firebird",
-  "version": "1.1.17",
+  "version": "2.0.4",
   "description": "MCP server for Firebird database",
   "main": "dist/index.js",
   "type": "module",
   "bin": {
-    "mcp-firebird": "dist/index.js"
+    "mcp-firebird": "dist/cli.js"
   },
   "scripts": {
-    "build": "tsc && node --input-type=module -e \"import { chmodSync } from 'fs'; chmodSync('dist/index.js', '755');\"",
-    "start": "node dist/index.js",
+    "build": "tsc && node --input-type=module -e \"import { chmodSync } from 'fs'; chmodSync('dist/cli.js', '755');\"",
+    "start": "node dist/cli.js",
     "test": "jest",
     "lint": "eslint src/",
     "dev": "nodemon -e ts --watch src/ --exec \"npm run build && npm run start\"",
-    "inspector": "npm run build && npx @modelcontextprotocol/inspector node dist/index.js"
+    "inspector": "npm run build && node run-inspector.cjs",
+    "sse": "npm run build && node run-sse-server.js",
+    "inspector-sse": "npm run build && npx @modelcontextprotocol/inspector http://localhost:3003"
   },
   "author": "Jhonny Suárez - asistentesautonomos.com",
   "license": "MIT",
   "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.1",
+    "@types/minimist": "^1.2.5",
     "@types/node": "^20.11.26",
     "@typescript-eslint/eslint-plugin": "^7.2.0",
     "@typescript-eslint/parser": "^7.2.0",
@@ -27,12 +32,17 @@
     "typescript": "^5.4.2"
   },
   "dependencies": {
-    "@modelcontextprotocol/inspector": "^0.6.0",
-    "@modelcontextprotocol/sdk": "^1.7.0",
+    "@modelcontextprotocol/inspector": "latest",
+    "@modelcontextprotocol/sdk": "^1.8.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^5.1.0",
     "glob": "^10.3.10",
     "minimist": "^1.2.8",
     "node-firebird": "^1.1.5",
+    "url-pattern": "^1.0.3",
     "winston": "^3.11.0",
-    "zod": "^3.22.4"
+    "zod": "^3.22.4",
+    "zod-to-json-schema": "^3.22.4"
   }
 }

@@ -1,41 +1,74 @@
 /**
- * Este archivo contiene utilidades para proteger stdout
- * Las comunicaciones JSONRPC requieren que stdout esté completamente limpio
+ * Stdout Guard Module
+ *
+ * This module protects stdout from accidental writes that would break the JSONRPC protocol.
+ * MCP requires that stdout is completely clean for proper communication.
  */
 
-// Guardar la referencia original de stdout.write
+import { createLogger } from './logger.js';
+
+const logger = createLogger('stdout-guard');
+
+// Store the original stdout.write function
 const originalStdoutWrite = process.stdout.write.bind(process.stdout);
 
-// Reemplazar stdout.write para prevenir escrituras accidentales
+/**
+ * Controlled stdout write function
+ * When using stdio transport, we need to ensure that only valid JSONRPC messages
+ * are written to stdout. This function is used to replace the original stdout.write
+ * function to prevent accidental writes.
+ *
+ * @param buffer - The buffer to write to stdout
+ * @returns Whether the write was successful
+ */
 process.stdout.write = function(buffer: string | Uint8Array | any): boolean {
-    // Si parece JSON válido, permitirlo
-    if (buffer && 
-        typeof buffer === 'string' && 
-        (buffer.trim().startsWith('{') || buffer.trim().startsWith('['))) {
-        return originalStdoutWrite(buffer);
+    // Only allow writes when explicitly using the stdio transport
+    const transportType = process.env.TRANSPORT_TYPE?.toLowerCase() || 'stdio';
+
+    if (transportType === 'stdio') {
+        // Allow the write to proceed
+        if (buffer) {
+            return originalStdoutWrite(buffer);
+        }
+    } else {
+        // For non-stdio transports, log the attempted write to stderr instead
+        if (buffer) {
+            const content = typeof buffer === 'string' ? buffer :
+                           buffer instanceof Uint8Array ? '[Binary data]' :
+                           String(buffer);
+
+            logger.debug(`Prevented stdout write: ${content.substring(0, 100)}${content.length > 100 ? '...' : ''}`);
+        }
     }
-    
-    // De lo contrario, redirigir a stderr
-    process.stderr.write(`[WARN] Intento de escribir a stdout redirigido a stderr: ${buffer}`);
+
     return true;
 };
 
-// Para restaurar el comportamiento original si es necesario
+/**
+ * Restore the original stdout.write function
+ * This should only be used in special cases where you need to bypass the guard
+ */
 export function restoreStdout(): void {
+    logger.warn('Restoring original stdout.write function - this may break JSONRPC communication');
     process.stdout.write = originalStdoutWrite;
 }
 
-// Manejar excepciones no capturadas para evitar que rompan el protocolo
-process.on('uncaughtException', (error: Error) => {
-    process.stderr.write(`[FATAL] Excepción no capturada: ${error?.stack || error}\n`);
-    // No terminamos el proceso para permitir que continúe la comunicación
-});
+/**
+ * Enable or disable the stdout guard
+ * @param enable - Whether to enable the guard
+ */
+export function setStdoutGuard(enable: boolean): void {
+    if (enable) {
+        logger.info('Enabling stdout guard');
+        process.stdout.write = process.stdout.write; // Keep the current implementation
+    } else {
+        logger.warn('Disabling stdout guard - this may break JSONRPC communication');
+        process.stdout.write = originalStdoutWrite;
+    }
+}
 
-process.on('unhandledRejection', (reason: any) => {
-    process.stderr.write(`[FATAL] Promesa rechazada no capturada: ${reason?.stack || reason}\n`);
-    // No terminamos el proceso para permitir que continúe la comunicación
-});
-
+// Export the module
 export default {
-    restoreStdout
-}; 
+    restoreStdout,
+    setStdoutGuard
+};

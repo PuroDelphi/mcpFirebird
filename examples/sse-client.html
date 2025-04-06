@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Cliente SSE para MCP Firebird</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        #log { border: 1px solid #ccc; padding: 10px; height: 300px; overflow-y: auto; margin-bottom: 10px; }
+        button { padding: 8px 16px; margin-right: 10px; }
+        input, select { padding: 8px; margin-bottom: 10px; width: 100%; }
+        .log-info { color: #333; }
+        .log-success { color: #28a745; }
+        .log-error { color: #dc3545; }
+        .log-send { color: #007bff; }
+        .log-receive { color: #6f42c1; }
+        pre { margin: 0; white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+    <h1>Cliente SSE para MCP Firebird</h1>
+    
+    <div>
+        <label for="serverUrl">URL del servidor:</label>
+        <input type="text" id="serverUrl" value="http://localhost:3003" />
+    </div>
+    
+    <div>
+        <button id="connectBtn">Conectar</button>
+        <button id="disconnectBtn" disabled>Desconectar</button>
+    </div>
+    
+    <h2>Herramientas disponibles</h2>
+    <div>
+        <select id="toolSelect">
+            <option value="list-tables">list-tables</option>
+            <option value="describe-table">describe-table</option>
+            <option value="execute-query">execute-query</option>
+            <option value="get-methods">get-methods</option>
+        </select>
+        
+        <div id="paramContainer" style="display: none;">
+            <label for="paramInput">Parámetros (JSON):</label>
+            <input type="text" id="paramInput" placeholder='{"table": "EMPLOYEE"}' />
+        </div>
+        
+        <button id="executeBtn" disabled>Ejecutar</button>
+    </div>
+    
+    <h2>Registro de eventos</h2>
+    <div id="log"></div>
+    
+    <script>
+        let eventSource = null;
+        let sessionId = null;
+        let requestId = 1;
+        
+        const serverUrlInput = document.getElementById('serverUrl');
+        const connectBtn = document.getElementById('connectBtn');
+        const disconnectBtn = document.getElementById('disconnectBtn');
+        const toolSelect = document.getElementById('toolSelect');
+        const paramContainer = document.getElementById('paramContainer');
+        const paramInput = document.getElementById('paramInput');
+        const executeBtn = document.getElementById('executeBtn');
+        const logElement = document.getElementById('log');
+        
+        function log(message, type = 'info') {
+            const entry = document.createElement('div');
+            entry.className = `log-entry log-${type}`;
+            
+            let formattedMessage = message;
+            if (typeof message === 'object') {
+                formattedMessage = `<pre>${JSON.stringify(message, null, 2)}</pre>`;
+            }
+            
+            entry.innerHTML = `<strong>${new Date().toLocaleTimeString()}</strong>: ${formattedMessage}`;
+            logElement.appendChild(entry);
+            logElement.scrollTop = logElement.scrollHeight;
+        }
+        
+        connectBtn.addEventListener('click', () => {
+            const serverUrl = serverUrlInput.value;
+            
+            try {
+                // Generar un ID de sesión único
+                sessionId = `client-${Math.random().toString(36).substring(2, 15)}`;
+                
+                // Crear la conexión SSE
+                eventSource = new EventSource(`${serverUrl}`);
+                
+                eventSource.onopen = () => {
+                    log('Conexión SSE establecida', 'success');
+                    connectBtn.disabled = true;
+                    disconnectBtn.disabled = false;
+                    executeBtn.disabled = false;
+                };
+                
+                eventSource.onmessage = (event) => {
+                    try {
+                        const data = JSON.parse(event.data);
+                        log(data, 'receive');
+                    } catch (error) {
+                        log(`Mensaje recibido (no JSON): ${event.data}`, 'receive');
+                    }
+                };
+                
+                eventSource.onerror = (error) => {
+                    log(`Error en la conexión SSE: ${error.message || 'Error desconocido'}`, 'error');
+                    disconnectEventSource();
+                };
+                
+                log(`Conectando a ${serverUrl}...`);
+            } catch (error) {
+                log(`Error al crear la conexión SSE: ${error.message}`, 'error');
+            }
+        });
+        
+        disconnectBtn.addEventListener('click', disconnectEventSource);
+        
+        function disconnectEventSource() {
+            if (eventSource) {
+                eventSource.close();
+                eventSource = null;
+                sessionId = null;
+                
+                connectBtn.disabled = false;
+                disconnectBtn.disabled = true;
+                executeBtn.disabled = true;
+                
+                log('Conexión SSE cerrada');
+            }
+        }
+        
+        toolSelect.addEventListener('change', () => {
+            // Mostrar el contenedor de parámetros para herramientas que los necesitan
+            const selectedTool = toolSelect.value;
+            
+            if (selectedTool === 'describe-table' || selectedTool === 'execute-query') {
+                paramContainer.style.display = 'block';
+                
+                if (selectedTool === 'describe-table') {
+                    paramInput.placeholder = '{"table": "EMPLOYEE"}';
+                } else if (selectedTool === 'execute-query') {
+                    paramInput.placeholder = '{"query": "SELECT * FROM EMPLOYEE LIMIT 5"}';
+                }
+            } else {
+                paramContainer.style.display = 'none';
+            }
+        });
+        
+        executeBtn.addEventListener('click', async () => {
+            if (!eventSource || !sessionId) {
+                log('No hay conexión SSE activa', 'error');
+                return;
+            }
+            
+            const selectedTool = toolSelect.value;
+            let params = {};
+            
+            if (paramContainer.style.display !== 'none') {
+                try {
+                    params = JSON.parse(paramInput.value || '{}');
+                } catch (error) {
+                    log(`Error al parsear los parámetros JSON: ${error.message}`, 'error');
+                    return;
+                }
+            }
+            
+            const request = {
+                jsonrpc: '2.0',
+                id: String(requestId++),
+                method: selectedTool,
+                params
+            };
+            
+            log(request, 'send');
+            
+            try {
+                const serverUrl = serverUrlInput.value;
+                const response = await fetch(`${serverUrl}/message?sessionId=${sessionId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(request)
+                });
+                
+                const responseData = await response.json();
+                log(responseData, 'receive');
+            } catch (error) {
+                log(`Error al enviar la solicitud: ${error.message}`, 'error');
+            }
+        });
+    </script>
+</body>
+</html>

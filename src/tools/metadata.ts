@@ -1,238 +1,176 @@
 // Herramientas para metadatos e información del sistema
 import { createLogger } from '../utils/logger.js';
-import { stringifyCompact } from '../utils/jsonHelper.js';
-import { z } from 'zod'; // Importar zod
+import { stringifyCompact, formatForClaude } from '../utils/jsonHelper.js';
+import { z, ZodTypeAny } from 'zod';
+
+// Definición local de ToolDefinition basada en el uso
+export interface ToolDefinition {
+    inputSchema: ZodTypeAny;
+    description: string;
+    handler: (...args: any[]) => Promise<any>; // Ajustar según sea necesario
+}
 
 const logger = createLogger('tools:metadata');
 
 /**
- * Configura las herramientas de metadatos para el servidor MCP
- * @param {Object} server - Instancia del servidor MCP
+ * Configura las herramientas de metadatos, tomando las herramientas de base de datos como entrada.
+ * @param databaseTools - Mapa de herramientas de base de datos ya configuradas.
+ * @returns Map<string, ToolDefinition> - Mapa con las herramientas de metadatos.
  */
-export const setupMetadataTools = (server: any) => {
-    // Implementar el handler para get-methods
-    server.tool(
-        "get-methods",
-        {},
-        async () => {
+export const setupMetadataTools = (
+    databaseTools: Map<string, ToolDefinition>
+): Map<string, ToolDefinition> => {
+
+    const metadataTools = new Map<string, ToolDefinition>();
+
+    // Combinar todas las herramientas para que las herramientas de metadatos puedan describirlas
+    const allTools = new Map([...databaseTools, ...metadataTools]);
+
+    // --- get-methods ---
+    // !! Esta definición debe ocurrir *después* de inicializar allTools !!
+    metadataTools.set("get-methods", {
+        inputSchema: z.object({}), // No args
+        description: "Returns a description of all available MCP tools (methods)",
+        handler: async () => {
             logger.info("Obteniendo descripción de herramientas disponibles");
 
-            // Definir las descripciones de las herramientas (antes methods)
-            const tools = [
-                {
-                    name: "ping",
-                    description: "Tests connectivity to the Firebird MCP server",
-                    parameters: [],
-                    returns: "A simple success response indicating the server is available"
-                },
-                {
-                    name: "list-tables",
-                    description: "Lists all user tables in the current database",
-                    parameters: [],
-                    returns: "Array of table objects with table names and URIs"
-                },
-                {
-                    name: "describe-table",
-                    description: "Gets detailed schema information for a specific table",
-                    parameters: [
-                        {
-                            name: "tableName",
-                            type: "string",
-                            description: "Name of the table to describe"
-                        }
-                    ],
-                    returns: "Table schema including columns, data types, primary keys, and foreign keys"
-                },
-                {
-                    name: "get-field-descriptions",
-                    description: "Retrieves metadata descriptions for all fields in a table",
-                    parameters: [
-                        {
-                            name: "tableName",
-                            type: "string",
-                            description: "Name of the table to get field descriptions for"
-                        }
-                    ],
-                    returns: "Array of field description objects with field names and descriptions"
-                },
-                {
-                    name: "execute-query",
-                    description: "Executes a custom SQL query on the database. Note that Firebird uses FIRST/ROWS for pagination instead of LIMIT",
-                    parameters: [
-                        {
-                            name: "sql",
-                            type: "string", 
-                            description: "SQL query to execute. For pagination, use 'SELECT FIRST X ROWS Y * FROM...' instead of LIMIT"
-                        },
-                        {
-                            name: "params",
-                            type: "array",
-                            description: "Parameters for the SQL query (optional)"
-                        }
-                    ],
-                    returns: "Query results as an array of records"
-                },
-                {
-                    name: "get-methods",
-                    description: "Returns a description of all available MCP methods",
-                    parameters: [],
-                    returns: "Array of method objects with name, description, parameters, and return type"
-                }
-            ];
-
             try {
-                // Devolver la lista de herramientas bajo la clave 'tools'
+                // Crear descripciones dinámicamente desde allTools
+                const toolDescriptions = Array.from(allTools.values()).map(toolDef => {
+                    // Extraer parámetros de Zod schema si existe
+                    let parameters: any[] = [];
+                    if (toolDef.inputSchema && toolDef.inputSchema instanceof z.ZodObject) {
+                        parameters = Object.entries(toolDef.inputSchema.shape).map(([name, zodType]) => ({
+                            name,
+                            // Intentar obtener una descripción o tipo básico de Zod
+                            type: ((zodType as z.ZodTypeAny)._def as any)?.typeName?.replace('Zod', '').toLowerCase() || 'unknown',
+                            description: (zodType as z.ZodTypeAny).description || 'No description provided'
+                        }));
+                    }
+
+                    return {
+                        name: Array.from(allTools.entries()).find(([_, def]) => def === toolDef)?.[0] || 'unknown-tool',
+                        description: toolDef.description,
+                        parameters: parameters,
+                        // Nota: No tenemos una forma estándar de describir el tipo de retorno aquí
+                        // Podríamos añadir una propiedad `returnsDescription` a ToolDefinition si fuera necesario
+                        returns: "See tool documentation for return details."
+                    };
+                });
+
                 return {
                     content: [{
-                        type: 'json',
-                        text: stringifyCompact({ success: true, tools }) // <-- Renombrado a 'tools'
+                        type: 'text',
+                        text: formatForClaude({ tools: toolDescriptions })
                     }]
                 };
             } catch (error: any) {
                 logger.error(`Error en get-methods: ${error.message}`);
                 return {
                     content: [{
-                        type: 'json',
-                        text: stringifyCompact({ success: false, error: 'Error al obtener la lista de herramientas.', message: error.message })
+                        type: 'text',
+                        text: formatForClaude({ error: 'Error al obtener la lista de herramientas.', message: error.message })
                     }]
                 };
             }
         }
-    );
+    });
 
-    // Implementar el handler para describe-method
-    // (Mantener como describe-method por convención, aunque ahora lista 'tools')
-    server.tool(
-        "describe-method",
-        {
-            // Corregir esquema Zod para describe-method
-            name: z.string().describe("The name of the method (tool) to describe") 
-        },
-        async ({ name: methodName }: { name: string }) => {
-            logger.info(`Llamada a describe-method para ${methodName}`);
+    // --- describe-method ---
+    // !! Esta definición debe ocurrir *después* de inicializar allTools !!
+    const DescribeMethodArgsSchema = z.object({
+        name: z.string().describe("The name of the tool (method) to describe")
+    });
+    metadataTools.set("describe-method", {
+        inputSchema: DescribeMethodArgsSchema,
+        description: "Returns a description of a specific MCP tool (method)",
+        handler: async (args: z.infer<typeof DescribeMethodArgsSchema>) => {
+            const { name: toolName } = args;
+            logger.info(`Llamada a describe-method para ${toolName}`);
+
             try {
-                // Obtener la lista completa de herramientas (antes methods)
-                const allTools = [
-                    {
-                        name: "ping",
-                        description: "Tests connectivity to the Firebird MCP server",
-                        parameters: [],
-                        returns: "A simple success response indicating the server is available"
-                    },
-                    {
-                        name: "list-tables",
-                        description: "Lists all user tables in the current database",
-                        parameters: [],
-                        returns: "Array of table objects with table names and URIs"
-                    },
-                    {
-                        name: "describe-table",
-                        description: "Gets detailed schema information for a specific table",
-                        parameters: [
-                            {
-                                name: "tableName",
-                                type: "string",
-                                description: "Name of the table to describe"
-                            }
-                        ],
-                        returns: "Table schema including columns, data types, primary keys, and foreign keys"
-                    },
-                    {
-                        name: "get-field-descriptions",
-                        description: "Retrieves metadata descriptions for all fields in a table",
-                        parameters: [
-                            {
-                                name: "tableName",
-                                type: "string",
-                                description: "Name of the table to get field descriptions for"
-                            }
-                        ],
-                        returns: "Array of field description objects with field names and descriptions"
-                    },
-                    {
-                        name: "execute-query",
-                        description: "Executes a custom SQL query on the database. Note that Firebird uses FIRST/ROWS for pagination instead of LIMIT",
-                        parameters: [
-                            {
-                                name: "sql",
-                                type: "string", 
-                                description: "SQL query to execute. For pagination, use 'SELECT FIRST X ROWS Y * FROM...' instead of LIMIT"
-                            },
-                            {
-                                name: "params",
-                                type: "array",
-                                description: "Parameters for the SQL query (optional)"
-                            }
-                        ],
-                        returns: "Query results as an array of records"
-                    },
-                    {
-                        name: "get-methods",
-                        description: "Returns a description of all available MCP methods",
-                        parameters: [],
-                        returns: "Array of method objects with name, description, parameters, and return type"
-                    }
-                    // ... Añadir aquí las demás herramientas si es necesario ...
-                ];
-                
-                // Encontrar la herramienta específica por nombre
-                const tool = allTools.find(t => t.name === methodName);
+                // Buscar la herramienta en el mapa combinado
+                const toolDef = allTools.get(toolName);
 
-                if (!tool) {
+                if (!toolDef) {
                     return {
                         content: [{
-                            type: 'json',
-                            text: stringifyCompact({ 
-                                success: false, 
-                                error: `Herramienta (método) '${methodName}' no encontrada.` 
+                            type: 'text',
+                            text: formatForClaude({
+                                error: `Herramienta (método) '${toolName}' no encontrada.`
                             })
                         }]
                     };
                 }
 
+                // Extraer parámetros de Zod schema si existe
+                let parameters: any[] = [];
+                if (toolDef.inputSchema && toolDef.inputSchema instanceof z.ZodObject) {
+                    parameters = Object.entries(toolDef.inputSchema.shape).map(([name, zodType]) => ({
+                        name,
+                        type: ((zodType as z.ZodTypeAny)._def as any)?.typeName?.replace('Zod', '').toLowerCase() || 'unknown',
+                        description: (zodType as z.ZodTypeAny).description || 'No description provided'
+                    }));
+                }
+
+                // Construir la descripción de la herramienta
+                const toolDescription = {
+                    name: toolName,
+                    description: toolDef.description,
+                    parameters: parameters,
+                    returns: "See tool documentation for return details."
+                };
+
                 return {
                     content: [{
-                        type: 'json',
-                        // Devolver la descripción de la herramienta encontrada
-                        text: stringifyCompact({ 
-                            success: true, 
-                            toolDescription: tool // <-- Clave renombrada a 'toolDescription'
-                        })
+                        type: 'text',
+                        // Usar la clave 'tool' consistentemente
+                        text: formatForClaude({ tool: toolDescription })
                     }]
                 };
+
             } catch (error: any) {
                 logger.error(`Error en describe-method: ${error.message}`);
                 return {
                     content: [{
-                        type: 'json',
-                        text: stringifyCompact({ 
-                            success: false, 
-                            error: 'Error al obtener la descripción de la herramienta (método).', 
-                            message: error.message 
+                        type: 'text',
+                        text: formatForClaude({
+                            error: 'Error al obtener la descripción de la herramienta (método).',
+                            message: error.message
                         })
                     }]
                 };
             }
         }
-    );
+    });
 
-    // Herramienta para hacer ping y verificar conectividad
-    server.tool(
-        "ping",
-        {},
-        async () => {
+    // --- ping ---
+    metadataTools.set("ping", {
+        inputSchema: z.object({}), // No args
+        description: "Tests connectivity to the Firebird MCP server",
+        handler: async () => {
             logger.info("Ping recibido");
-
             return {
                 content: [{
-                    type: 'json',
-                    text: stringifyCompact({ 
-                        success: true, 
+                    type: 'text',
+                    text: formatForClaude({
                         message: "Firebird MCP server is online",
                         timestamp: new Date().toISOString()
                     })
                 }]
             };
         }
-    );
+    });
+
+    // IMPORTANTE: Actualizar allTools DESPUÉS de añadir las herramientas de metadatos
+    // para que las herramientas de metadatos se incluyan a sí mismas en la lista.
+    allTools.set("get-methods", metadataTools.get("get-methods")!); // Añadir get-methods a la lista
+    allTools.set("describe-method", metadataTools.get("describe-method")!); // Añadir describe-method
+    allTools.set("ping", metadataTools.get("ping")!); // Añadir ping
+
+    logger.info(`Herramientas de metadatos configuradas: ${Array.from(metadataTools.keys()).join(', ')}`);
+    logger.info(`Total de herramientas disponibles: ${Array.from(allTools.keys()).join(', ')}`);
+
+    // Devolver solo las herramientas definidas en este módulo
+    return metadataTools;
 };

@@ -35,6 +35,22 @@ export FIREBIRD_ROLE=undefined  # Optional
 
 # Directory configuration (alternative)
 export FIREBIRD_DATABASE_DIR=/path/to/databases  # Directory with databases
+
+# Logging configuration
+export LOG_LEVEL=info  # Options: debug, info, warn, error
+```
+
+You can create a `.env` file in the project root to set these variables. A `.env.example` file is provided as a template.
+
+### Example .env file
+
+```
+FIREBIRD_HOST=localhost
+FIREBIRD_PORT=3050
+FIREBIRD_DATABASE=F:\Proyectos\SAI\EMPLOYEE.FDB
+FIREBIRD_USER=SYSDBA
+FIREBIRD_PASSWORD=masterkey
+LOG_LEVEL=info
 ```
 
 ### Using with npx
@@ -44,6 +60,41 @@ You can run the server directly with npx:
 ```bash
 npx mcp-firebird --host localhost --port 3050 --database /path/to/database.fdb --user SYSDBA --password masterkey
 ```
+
+### Using SSE (Server-Sent Events) transport
+
+The MCP Firebird server also supports SSE transport, which allows clients to connect over HTTP:
+
+```bash
+# Set the transport type to SSE in your .env file
+TRANSPORT_TYPE=sse
+SSE_PORT=3003
+
+# Run the server with SSE transport
+npm run sse
+```
+
+You can then connect to the server using the MCP Inspector:
+
+```bash
+npx @modelcontextprotocol/inspector http://localhost:3003
+```
+
+Or use the provided script:
+
+```bash
+npm run inspector-sse
+```
+
+#### SSE Client Examples
+
+We provide several example clients that demonstrate how to connect to the MCP Firebird server using SSE:
+
+- **HTML/JavaScript**: See `examples/sse-client.html` for a browser-based client
+- **Node.js**: See `examples/sse-client.js` for a Node.js client
+- **Python**: See `examples/sse_client.py` for a Python client
+
+For detailed documentation on using the SSE transport, see `docs/sse-examples.md`.
 
 ## Configuration with Claude Desktop
 
@@ -81,7 +132,8 @@ Add the following configuration:
         "SYSDBA",
         "--password",
         "masterkey"
-      ]
+      ],
+      "type": "stdio"
     }
   }
 }
@@ -90,6 +142,10 @@ Add the following configuration:
 <Warning>
   Make sure to use absolute paths in the configuration.
 </Warning>
+
+<Note>
+  The `"type": "stdio"` parameter is important as it specifies the communication method between Claude Desktop and the MCP server. This should match the `TRANSPORT_TYPE` setting in your server configuration.
+</Note>
 
 <Note>
   After saving the file, you need to restart Claude Desktop completely.
@@ -105,6 +161,12 @@ The MCP Firebird server offers:
 - **Stored procedures**: Access to procedures in the database
 - **Table schemas**: Detailed structure of each table
 - **Data**: Access to table data
+- **Performance analysis**: Analyze query execution time and performance metrics
+- **Execution plan analysis**: Get and analyze SQL execution plans
+- **Index recommendations**: Identify missing indexes that could improve performance
+- **Database backup and restore**: Create and restore database backups
+- **Database validation**: Check database integrity and fix errors
+- **Enhanced security options**: Data masking, audit logging, and resource limits
 
 ## Available Tools
 
@@ -135,7 +197,73 @@ The MCP Firebird server offers:
    }
    ```
 
+5. **analyze-query-performance**: Analyzes the performance of a SQL query
+   ```json
+   {
+     "sql": "SELECT * FROM EMPLOYEES WHERE DEPARTMENT_ID = 10",
+     "params": [],  // Optional parameters for prepared queries
+     "iterations": 3  // Optional number of iterations for averaging (default: 3)
+   }
+   ```
+
+6. **get-execution-plan**: Gets the execution plan for a SQL query
+   ```json
+   {
+     "sql": "SELECT * FROM EMPLOYEES WHERE DEPARTMENT_ID = 10",
+     "params": []  // Optional parameters for prepared queries
+   }
+   ```
+
+7. **analyze-missing-indexes**: Analyzes a SQL query to identify missing indexes
+   ```json
+   {
+     "sql": "SELECT * FROM EMPLOYEES WHERE DEPARTMENT_ID = 10"
+   }
+   ```
+
+8. **backup-database**: Creates a backup of the Firebird database
+   ```json
+   {
+     "backupPath": "C:\\backups\\mydb_backup.fbk",
+     "options": {
+       "format": "gbak",  // "gbak" (full backup) or "nbackup" (incremental)
+       "compress": true,  // Whether to compress the backup
+       "metadata_only": false,  // Whether to backup only metadata (no data)
+       "verbose": true  // Whether to show detailed progress
+     }
+   }
+   ```
+
+9. **restore-database**: Restores a Firebird database from a backup
+   ```json
+   {
+     "backupPath": "C:\\backups\\mydb_backup.fbk",
+     "targetPath": "C:\\databases\\restored_db.fdb",
+     "options": {
+       "replace": true,  // Whether to replace the target database if it exists
+       "pageSize": 4096,  // Page size for the restored database
+       "verbose": true  // Whether to show detailed progress
+     }
+   }
+   ```
+
+10. **validate-database**: Validates the integrity of the Firebird database
+    ```json
+    {
+      "options": {
+        "checkData": true,  // Whether to validate data integrity
+        "checkIndexes": true,  // Whether to validate indexes
+        "fixErrors": false,  // Whether to attempt to fix errors
+        "verbose": true  // Whether to show detailed progress
+      }
+    }
+    ```
+
 The **get-field-descriptions** tool is especially useful for AI models, as it retrieves comments from Firebird's RDB$DESCRIPTION metadata, providing additional semantic context about the purpose of each field.
+
+The performance analysis tools (**analyze-query-performance**, **get-execution-plan**, and **analyze-missing-indexes**) help optimize database queries by providing insights into execution time, execution plans, and index recommendations.
+
+The database management tools (**backup-database**, **restore-database**, and **validate-database**) provide functionality for database maintenance and disaster recovery.
 
 ## Available Prompts
 
@@ -176,26 +304,26 @@ async function main() {
     '--user', 'SYSDBA',
     '--password', 'masterkey'
   ]);
-  
+
   // Create a transport and an MCP client
   const transport = new ChildProcessTransport(serverProcess);
   const client = new McpClient(transport);
-  
+
   try {
     // Get server information
     const serverInfo = await client.getServerInfo();
     console.log('MCP Server:', serverInfo);
-    
+
     // List available tables
     const tablesResult = await client.executeTool('list-tables', {});
     console.log('Available tables:', tablesResult);
-    
+
     // Execute an SQL query
     const queryResult = await client.executeTool('execute-query', {
       sql: 'SELECT FIRST 10 * FROM EMPLOYEES'
     });
     console.log('Query results:', queryResult);
-    
+
     // Use a prompt to generate SQL
     const sqlGeneration = await client.executePrompt('generate-sql', {
       description: 'Get all premium customers'
@@ -231,7 +359,7 @@ class McpFirebirdClient:
             text=True,
             bufsize=1
         )
-        
+
     def send_request(self, method, params={}):
         request = {
             'id': 1,
@@ -241,33 +369,33 @@ class McpFirebirdClient:
         # Send the request to the server
         self.process.stdin.write(json.dumps(request) + '\n')
         self.process.stdin.flush()
-        
+
         # Read the response
         response_line = self.process.stdout.readline()
         while not response_line.strip() or response_line.startswith('['):
             response_line = self.process.stdout.readline()
-            
+
         # Parse and return the JSON response
         return json.loads(response_line)
-    
+
     def get_server_info(self):
         return self.send_request('getServerInfo')
-    
+
     def list_tables(self):
         return self.send_request('executeTool', {'name': 'list-tables', 'args': {}})
-    
+
     def execute_query(self, sql, params=[]):
         return self.send_request('executeTool', {
             'name': 'execute-query',
             'args': {'sql': sql, 'params': params}
         })
-    
+
     def generate_sql(self, description):
         return self.send_request('executePrompt', {
             'name': 'generate-sql',
             'args': {'description': description}
         })
-    
+
     def close(self):
         self.process.terminate()
 
@@ -277,15 +405,15 @@ try:
     # Get server information
     server_info = client.get_server_info()
     print(f"MCP Server: {server_info}")
-    
+
     # List tables
     tables = client.list_tables()
     print(f"Available tables: {tables}")
-    
+
     # Execute a query
     results = client.execute_query("SELECT FIRST 10 * FROM EMPLOYEES")
     print(f"Results: {results}")
-    
+
     # Generate SQL
     sql = client.generate_sql("List the best-selling products")
     print(f"Generated SQL: {sql}")
@@ -310,13 +438,13 @@ type
   private
     FProcess: TProcess; //For Delphi change to TProcessDelphi and add https://github.com/ferruhkoroglu/TProcessDelphi
     FRequestId: Integer;
-    
+
     function SendRequest(const Method: string; const Params: TJSONObject = nil): TJSONObject;
     function ReadResponse: string;
   public
     constructor Create(const DatabasePath, User, Password: string);
     destructor Destroy; override;
-    
+
     function GetServerInfo: TJSONObject;
     function ListTables: TJSONObject;
     function ExecuteQuery(const SQL: string; Params: TArray<Variant> = nil): TJSONObject;
@@ -327,7 +455,7 @@ constructor TMcpFirebirdClient.Create(const DatabasePath, User, Password: string
 begin
   inherited Create;
   FRequestId := 1;
-  
+
   // Create and configure the process
   FProcess := TProcess.Create(nil);
   FProcess.Executable := 'npx';
@@ -338,10 +466,10 @@ begin
   FProcess.Parameters.Add(User);
   FProcess.Parameters.Add('--password');
   FProcess.Parameters.Add(Password);
-  
+
   FProcess.Options := [poUsePipes, poStderrToOutPut];
   FProcess.Execute;
-  
+
   // Wait for the server to start
   Sleep(2000);
 end;
@@ -363,17 +491,17 @@ begin
     Request.AddPair('id', TJSONNumber.Create(FRequestId));
     Inc(FRequestId);
     Request.AddPair('method', Method);
-    
+
     if Assigned(Params) then
       Request.AddPair('params', Params)
     else
       Request.AddPair('params', TJSONObject.Create);
-    
+
     RequestStr := Request.ToString + #10;
-    
+
     // Send the request to the process
     FProcess.Input.Write(RequestStr[1], Length(RequestStr) * 2);
-    
+
     // Read the response
     ResponseStr := ReadResponse;
     Result := TJSONObject.ParseJSONValue(ResponseStr) as TJSONObject;
@@ -390,7 +518,7 @@ var
 begin
   SetLength(Buffer, 4096);
   ResponseStr := '';
-  
+
   repeat
     BytesRead := FProcess.Output.Read(Buffer[0], Length(Buffer));
     if BytesRead > 0 then
@@ -399,7 +527,7 @@ begin
       ResponseStr := ResponseStr + TEncoding.UTF8.GetString(Buffer);
     end;
   until BytesRead = 0;
-  
+
   Result := ResponseStr;
 end;
 
@@ -431,11 +559,11 @@ begin
   RequestParams := TJSONObject.Create;
   Args := TJSONObject.Create;
   ParamsArray := TJSONArray.Create;
-  
+
   try
     // Configure the arguments
     Args.AddPair('sql', SQL);
-    
+
     if Length(Params) > 0 then
     begin
       for I := 0 to Length(Params) - 1 do
@@ -448,11 +576,11 @@ begin
         end;
       end;
     end;
-    
+
     Args.AddPair('params', ParamsArray);
     RequestParams.AddPair('name', 'execute-query');
     RequestParams.AddPair('args', Args);
-    
+
     Result := SendRequest('executeTool', RequestParams);
   finally
     RequestParams.Free;
@@ -465,12 +593,12 @@ var
 begin
   RequestParams := TJSONObject.Create;
   Args := TJSONObject.Create;
-  
+
   try
     Args.AddPair('description', Description);
     RequestParams.AddPair('name', 'generate-sql');
     RequestParams.AddPair('args', Args);
-    
+
     Result := SendRequest('executePrompt', RequestParams);
   finally
     RequestParams.Free;
@@ -484,22 +612,22 @@ var
 begin
   try
     WriteLn('Starting MCP Firebird client...');
-    
+
     // Create the client
     Client := TMcpFirebirdClient.Create('C:\Databases\example.fdb', 'SYSDBA', 'masterkey');
     try
       // Get server information
       ServerInfo := Client.GetServerInfo;
       WriteLn('Server information: ', ServerInfo.ToString);
-      
+
       // List tables
       Tables := Client.ListTables;
       WriteLn('Available tables: ', Tables.ToString);
-      
+
       // Execute a query
       QueryResults := Client.ExecuteQuery('SELECT FIRST 10 * FROM EMPLOYEES');
       WriteLn('Query results: ', QueryResults.ToString);
-      
+
       // Generate SQL
       GeneratedSQL := Client.GenerateSQL('Get all premium customers');
       WriteLn('Generated SQL: ', GeneratedSQL.ToString);
@@ -510,7 +638,7 @@ begin
     on E: Exception do
       WriteLn('Error: ', E.Message);
   end;
-  
+
   WriteLn('Press ENTER to exit...');
   ReadLn;
 end.
@@ -697,46 +825,77 @@ Graphically, the distribution of sales by region is:
 Would you like to delve deeper into any specific region or product category?
 ```
 
-## Example of Query Optimization
+## Example of Query Optimization and Performance Analysis
 
 ```
 User: I have this query that's running slowly, can you optimize it?
-SELECT c.CUSTOMER_NAME, SUM(o.ORDER_TOTAL) 
-FROM CUSTOMERS c 
-JOIN ORDERS o ON c.CUSTOMER_ID = o.CUSTOMER_ID 
-WHERE o.ORDER_DATE > '2024-01-01' 
-GROUP BY c.CUSTOMER_NAME 
+SELECT c.CUSTOMER_NAME, SUM(o.ORDER_TOTAL)
+FROM CUSTOMERS c
+JOIN ORDERS o ON c.CUSTOMER_ID = o.CUSTOMER_ID
+WHERE o.ORDER_DATE > '2024-01-01'
+GROUP BY c.CUSTOMER_NAME
 ORDER BY SUM(o.ORDER_TOTAL) DESC
 
-Claude: I'll analyze this query to optimize it.
+Claude: I'll analyze this query to optimize it. First, let me check the execution plan and performance.
 
-[Claude uses MCP Firebird to analyze the schema and query]
+[Claude uses MCP Firebird's get-execution-plan tool]
 
-I've identified several optimization opportunities:
+The execution plan shows:
+- Full table scan on ORDERS table
+- Nested loop join with CUSTOMERS
+- Sorting operation for ORDER BY clause
+- No indexes being used for the date filtering
+
+[Claude uses MCP Firebird's analyze-query-performance tool]
+
+Performance analysis:
+- Average execution time: 1250ms
+- Minimum execution time: 1150ms
+- Maximum execution time: 1380ms
+- Rows returned: 487
+
+[Claude uses MCP Firebird's analyze-missing-indexes tool]
+
+Missing index analysis recommends:
+- CREATE INDEX IDX_ORDERS_ORDER_DATE ON ORDERS (ORDER_DATE);
+- CREATE INDEX IDX_ORDERS_CUSTOMER_ID ON ORDERS (CUSTOMER_ID);
+
+Based on these analyses, I've identified several optimization opportunities:
 
 1. The current query doesn't efficiently use indexes
 2. The calculation of SUM(o.ORDER_TOTAL) is performed twice
+3. We should add indexes on the JOIN and WHERE columns
 
 Here's the optimized version:
 
 ```sql
 SELECT c.CUSTOMER_NAME, total_sales
-FROM CUSTOMERS c 
+FROM CUSTOMERS c
 JOIN (
   SELECT CUSTOMER_ID, SUM(ORDER_TOTAL) as total_sales
-  FROM ORDERS 
+  FROM ORDERS
   WHERE ORDER_DATE > '2024-01-01'
   GROUP BY CUSTOMER_ID
-) o ON c.CUSTOMER_ID = o.CUSTOMER_ID 
+) o ON c.CUSTOMER_ID = o.CUSTOMER_ID
 ORDER BY total_sales DESC
 ```
 
 This version:
 - Reduces the dataset before joining
 - Calculates the sum only once
-- Could benefit from an index on ORDERS(ORDER_DATE, CUSTOMER_ID, ORDER_TOTAL)
+- Will benefit from the recommended indexes
 
-When running both queries on your database, the optimized version is approximately 45% faster.
+[Claude uses MCP Firebird's analyze-query-performance tool on the new query]
+
+After optimization:
+- Average execution time: 320ms (74% faster)
+- Rows returned: 487 (same results)
+
+I recommend creating these indexes to further improve performance:
+```sql
+CREATE INDEX IDX_ORDERS_ORDER_DATE ON ORDERS (ORDER_DATE);
+CREATE INDEX IDX_ORDERS_CUSTOMER_ID ON ORDERS (CUSTOMER_ID);
+```
 ```
 
 ## Integration with AI Agents
@@ -767,13 +926,81 @@ npx mcp-firebird --database /path/to/database.fdb --user SYSDBA --password maste
 
 ## Security
 
-The server implements the following security measures:
+The MCP Firebird server implements comprehensive security measures:
 
-- Input validation with Zod
-- SQL query sanitization
-- Secure credential handling
-- SQL injection prevention
-- Restriction of destructive operations
+- **Input validation** with Zod schemas
+- **SQL query sanitization** to prevent injection attacks
+- **Secure credential handling** for database connections
+- **SQL injection prevention** through parameterized queries
+- **Restriction of destructive operations** like DROP and TRUNCATE
+- **Data masking** for sensitive information in query results
+- **Audit logging** of all database operations for security and compliance
+- **Row-level security** to filter query results based on security rules
+- **Resource limits** to prevent abuse and DoS attacks
+- **Rate limiting** to control the number of queries per session
+
+### Security Configuration
+
+You can configure security options using a JSON configuration file. Create a file named `security.json` in the project root:
+
+```json
+{
+  "security": {
+    "allowedTables": ["EMPLOYEES", "DEPARTMENTS"],
+    "forbiddenTables": ["USERS", "PASSWORDS"],
+    "allowedOperations": ["SELECT", "EXECUTE"],
+    "forbiddenOperations": ["DROP", "TRUNCATE", "ALTER"],
+    "maxRows": 1000,
+    "queryTimeout": 5000,
+    "dataMasking": [
+      {
+        "columns": ["CREDIT_CARD", "SSN"],
+        "pattern": "\\d{4}-\\d{4}-\\d{4}-\\d{4}",
+        "replacement": "XXXX-XXXX-XXXX-$&"
+      }
+    ],
+    "rowFilters": {
+      "EMPLOYEES": "DEPARTMENT_ID = 10"
+    },
+    "audit": {
+      "enabled": true,
+      "destination": "file",
+      "auditFile": "./logs/audit.log",
+      "detailLevel": "medium",
+      "logQueries": true
+    },
+    "resourceLimits": {
+      "maxRowsPerQuery": 5000,
+      "maxResponseSize": 5242880,
+      "maxQueryCpuTime": 10000,
+      "maxQueriesPerSession": 100,
+      "rateLimit": {
+        "queriesPerMinute": 60,
+        "burstLimit": 20
+      }
+    },
+    "authorization": {
+      "type": "basic",
+      "rolePermissions": {
+        "admin": {
+          "allTablesAllowed": true,
+          "operations": ["SELECT", "INSERT", "UPDATE", "DELETE"]
+        },
+        "user": {
+          "tables": ["EMPLOYEES", "DEPARTMENTS"],
+          "operations": ["SELECT"]
+        }
+      }
+    }
+  }
+}
+```
+
+Then specify the path to the configuration file when starting the server:
+
+```bash
+export SECURITY_CONFIG_PATH=./security.json
+```
 
 ## Debugging and Troubleshooting
 

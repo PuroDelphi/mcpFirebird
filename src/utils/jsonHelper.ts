@@ -1,19 +1,100 @@
 /**
- * Funciones de utilidad para manejar JSON.
+ * JSON Helper Module
+ * Utility functions for handling JSON in MCP responses
  */
 
+import { MCPError, FirebirdError, ErrorTypes } from './errors.js';
+
 /**
- * Convierte un objeto a una cadena JSON compacta sin saltos de línea.
- * Esto es útil para asegurar que las respuestas MCP sean lo más compactas posible.
+ * Convert an object to a compact JSON string without line breaks
+ * This is useful to ensure that MCP responses are as compact as possible
  *
- * @param obj - El objeto a convertir en cadena JSON.
- * @returns Una cadena JSON sin saltos de línea ni retornos de carro.
+ * @param obj - The object to convert to a JSON string
+ * @returns A JSON string without line breaks or carriage returns
  */
 export const stringifyCompact = (obj: any): string => {
-    // Primero, convierte el objeto a JSON estándar
-    const jsonString = JSON.stringify(obj);
-    
-    // Luego, elimina todos los caracteres de nueva línea (\n) y retorno de carro (\r)
-    // para asegurar que la salida sea una sola línea compacta.
-    return jsonString.replace(/[\n\r]/g, ''); 
+    try {
+        // First, convert the object to standard JSON
+        const jsonString = JSON.stringify(obj);
+
+        // Then, remove all newline (\n) and carriage return (\r) characters
+        // to ensure the output is a single compact line
+        return jsonString.replace(/[\n\r]/g, '');
+    } catch (error) {
+        // Handle JSON.stringify errors
+        console.error(`Error stringifying object: ${error instanceof Error ? error.message : String(error)}`);
+        return JSON.stringify({ error: 'Error converting object to JSON' });
+    }
 };
+
+/**
+ * Format a result for Claude Desktop
+ * This formats the result in a way that is compatible with Claude Desktop
+ *
+ * @param result - The result to format
+ * @returns A formatted string that is compatible with Claude Desktop
+ */
+export const formatForClaude = (result: any): string => {
+    try {
+        // For simple strings, return them directly
+        if (typeof result === 'string') {
+            return result;
+        }
+
+        // For objects, convert them to a pretty JSON string
+        return JSON.stringify(result, null, 2);
+    } catch (error) {
+        // Handle JSON.stringify errors
+        console.error(`Error formatting for Claude: ${error instanceof Error ? error.message : String(error)}`);
+        return `Error formatting result: ${error instanceof Error ? error.message : String(error)}`;
+    }
+};
+
+/**
+ * Response interface for MCP
+ */
+export interface MCPResponse<T> {
+    success: boolean;
+    result?: T;
+    error?: string;
+    errorType?: string;
+    errorDetails?: Record<string, any>;
+}
+
+/**
+ * Wrap a successful result in the expected MCP response format
+ * @param result The successful result
+ * @returns An MCP success response object
+ */
+export function wrapSuccess<T>(result: T): MCPResponse<T> {
+    return { success: true, result };
+}
+
+/**
+ * Wrap an error in the expected MCP response format
+ * @param error The error object
+ * @returns An MCP error response object
+ */
+export function wrapError(error: unknown): MCPResponse<never> {
+    if (error instanceof MCPError) {
+        return {
+            success: false,
+            error: error.message,
+            errorType: error.type,
+            errorDetails: error.context
+        };
+    } else if (error instanceof Error) {
+        return {
+            success: false,
+            error: error.message,
+            errorType: ErrorTypes.UNKNOWN,
+            errorDetails: { stack: error.stack }
+        };
+    } else {
+        return {
+            success: false,
+            error: String(error),
+            errorType: ErrorTypes.UNKNOWN
+        };
+    }
+}

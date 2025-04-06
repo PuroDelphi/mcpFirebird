@@ -81,7 +81,8 @@ Add the following configuration:
         "SYSDBA",
         "--password",
         "masterkey"
-      ]
+      ],
+      "type": "stdio"
     }
   }
 }
@@ -90,6 +91,10 @@ Add the following configuration:
 <Warning>
   Make sure to use absolute paths in the configuration.
 </Warning>
+
+<Note>
+  The `"type": "stdio"` parameter is important as it specifies the communication method between Claude Desktop and the MCP server. This should match the `TRANSPORT_TYPE` setting in your server configuration.
+</Note>
 
 <Note>
   After saving the file, you need to restart Claude Desktop completely.
@@ -176,26 +181,26 @@ async function main() {
     '--user', 'SYSDBA',
     '--password', 'masterkey'
   ]);
-  
+
   // Create a transport and an MCP client
   const transport = new ChildProcessTransport(serverProcess);
   const client = new McpClient(transport);
-  
+
   try {
     // Get server information
     const serverInfo = await client.getServerInfo();
     console.log('MCP Server:', serverInfo);
-    
+
     // List available tables
     const tablesResult = await client.executeTool('list-tables', {});
     console.log('Available tables:', tablesResult);
-    
+
     // Execute an SQL query
     const queryResult = await client.executeTool('execute-query', {
       sql: 'SELECT FIRST 10 * FROM EMPLOYEES'
     });
     console.log('Query results:', queryResult);
-    
+
     // Use a prompt to generate SQL
     const sqlGeneration = await client.executePrompt('generate-sql', {
       description: 'Get all premium customers'
@@ -231,7 +236,7 @@ class McpFirebirdClient:
             text=True,
             bufsize=1
         )
-        
+
     def send_request(self, method, params={}):
         request = {
             'id': 1,
@@ -241,33 +246,33 @@ class McpFirebirdClient:
         # Send the request to the server
         self.process.stdin.write(json.dumps(request) + '\n')
         self.process.stdin.flush()
-        
+
         # Read the response
         response_line = self.process.stdout.readline()
         while not response_line.strip() or response_line.startswith('['):
             response_line = self.process.stdout.readline()
-            
+
         # Parse and return the JSON response
         return json.loads(response_line)
-    
+
     def get_server_info(self):
         return self.send_request('getServerInfo')
-    
+
     def list_tables(self):
         return self.send_request('executeTool', {'name': 'list-tables', 'args': {}})
-    
+
     def execute_query(self, sql, params=[]):
         return self.send_request('executeTool', {
             'name': 'execute-query',
             'args': {'sql': sql, 'params': params}
         })
-    
+
     def generate_sql(self, description):
         return self.send_request('executePrompt', {
             'name': 'generate-sql',
             'args': {'description': description}
         })
-    
+
     def close(self):
         self.process.terminate()
 
@@ -277,15 +282,15 @@ try:
     # Get server information
     server_info = client.get_server_info()
     print(f"MCP Server: {server_info}")
-    
+
     # List tables
     tables = client.list_tables()
     print(f"Available tables: {tables}")
-    
+
     # Execute a query
     results = client.execute_query("SELECT FIRST 10 * FROM EMPLOYEES")
     print(f"Results: {results}")
-    
+
     # Generate SQL
     sql = client.generate_sql("List the best-selling products")
     print(f"Generated SQL: {sql}")
@@ -310,13 +315,13 @@ type
   private
     FProcess: TProcess; //For Delphi change to TProcessDelphi and add https://github.com/ferruhkoroglu/TProcessDelphi
     FRequestId: Integer;
-    
+
     function SendRequest(const Method: string; const Params: TJSONObject = nil): TJSONObject;
     function ReadResponse: string;
   public
     constructor Create(const DatabasePath, User, Password: string);
     destructor Destroy; override;
-    
+
     function GetServerInfo: TJSONObject;
     function ListTables: TJSONObject;
     function ExecuteQuery(const SQL: string; Params: TArray<Variant> = nil): TJSONObject;
@@ -327,7 +332,7 @@ constructor TMcpFirebirdClient.Create(const DatabasePath, User, Password: string
 begin
   inherited Create;
   FRequestId := 1;
-  
+
   // Create and configure the process
   FProcess := TProcess.Create(nil);
   FProcess.Executable := 'npx';
@@ -338,10 +343,10 @@ begin
   FProcess.Parameters.Add(User);
   FProcess.Parameters.Add('--password');
   FProcess.Parameters.Add(Password);
-  
+
   FProcess.Options := [poUsePipes, poStderrToOutPut];
   FProcess.Execute;
-  
+
   // Wait for the server to start
   Sleep(2000);
 end;
@@ -363,17 +368,17 @@ begin
     Request.AddPair('id', TJSONNumber.Create(FRequestId));
     Inc(FRequestId);
     Request.AddPair('method', Method);
-    
+
     if Assigned(Params) then
       Request.AddPair('params', Params)
     else
       Request.AddPair('params', TJSONObject.Create);
-    
+
     RequestStr := Request.ToString + #10;
-    
+
     // Send the request to the process
     FProcess.Input.Write(RequestStr[1], Length(RequestStr) * 2);
-    
+
     // Read the response
     ResponseStr := ReadResponse;
     Result := TJSONObject.ParseJSONValue(ResponseStr) as TJSONObject;
@@ -390,7 +395,7 @@ var
 begin
   SetLength(Buffer, 4096);
   ResponseStr := '';
-  
+
   repeat
     BytesRead := FProcess.Output.Read(Buffer[0], Length(Buffer));
     if BytesRead > 0 then
@@ -399,7 +404,7 @@ begin
       ResponseStr := ResponseStr + TEncoding.UTF8.GetString(Buffer);
     end;
   until BytesRead = 0;
-  
+
   Result := ResponseStr;
 end;
 
@@ -431,11 +436,11 @@ begin
   RequestParams := TJSONObject.Create;
   Args := TJSONObject.Create;
   ParamsArray := TJSONArray.Create;
-  
+
   try
     // Configure the arguments
     Args.AddPair('sql', SQL);
-    
+
     if Length(Params) > 0 then
     begin
       for I := 0 to Length(Params) - 1 do
@@ -448,11 +453,11 @@ begin
         end;
       end;
     end;
-    
+
     Args.AddPair('params', ParamsArray);
     RequestParams.AddPair('name', 'execute-query');
     RequestParams.AddPair('args', Args);
-    
+
     Result := SendRequest('executeTool', RequestParams);
   finally
     RequestParams.Free;
@@ -465,12 +470,12 @@ var
 begin
   RequestParams := TJSONObject.Create;
   Args := TJSONObject.Create;
-  
+
   try
     Args.AddPair('description', Description);
     RequestParams.AddPair('name', 'generate-sql');
     RequestParams.AddPair('args', Args);
-    
+
     Result := SendRequest('executePrompt', RequestParams);
   finally
     RequestParams.Free;
@@ -484,22 +489,22 @@ var
 begin
   try
     WriteLn('Starting MCP Firebird client...');
-    
+
     // Create the client
     Client := TMcpFirebirdClient.Create('C:\Databases\example.fdb', 'SYSDBA', 'masterkey');
     try
       // Get server information
       ServerInfo := Client.GetServerInfo;
       WriteLn('Server information: ', ServerInfo.ToString);
-      
+
       // List tables
       Tables := Client.ListTables;
       WriteLn('Available tables: ', Tables.ToString);
-      
+
       // Execute a query
       QueryResults := Client.ExecuteQuery('SELECT FIRST 10 * FROM EMPLOYEES');
       WriteLn('Query results: ', QueryResults.ToString);
-      
+
       // Generate SQL
       GeneratedSQL := Client.GenerateSQL('Get all premium customers');
       WriteLn('Generated SQL: ', GeneratedSQL.ToString);
@@ -510,7 +515,7 @@ begin
     on E: Exception do
       WriteLn('Error: ', E.Message);
   end;
-  
+
   WriteLn('Press ENTER to exit...');
   ReadLn;
 end.
@@ -665,11 +670,11 @@ Would you like to delve deeper into any specific region or product category?
 
 ```
 User: I have this query that's running slowly, can you optimize it?
-SELECT c.CUSTOMER_NAME, SUM(o.ORDER_TOTAL) 
-FROM CUSTOMERS c 
-JOIN ORDERS o ON c.CUSTOMER_ID = o.CUSTOMER_ID 
-WHERE o.ORDER_DATE > '2024-01-01' 
-GROUP BY c.CUSTOMER_NAME 
+SELECT c.CUSTOMER_NAME, SUM(o.ORDER_TOTAL)
+FROM CUSTOMERS c
+JOIN ORDERS o ON c.CUSTOMER_ID = o.CUSTOMER_ID
+WHERE o.ORDER_DATE > '2024-01-01'
+GROUP BY c.CUSTOMER_NAME
 ORDER BY SUM(o.ORDER_TOTAL) DESC
 
 Claude: I'll analyze this query to optimize it.
@@ -685,13 +690,13 @@ Here's the optimized version:
 
 ```sql
 SELECT c.CUSTOMER_NAME, total_sales
-FROM CUSTOMERS c 
+FROM CUSTOMERS c
 JOIN (
   SELECT CUSTOMER_ID, SUM(ORDER_TOTAL) as total_sales
-  FROM ORDERS 
+  FROM ORDERS
   WHERE ORDER_DATE > '2024-01-01'
   GROUP BY CUSTOMER_ID
-) o ON c.CUSTOMER_ID = o.CUSTOMER_ID 
+) o ON c.CUSTOMER_ID = o.CUSTOMER_ID
 ORDER BY total_sales DESC
 ```
 
@@ -715,23 +720,23 @@ You can restrict which tables and views are available to the MCP server using in
 // In your custom configuration (config.js)
 module.exports = {
   // Basic configuration...
-  
+
   security: {
     // Only allow access to these tables
     allowedTables: [
-      'CUSTOMERS', 
-      'PRODUCTS', 
+      'CUSTOMERS',
+      'PRODUCTS',
       'ORDERS',
       'ORDER_ITEMS'
     ],
-    
+
     // Explicitly exclude these tables (takes precedence over allowedTables)
     forbiddenTables: [
       'USERS',
       'USER_CREDENTIALS',
       'AUDIT_LOG'
     ],
-    
+
     // Table name pattern filter (regular expression)
     tableNamePattern: '^(?!TMP_|TEMP_|BAK_).*$'  // Exclude temporary/backup tables
   }
@@ -752,17 +757,17 @@ You can restrict which SQL operations are allowed:
 // In your custom configuration
 module.exports = {
   // Basic configuration...
-  
+
   security: {
     // Allowed SQL operations
     allowedOperations: ['SELECT', 'EXECUTE'],  // Only queries and stored procedures
-    
+
     // Specifically block these operations
     forbiddenOperations: ['DROP', 'TRUNCATE', 'ALTER', 'GRANT', 'REVOKE'],
-    
+
     // Maximum number of rows that can be returned in a query
     maxRows: 1000,
-    
+
     // Maximum query execution time (in ms)
     queryTimeout: 5000
   }
@@ -776,7 +781,7 @@ You can configure rules to mask or filter sensitive data:
 ```javascript
 module.exports = {
   // Basic configuration...
-  
+
   security: {
     dataMasking: [
       {
@@ -792,7 +797,7 @@ module.exports = {
         replacement: '$1***$3'
       }
     ],
-    
+
     // Row filters to exclude sensitive data
     rowFilters: {
       'CUSTOMERS': 'GDPR_CONSENT = 1',  // Only show customers with GDPR consent
@@ -809,24 +814,24 @@ Configure detailed logging of all operations performed through MCP:
 ```javascript
 module.exports = {
   // Basic configuration...
-  
+
   security: {
     audit: {
       // Enable auditing
       enabled: true,
-      
+
       // Audit log destination
       destination: 'database',  // options: 'file', 'database', 'both'
-      
+
       // If destination includes 'file'
       auditFile: '/path/to/audit.log',
-      
+
       // If destination includes 'database'
       auditTable: 'MCP_AUDIT_LOG',
-      
+
       // Detail level
       detailLevel: 'full',  // 'basic', 'medium', 'full'
-      
+
       // What to log
       logQueries: true,
       logResponses: true,
@@ -856,12 +861,12 @@ CREATE TABLE MCP_AUDIT_LOG (
 
 -- Example log entry
 INSERT INTO MCP_AUDIT_LOG (
-  LOG_ID, CLIENT_INFO, OPERATION_TYPE, TARGET_OBJECT, 
-  QUERY_TEXT, PARAMETERS, AFFECTED_ROWS, 
+  LOG_ID, CLIENT_INFO, OPERATION_TYPE, TARGET_OBJECT,
+  QUERY_TEXT, PARAMETERS, AFFECTED_ROWS,
   EXECUTION_TIME, USER_IDENTIFIER, SUCCESS
 ) VALUES (
   NEXT VALUE FOR SEQ_AUDIT_LOG, 'Claude/agent', 'SELECT', 'CUSTOMERS',
-  'SELECT CUSTOMER_NAME, CITY FROM CUSTOMERS WHERE REGION = ?', 
+  'SELECT CUSTOMER_NAME, CITY FROM CUSTOMERS WHERE REGION = ?',
   '["East"]', 24, 45, 'claude-session-123', TRUE
 );
 ```
@@ -873,21 +878,21 @@ Configure limits to prevent queries that consume too many resources:
 ```javascript
 module.exports = {
   // Basic configuration...
-  
+
   security: {
     resourceLimits: {
       // Row limit per query
       maxRowsPerQuery: 5000,
-      
+
       // Result size limit (in bytes)
       maxResponseSize: 1024 * 1024 * 5,  // 5 MB
-      
+
       // CPU time limit per query (ms)
       maxQueryCpuTime: 10000,
-      
+
       // Query limit per session
       maxQueriesPerSession: 100,
-      
+
       // Rate limiting (queries per minute)
       rateLimit: {
         queriesPerMinute: 60,
@@ -905,12 +910,12 @@ MCP Firebird can integrate with external authorization systems for more precise 
 ```javascript
 module.exports = {
   // Basic configuration...
-  
+
   security: {
     authorization: {
       // Use an external authorization service
       type: 'oauth2',
-      
+
       // Configuration for OAuth2
       oauth2: {
         tokenVerifyUrl: 'https://auth.example.com/verify',
@@ -918,7 +923,7 @@ module.exports = {
         clientSecret: process.env.OAUTH_CLIENT_SECRET,
         scope: 'database:read'
       },
-      
+
       // Role to permission mapping
       rolePermissions: {
         'analyst': {
@@ -949,17 +954,17 @@ module.exports = {
   database: process.env.FIREBIRD_DATABASE,
   user: process.env.FIREBIRD_USER,
   password: process.env.FIREBIRD_PASSWORD,
-  
+
   security: {
     // Limited access to sales tables
     allowedTables: [
       'SALES', 'PRODUCTS', 'CUSTOMERS', 'REGIONS',
       'SALES_TARGETS', 'PRODUCT_CATEGORIES'
     ],
-    
+
     // Only allow SELECT queries
     allowedOperations: ['SELECT'],
-    
+
     // Mask sensitive customer data
     dataMasking: [
       {
@@ -968,7 +973,7 @@ module.exports = {
         replacement: '[REDACTED]'
       }
     ],
-    
+
     // Resource limits
     resourceLimits: {
       maxRowsPerQuery: 10000,
@@ -1003,22 +1008,22 @@ module.exports = {
   database: process.env.FIREBIRD_DATABASE,
   user: process.env.FIREBIRD_USER,
   password: process.env.FIREBIRD_PASSWORD,
-  
+
   security: {
     // Access to inventory tables
     allowedTables: [
-      'INVENTORY', 'PRODUCTS', 'WAREHOUSES', 
+      'INVENTORY', 'PRODUCTS', 'WAREHOUSES',
       'STOCK_MOVEMENTS', 'SUPPLIERS'
     ],
-    
+
     // Allow limited read and write operations
     allowedOperations: ['SELECT', 'INSERT', 'UPDATE'],
-    
+
     // Prevent modification of historical records
     rowFilters: {
       'STOCK_MOVEMENTS': 'MOVEMENT_DATE > DATEADD(-30 DAY TO CURRENT_DATE)'
     },
-    
+
     // Full auditing
     audit: {
       enabled: true,
@@ -1039,21 +1044,21 @@ module.exports = {
   database: process.env.FIREBIRD_DATABASE_DEV,
   user: process.env.FIREBIRD_USER_DEV,
   password: process.env.FIREBIRD_PASSWORD_DEV,
-  
+
   security: {
     // In development, allow more operations
     allowedOperations: ['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'CREATE'],
-    
+
     // Exclude only critical tables
     forbiddenTables: ['SYSTEM_CONFIG', 'APP_SECRETS'],
-    
+
     // Limit impact of heavy queries
     resourceLimits: {
       maxRowsPerQuery: 1000,
       maxQueryCpuTime: 3000,
       queriesPerMinute: 120
     },
-    
+
     // Basic auditing
     audit: {
       enabled: true,

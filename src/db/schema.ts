@@ -2,6 +2,7 @@
 import { createLogger } from '../utils/logger.js';
 import { validateSql } from '../utils/security.js';
 import { DEFAULT_CONFIG } from './connection.js';
+import { FirebirdError } from '../utils/errors.js';
 import { executeQuery } from './queries.js';
 
 const logger = createLogger('db:schema');
@@ -15,7 +16,7 @@ const logger = createLogger('db:schema');
 export const getTableSchema = async (tableName: string, config = DEFAULT_CONFIG) => {
     try {
         if (!validateSql(tableName)) {
-            throw new Error(`Nombre de tabla inválido: ${tableName}`);
+            throw new FirebirdError(`Nombre de tabla inválido: ${tableName}`, 'VALIDATION_ERROR');
         }
 
         // Consulta para obtener columnas y tipos
@@ -170,6 +171,14 @@ export const getTableSchema = async (tableName: string, config = DEFAULT_CONFIG)
         };
     } catch (error) {
         logger.error(`Error obteniendo esquema de tabla ${tableName}: ${error}`);
-        throw error;
+        if (error instanceof FirebirdError) {
+            throw error;
+        } else {
+            throw new FirebirdError(
+                `Error inesperado obteniendo esquema para ${tableName}: ${(error as Error).message}`,
+                'SCHEMA_ERROR',
+                error
+            );
+        }
     }
 };
