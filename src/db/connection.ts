@@ -35,13 +35,41 @@ export interface ConfigOptions {
 import * as path from 'path';
 
 // Normalize database path for Windows
-function normalizeDatabasePath(dbPath: string | undefined): string {
+export function normalizeDatabasePath(dbPath: string | undefined): string {
     if (!dbPath) return '';
     return path.normalize(dbPath);
 }
 
+// Try to load configuration from temporary file
+const loadConfigFromTempFile = (): ConfigOptions | null => {
+    try {
+        const fs = require('fs');
+        const path = require('path');
+        const os = require('os');
+        const tempDir = os.tmpdir();
+        const configFilePath = path.join(tempDir, 'mcp-firebird-config.json');
+
+        if (fs.existsSync(configFilePath)) {
+            const configContent = fs.readFileSync(configFilePath, 'utf8');
+            const config = JSON.parse(configContent);
+            console.error('Loaded database configuration from temporary file');
+            return config;
+        }
+    } catch (error) {
+        console.error(`Error loading configuration from temporary file: ${error instanceof Error ? error.message : String(error)}`);
+    }
+    return null;
+};
+
 // Default configuration for the connection
 export const getDefaultConfig = (): ConfigOptions => {
+    // First try to load from temporary file
+    const tempConfig = loadConfigFromTempFile();
+    if (tempConfig && tempConfig.database) {
+        console.error('Using configuration from temporary file');
+        return tempConfig;
+    }
+
     // Debug: Log all environment variables related to database connection
     console.error('Environment variables for database connection:');
     console.error(`FIREBIRD_DATABASE: ${process.env.FIREBIRD_DATABASE || 'not set'}`);
