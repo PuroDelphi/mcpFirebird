@@ -9,13 +9,43 @@
 import minimist from 'minimist';
 const argv = minimist(process.argv.slice(2));
 
+// Debug: Log all command line arguments
+console.error('Command line arguments:', JSON.stringify(argv));
+console.error('Raw process.argv:', JSON.stringify(process.argv));
+
 // Convert command line arguments to environment variables
-if (argv.database) process.env.FIREBIRD_DATABASE = argv.database;
-if (argv.user) process.env.FIREBIRD_USER = argv.user;
-if (argv.password) process.env.FIREBIRD_PASSWORD = argv.password;
-if (argv.host) process.env.FIREBIRD_HOST = argv.host;
-if (argv.port) process.env.FIREBIRD_PORT = argv.port;
-if (argv.role) process.env.FIREBIRD_ROLE = argv.role;
+if (argv.database) {
+  process.env.FIREBIRD_DATABASE = argv.database;
+  console.error(`Setting FIREBIRD_DATABASE to ${argv.database}`);
+}
+if (argv.user) {
+  process.env.FIREBIRD_USER = argv.user;
+  console.error(`Setting FIREBIRD_USER to ${argv.user}`);
+}
+if (argv.password) {
+  process.env.FIREBIRD_PASSWORD = argv.password;
+  console.error('Setting FIREBIRD_PASSWORD (value hidden)');
+}
+if (argv.host) {
+  process.env.FIREBIRD_HOST = argv.host;
+  console.error(`Setting FIREBIRD_HOST to ${argv.host}`);
+}
+if (argv.port) {
+  process.env.FIREBIRD_PORT = argv.port;
+  console.error(`Setting FIREBIRD_PORT to ${argv.port}`);
+}
+if (argv.role) {
+  process.env.FIREBIRD_ROLE = argv.role;
+  console.error(`Setting FIREBIRD_ROLE to ${argv.role}`);
+}
+
+// Also check for FB_ prefixed variables for compatibility
+if (argv.database) process.env.FB_DATABASE = argv.database;
+if (argv.user) process.env.FB_USER = argv.user;
+if (argv.password) process.env.FB_PASSWORD = argv.password;
+if (argv.host) process.env.FB_HOST = argv.host;
+if (argv.port) process.env.FB_PORT = argv.port;
+if (argv.role) process.env.FB_ROLE = argv.role;
 
 // Load environment variables from .env file (will not override existing env vars)
 import dotenv from 'dotenv';

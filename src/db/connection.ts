@@ -40,6 +40,20 @@ function normalizeDatabasePath(dbPath: string | undefined): string {
     return path.normalize(dbPath);
 }
 
+// Debug: Log all environment variables related to database connection
+console.error('Environment variables for database connection:');
+console.error(`FIREBIRD_DATABASE: ${process.env.FIREBIRD_DATABASE || 'not set'}`);
+console.error(`FB_DATABASE: ${process.env.FB_DATABASE || 'not set'}`);
+console.error(`FIREBIRD_HOST: ${process.env.FIREBIRD_HOST || 'not set'}`);
+console.error(`FB_HOST: ${process.env.FB_HOST || 'not set'}`);
+console.error(`FIREBIRD_PORT: ${process.env.FIREBIRD_PORT || 'not set'}`);
+console.error(`FB_PORT: ${process.env.FB_PORT || 'not set'}`);
+console.error(`FIREBIRD_USER: ${process.env.FIREBIRD_USER || 'not set'}`);
+console.error(`FB_USER: ${process.env.FB_USER || 'not set'}`);
+// Don't log passwords
+console.error(`FIREBIRD_ROLE: ${process.env.FIREBIRD_ROLE || 'not set'}`);
+console.error(`FB_ROLE: ${process.env.FB_ROLE || 'not set'}`);
+
 // Default configuration for the connection
 export const DEFAULT_CONFIG: ConfigOptions = {
     host: process.env.FIREBIRD_HOST || process.env.FB_HOST || 'localhost', // FB_HOST is deprecated
@@ -50,6 +64,17 @@ export const DEFAULT_CONFIG: ConfigOptions = {
     role: process.env.FIREBIRD_ROLE || process.env.FB_ROLE || undefined, // FB_ROLE is deprecated
     pageSize: 4096
 };
+
+// Debug: Log the final configuration (without password)
+console.error('Final database configuration:');
+console.error(`host: ${DEFAULT_CONFIG.host}`);
+console.error(`port: ${DEFAULT_CONFIG.port}`);
+console.error(`database: ${DEFAULT_CONFIG.database}`);
+console.error(`user: ${DEFAULT_CONFIG.user}`);
+// Don't log password
+console.error(`role: ${DEFAULT_CONFIG.role || 'not set'}`);
+console.error(`pageSize: ${DEFAULT_CONFIG.pageSize}`);
+
 
 // FirebirdError is now imported from '../utils/errors.js'
 
