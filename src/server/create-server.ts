@@ -29,6 +29,7 @@ import { type PromptDefinition } from '../prompts/database.js';
 import { setupDatabaseResources, type ResourceDefinition } from '../resources/database.js';
 import { setupDatabaseTools } from '../tools/database.js';
 import { setupMetadataTools } from '../tools/metadata.js';
+import { setupSimpleTools } from '../tools/simple.js';
 import { setupDatabasePrompts } from '../prompts/database.js';
 import { setupSqlPrompts } from '../prompts/sql.js';
 import { initSecurity } from '../security/index.js';
@@ -52,11 +53,12 @@ export async function createServer() {
         logger.info('Loading tool, prompt and resource definitions...');
         const databaseTools = setupDatabaseTools();
         const metadataTools = setupMetadataTools(databaseTools);
+        const simpleTools = setupSimpleTools();
         const databasePrompts = setupDatabasePrompts();
         const sqlPrompts = setupSqlPrompts();
         const allResources: Map<string, ResourceDefinition> = setupDatabaseResources();
         const allPrompts = new Map<string, PromptDefinition>([...databasePrompts, ...sqlPrompts]);
-        const allTools = new Map<string, DbToolDefinition | MetaToolDefinition>([...databaseTools, ...metadataTools]);
+        const allTools = new Map<string, DbToolDefinition | MetaToolDefinition | any>([...databaseTools, ...metadataTools, ...simpleTools]);
 
         // Log loaded prompts
         logger.info('Loaded prompts:');
