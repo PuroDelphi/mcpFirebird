@@ -7,16 +7,12 @@
 const originalStdoutWrite = process.stdout.write.bind(process.stdout);
 
 // Reemplazar stdout.write para prevenir escrituras accidentales
+// Simplificado para máxima compatibilidad con Claude Desktop
 process.stdout.write = function(buffer: string | Uint8Array | any): boolean {
-    // Si parece JSON válido, permitirlo
-    if (buffer && 
-        typeof buffer === 'string' && 
-        (buffer.trim().startsWith('{') || buffer.trim().startsWith('['))) {
+    // Permitir cualquier tipo de buffer para asegurar compatibilidad
+    if (buffer) {
         return originalStdoutWrite(buffer);
     }
-    
-    // De lo contrario, redirigir a stderr
-    process.stderr.write(`[WARN] Intento de escribir a stdout redirigido a stderr: ${buffer}`);
     return true;
 };
 
@@ -38,4 +34,4 @@ process.on('unhandledRejection', (reason: any) => {
 
 export default {
     restoreStdout
-}; 
+};
