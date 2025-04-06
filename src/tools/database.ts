@@ -20,7 +20,7 @@ import {
 } from '../db/management.js';
 import { validateSql } from '../utils/security.js';
 import { createLogger } from '../utils/logger.js';
-import { stringifyCompact, wrapSuccess, wrapError } from '../utils/jsonHelper.js';
+import { stringifyCompact, wrapSuccess, wrapError, formatForClaude } from '../utils/jsonHelper.js';
 import { FirebirdError } from '../utils/errors.js';
 
 const logger = createLogger('tools:database');
@@ -124,7 +124,7 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
                 return {
                     content: [{
                         type: "text",
-                        text: stringifyCompact(wrapSuccess(result))
+                        text: formatForClaude(result)
                     }]
                 };
             } catch (error) {
@@ -134,7 +134,7 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
                 return {
                     content: [{
                         type: "text",
-                        text: stringifyCompact(errorResponse)
+                        text: formatForClaude(errorResponse)
                     }]
                 };
             }
@@ -155,7 +155,7 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
                 return {
                     content: [{
                         type: "text",
-                        text: stringifyCompact(wrapSuccess({ tables }))
+                        text: formatForClaude({ tables })
                     }]
                 };
             } catch (error) {
@@ -165,7 +165,7 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
                 return {
                     content: [{
                         type: "text",
-                        text: stringifyCompact(errorResponse)
+                        text: formatForClaude(errorResponse)
                     }]
                 };
             }
@@ -187,7 +187,7 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
                 return {
                     content: [{
                         type: "text",
-                        text: stringifyCompact(wrapSuccess({ schema }))
+                        text: formatForClaude({ schema })
                     }]
                 };
             } catch (error) {
@@ -196,7 +196,7 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
                 return {
                     content: [{
                         type: "text",
-                        text: stringifyCompact(errorResponse)
+                        text: formatForClaude(errorResponse)
                     }]
                 };
             }
@@ -218,7 +218,7 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
                 return {
                     content: [{
                         type: "text",
-                        text: stringifyCompact(wrapSuccess({ fieldDescriptions }))
+                        text: formatForClaude({ fieldDescriptions })
                     }]
                 };
             } catch (error) {
@@ -228,7 +228,7 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
                 return {
                     content: [{
                         type: "text",
-                        text: stringifyCompact(errorResponse)
+                        text: formatForClaude(errorResponse)
                     }]
                 };
             }
@@ -254,7 +254,7 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
                 return {
                     content: [{
                         type: "text",
-                        text: stringifyCompact(wrapSuccess(result))
+                        text: formatForClaude(result)
                     }]
                 };
             } catch (error) {
@@ -264,7 +264,7 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
                 return {
                     content: [{
                         type: "text",
-                        text: stringifyCompact(errorResponse)
+                        text: formatForClaude(errorResponse)
                     }]
                 };
             }
@@ -286,7 +286,7 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
                 return {
                     content: [{
                         type: "text",
-                        text: stringifyCompact(wrapSuccess(result))
+                        text: formatForClaude(result)
                     }]
                 };
             } catch (error) {
@@ -318,7 +318,7 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
                 return {
                     content: [{
                         type: "text",
-                        text: stringifyCompact(wrapSuccess(result))
+                        text: formatForClaude(result)
                     }]
                 };
             } catch (error) {
@@ -328,7 +328,7 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
                 return {
                     content: [{
                         type: "text",
-                        text: stringifyCompact(errorResponse)
+                        text: formatForClaude(errorResponse)
                     }]
                 };
             }
@@ -350,7 +350,7 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
                 return {
                     content: [{
                         type: "text",
-                        text: stringifyCompact(wrapSuccess(result))
+                        text: formatForClaude(result)
                     }]
                 };
             } catch (error) {
@@ -360,7 +360,7 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
                 return {
                     content: [{
                         type: "text",
-                        text: stringifyCompact(errorResponse)
+                        text: formatForClaude(errorResponse)
                     }]
                 };
             }
@@ -382,7 +382,7 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
                 return {
                     content: [{
                         type: "text",
-                        text: stringifyCompact(wrapSuccess(result))
+                        text: formatForClaude(result)
                     }]
                 };
             } catch (error) {
@@ -392,7 +392,7 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
                 return {
                     content: [{
                         type: "text",
-                        text: stringifyCompact(errorResponse)
+                        text: formatForClaude(errorResponse)
                     }]
                 };
             }
@@ -414,7 +414,7 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
                 return {
                     content: [{
                         type: "text",
-                        text: stringifyCompact(wrapSuccess(result))
+                        text: formatForClaude(result)
                     }]
                 };
             } catch (error) {
@@ -424,7 +424,7 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
                 return {
                     content: [{
                         type: "text",
-                        text: stringifyCompact(errorResponse)
+                        text: formatForClaude(errorResponse)
                     }]
                 };
             }

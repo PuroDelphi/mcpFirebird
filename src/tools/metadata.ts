@@ -1,6 +1,6 @@
 // Herramientas para metadatos e información del sistema
 import { createLogger } from '../utils/logger.js';
-import { stringifyCompact } from '../utils/jsonHelper.js';
+import { stringifyCompact, formatForClaude } from '../utils/jsonHelper.js';
 import { z, ZodTypeAny } from 'zod';
 
 // Definición local de ToolDefinition basada en el uso
@@ -61,7 +61,7 @@ export const setupMetadataTools = (
                 return {
                     content: [{
                         type: 'text',
-                        text: stringifyCompact({ success: true, tools: toolDescriptions })
+                        text: formatForClaude({ tools: toolDescriptions })
                     }]
                 };
             } catch (error: any) {
@@ -69,7 +69,7 @@ export const setupMetadataTools = (
                 return {
                     content: [{
                         type: 'text',
-                        text: stringifyCompact({ success: false, error: 'Error al obtener la lista de herramientas.', message: error.message })
+                        text: formatForClaude({ error: 'Error al obtener la lista de herramientas.', message: error.message })
                     }]
                 };
             }
@@ -96,8 +96,7 @@ export const setupMetadataTools = (
                     return {
                         content: [{
                             type: 'text',
-                            text: stringifyCompact({
-                                success: false,
+                            text: formatForClaude({
                                 error: `Herramienta (método) '${toolName}' no encontrada.`
                             })
                         }]
@@ -126,7 +125,7 @@ export const setupMetadataTools = (
                     content: [{
                         type: 'text',
                         // Usar la clave 'tool' consistentemente
-                        text: stringifyCompact({ success: true, tool: toolDescription })
+                        text: formatForClaude({ tool: toolDescription })
                     }]
                 };
 
@@ -135,8 +134,7 @@ export const setupMetadataTools = (
                 return {
                     content: [{
                         type: 'text',
-                        text: stringifyCompact({
-                            success: false,
+                        text: formatForClaude({
                             error: 'Error al obtener la descripción de la herramienta (método).',
                             message: error.message
                         })
@@ -155,8 +153,7 @@ export const setupMetadataTools = (
             return {
                 content: [{
                     type: 'text',
-                    text: stringifyCompact({
-                        success: true,
+                    text: formatForClaude({
                         message: "Firebird MCP server is online",
                         timestamp: new Date().toISOString()
                     })

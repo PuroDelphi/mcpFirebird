@@ -28,6 +28,29 @@ export const stringifyCompact = (obj: any): string => {
 };
 
 /**
+ * Format a result for Claude Desktop
+ * This formats the result in a way that is compatible with Claude Desktop
+ *
+ * @param result - The result to format
+ * @returns A formatted string that is compatible with Claude Desktop
+ */
+export const formatForClaude = (result: any): string => {
+    try {
+        // For simple strings, return them directly
+        if (typeof result === 'string') {
+            return result;
+        }
+
+        // For objects, convert them to a pretty JSON string
+        return JSON.stringify(result, null, 2);
+    } catch (error) {
+        // Handle JSON.stringify errors
+        console.error(`Error formatting for Claude: ${error instanceof Error ? error.message : String(error)}`);
+        return `Error formatting result: ${error instanceof Error ? error.message : String(error)}`;
+    }
+};
+
+/**
  * Response interface for MCP
  */
 export interface MCPResponse<T> {
