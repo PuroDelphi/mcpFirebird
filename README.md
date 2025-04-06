@@ -132,7 +132,8 @@ Add the following configuration:
         "SYSDBA",
         "--password",
         "masterkey"
-      ]
+      ],
+      "type": "stdio"
     }
   }
 }
@@ -141,6 +142,10 @@ Add the following configuration:
 <Warning>
   Make sure to use absolute paths in the configuration.
 </Warning>
+
+<Note>
+  The `"type": "stdio"` parameter is important as it specifies the communication method between Claude Desktop and the MCP server. This should match the `TRANSPORT_TYPE` setting in your server configuration.
+</Note>
 
 <Note>
   After saving the file, you need to restart Claude Desktop completely.
