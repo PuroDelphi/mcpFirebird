@@ -40,40 +40,55 @@ function normalizeDatabasePath(dbPath: string | undefined): string {
     return path.normalize(dbPath);
 }
 
-// Debug: Log all environment variables related to database connection
-console.error('Environment variables for database connection:');
-console.error(`FIREBIRD_DATABASE: ${process.env.FIREBIRD_DATABASE || 'not set'}`);
-console.error(`FB_DATABASE: ${process.env.FB_DATABASE || 'not set'}`);
-console.error(`FIREBIRD_HOST: ${process.env.FIREBIRD_HOST || 'not set'}`);
-console.error(`FB_HOST: ${process.env.FB_HOST || 'not set'}`);
-console.error(`FIREBIRD_PORT: ${process.env.FIREBIRD_PORT || 'not set'}`);
-console.error(`FB_PORT: ${process.env.FB_PORT || 'not set'}`);
-console.error(`FIREBIRD_USER: ${process.env.FIREBIRD_USER || 'not set'}`);
-console.error(`FB_USER: ${process.env.FB_USER || 'not set'}`);
-// Don't log passwords
-console.error(`FIREBIRD_ROLE: ${process.env.FIREBIRD_ROLE || 'not set'}`);
-console.error(`FB_ROLE: ${process.env.FB_ROLE || 'not set'}`);
-
 // Default configuration for the connection
-export const DEFAULT_CONFIG: ConfigOptions = {
-    host: process.env.FIREBIRD_HOST || process.env.FB_HOST || 'localhost', // FB_HOST is deprecated
-    port: parseInt(process.env.FIREBIRD_PORT || process.env.FB_PORT || '3050', 10), // FB_PORT is deprecated
-    database: normalizeDatabasePath(process.env.FIREBIRD_DATABASE || process.env.FB_DATABASE), // FB_DATABASE is deprecated
-    user: process.env.FIREBIRD_USER || process.env.FB_USER || 'SYSDBA', // FB_USER is deprecated
-    password: process.env.FIREBIRD_PASSWORD || process.env.FB_PASSWORD || 'masterkey', // FB_PASSWORD is deprecated
-    role: process.env.FIREBIRD_ROLE || process.env.FB_ROLE || undefined, // FB_ROLE is deprecated
-    pageSize: 4096
+export const getDefaultConfig = (): ConfigOptions => {
+    // Debug: Log all environment variables related to database connection
+    console.error('Environment variables for database connection:');
+    console.error(`FIREBIRD_DATABASE: ${process.env.FIREBIRD_DATABASE || 'not set'}`);
+    console.error(`FB_DATABASE: ${process.env.FB_DATABASE || 'not set'}`);
+    console.error(`FIREBIRD_HOST: ${process.env.FIREBIRD_HOST || 'not set'}`);
+    console.error(`FB_HOST: ${process.env.FB_HOST || 'not set'}`);
+    console.error(`FIREBIRD_PORT: ${process.env.FIREBIRD_PORT || 'not set'}`);
+    console.error(`FB_PORT: ${process.env.FB_PORT || 'not set'}`);
+    console.error(`FIREBIRD_USER: ${process.env.FIREBIRD_USER || 'not set'}`);
+    console.error(`FB_USER: ${process.env.FB_USER || 'not set'}`);
+    // Don't log passwords
+    console.error(`FIREBIRD_ROLE: ${process.env.FIREBIRD_ROLE || 'not set'}`);
+    console.error(`FB_ROLE: ${process.env.FB_ROLE || 'not set'}`);
+
+    const config = {
+        host: process.env.FIREBIRD_HOST || process.env.FB_HOST || 'localhost', // FB_HOST is deprecated
+        port: parseInt(process.env.FIREBIRD_PORT || process.env.FB_PORT || '3050', 10), // FB_PORT is deprecated
+        database: normalizeDatabasePath(process.env.FIREBIRD_DATABASE || process.env.FB_DATABASE), // FB_DATABASE is deprecated
+        user: process.env.FIREBIRD_USER || process.env.FB_USER || 'SYSDBA', // FB_USER is deprecated
+        password: process.env.FIREBIRD_PASSWORD || process.env.FB_PASSWORD || 'masterkey', // FB_PASSWORD is deprecated
+        role: process.env.FIREBIRD_ROLE || process.env.FB_ROLE || undefined, // FB_ROLE is deprecated
+        pageSize: 4096
+    };
+
+    // Debug: Log the final configuration (without password)
+    console.error('Final database configuration:');
+    console.error(`host: ${config.host}`);
+    console.error(`port: ${config.port}`);
+    console.error(`database: ${config.database}`);
+    console.error(`user: ${config.user}`);
+    // Don't log password
+    console.error(`role: ${config.role || 'not set'}`);
+    console.error(`pageSize: ${config.pageSize}`);
+
+    return config;
 };
 
-// Debug: Log the final configuration (without password)
-console.error('Final database configuration:');
-console.error(`host: ${DEFAULT_CONFIG.host}`);
-console.error(`port: ${DEFAULT_CONFIG.port}`);
-console.error(`database: ${DEFAULT_CONFIG.database}`);
-console.error(`user: ${DEFAULT_CONFIG.user}`);
-// Don't log password
-console.error(`role: ${DEFAULT_CONFIG.role || 'not set'}`);
-console.error(`pageSize: ${DEFAULT_CONFIG.pageSize}`);
+// For backward compatibility
+export const DEFAULT_CONFIG: ConfigOptions = {
+    host: 'localhost',
+    port: 3050,
+    database: '',
+    user: 'SYSDBA',
+    password: 'masterkey',
+    role: undefined,
+    pageSize: 4096
+};
 
 
 // FirebirdError is now imported from '../utils/errors.js'
@@ -84,7 +99,7 @@ console.error(`pageSize: ${DEFAULT_CONFIG.pageSize}`);
  * @returns Objeto de conexión a la base de datos
  * @throws {FirebirdError} Error categorizado si la conexión falla
  */
-export const connectToDatabase = (config = DEFAULT_CONFIG): Promise<FirebirdDatabase> => {
+export const connectToDatabase = (config = getDefaultConfig()): Promise<FirebirdDatabase> => {
     return new Promise((resolve, reject) => {
         logger.info(`Connecting to ${config.host}:${config.port}/${config.database}`);
 
@@ -188,7 +203,7 @@ export const queryDatabase = (db: FirebirdDatabase, sql: string, params: any[] =
  * @returns {Promise<void>} Resuelve si la conexión es exitosa, rechaza si falla.
  * @throws {FirebirdError} Error categorizado si la conexión falla.
  */
-export const testConnection = async (config = DEFAULT_CONFIG): Promise<void> => {
+export const testConnection = async (config = getDefaultConfig()): Promise<void> => {
     logger.info('Probando conexión a la base de datos...');
     let db: FirebirdDatabase | null = null;
     try {
