@@ -21,7 +21,7 @@ const npxPath = process.platform === 'win32' ? 'npx.cmd' : 'npx';
 
 console.log(`Using NPX path: ${npxPath}`);
 
-const child = spawn(npxPath, ['@modelcontextprotocol/inspector', '--transportType=stdio', '--command=node', '--args=dist/index.js'], {
+const child = spawn(npxPath, ['@modelcontextprotocol/inspector'], {
   env: process.env,
   stdio: 'inherit',
   shell: true
