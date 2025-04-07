@@ -646,12 +646,12 @@ end.
 
 ## Docker Configuration
 
-You can run the MCP Firebird server in a Docker container:
+You can run the MCP Firebird server in a Docker container with support for both STDIO and SSE transports:
 
 ### Dockerfile
 
 ```dockerfile
-FROM node:18-alpine
+FROM node:20-alpine
 
 # Install necessary dependencies for Firebird
 RUN apk add --no-cache firebird-client
@@ -661,16 +661,23 @@ WORKDIR /app
 
 # Copy project files
 COPY package*.json ./
+COPY tsconfig.json ./
+
+# Install dependencies
 RUN npm install
 
 # Copy source code
-COPY . .
+COPY src/ ./src/
+COPY run-sse-server.js ./
+COPY run-sse-proxy.js ./
+COPY run-inspector.cjs ./
+COPY run-inspector.js ./
 
 # Compile the TypeScript project
 RUN npm run build
 
-# Expose port if HTTP is used (optional)
-# EXPOSE 3000
+# Expose port for SSE transport
+EXPOSE 3003
 
 # Set default environment variables
 ENV FIREBIRD_HOST=firebird-db
@@ -678,6 +685,9 @@ ENV FIREBIRD_PORT=3050
 ENV FIREBIRD_USER=SYSDBA
 ENV FIREBIRD_PASSWORD=masterkey
 ENV FIREBIRD_DATABASE=/firebird/data/database.fdb
+ENV TRANSPORT_TYPE=stdio
+ENV SSE_PORT=3003
+ENV LOG_LEVEL=info
 
 # Start command
 CMD ["node", "dist/index.js"]
@@ -703,8 +713,8 @@ services:
     networks:
       - mcp-network
 
-  # MCP Firebird server
-  mcp-firebird:
+  # MCP Firebird server with STDIO transport (for Claude Desktop)
+  mcp-firebird-stdio:
     build:
       context: .
       dockerfile: Dockerfile
@@ -714,6 +724,7 @@ services:
       FIREBIRD_USER: SYSDBA
       FIREBIRD_PASSWORD: masterkey
       FIREBIRD_DATABASE: /firebird/data/database.fdb
+      TRANSPORT_TYPE: stdio
     depends_on:
       - firebird-db
     networks:
@@ -721,6 +732,43 @@ services:
     # For use with Claude Desktop, expose STDIO
     stdin_open: true
     tty: true
+
+  # MCP Firebird server with SSE transport (for web clients)
+  mcp-firebird-sse:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      FIREBIRD_HOST: firebird-db
+      FIREBIRD_PORT: 3050
+      FIREBIRD_USER: SYSDBA
+      FIREBIRD_PASSWORD: masterkey
+      FIREBIRD_DATABASE: /firebird/data/database.fdb
+      TRANSPORT_TYPE: sse
+      SSE_PORT: 3003
+    ports:
+      - "3003:3003"
+    depends_on:
+      - firebird-db
+    networks:
+      - mcp-network
+    command: node run-sse-server.js
+
+  # SSE Proxy (optional, for clients that need proxy support)
+  mcp-sse-proxy:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      MCP_SERVER_URL: http://mcp-firebird-sse:3003
+      PORT: 3005
+    ports:
+      - "3005:3005"
+    depends_on:
+      - mcp-firebird-sse
+    networks:
+      - mcp-network
+    command: node run-sse-proxy.js
 
 networks:
   mcp-network:
@@ -736,16 +784,73 @@ volumes:
 # Build and run with Docker Compose
 docker compose up -d
 
+# Run only the STDIO version (for Claude Desktop)
+docker compose up -d mcp-firebird-stdio
+
+# Run only the SSE version (for web clients)
+docker compose up -d mcp-firebird-sse
+
+# Run the SSE version with proxy (for clients that need proxy support)
+docker compose up -d mcp-firebird-sse mcp-sse-proxy
+
 # Check logs
-docker compose logs -f mcp-firebird
+docker compose logs -f mcp-firebird-sse
 
 # Stop services
 docker compose down
 ```
 
+### Connecting to the Dockerized MCP Server
+
+#### With Claude Desktop
+
+Update your Claude Desktop configuration to use the Docker container:
+
+```json
+{
+  "mcpServers": {
+    "mcp-firebird": {
+      "command": "docker",
+      "args": [
+        "exec",
+        "-i",
+        "mcp-firebird-stdio",
+        "node",
+        "dist/index.js"
+      ],
+      "type": "stdio"
+    }
+  }
+}
+```
+
+#### With Web Clients
+
+Connect to the SSE endpoint at `http://localhost:3003` or through the proxy at `http://localhost:3005`.
+
+#### With MCP Inspector
+
+```bash
+# Connect directly to the SSE server
+npx @modelcontextprotocol/inspector http://localhost:3003
+
+# Or connect through the proxy
+npx @modelcontextprotocol/inspector http://localhost:3005
+```
+
 ## Recent Updates
 
-### Version 1.0.93 (Updated from 1.0.91)
+### Version 2.0.5
+
+MCP Firebird has been significantly enhanced with:
+
+- **SSE Transport Support**: Added robust Server-Sent Events (SSE) transport implementation
+- **Proxy Support**: Added support for connecting through an SSE proxy
+- **Multi-Transport Architecture**: Support for both STDIO and SSE transports
+- **Enhanced Security**: Improved security options and configuration
+- **Docker Support**: Updated Docker configuration for all transport types
+
+### Version 1.0.93 (Previous stable version)
 
 MCP Firebird has been significantly improved with:
 
