@@ -263,9 +263,38 @@ export async function startSseServer(
             logger.debug(`Received message from client for session ${sessionId}`);
 
             // Get the session
-            const session = sessionManager.getSession(sessionId);
+            let session = sessionManager.getSession(sessionId);
+
+            // If session doesn't exist, try to create it
             if (!session) {
-                throw new TransportError(`No active session found for ID: ${sessionId}`, ErrorTypes.TRANSPORT_CONNECTION);
+                logger.info(`Session ${sessionId} not found, creating a new one`);
+
+                try {
+                    // Create a dummy transport for this request
+                    // This is a workaround for the SSE transport issue
+                    const dummyRes = {
+                        write: () => {},
+                        end: () => {},
+                        on: () => {},
+                        once: () => {},
+                        emit: () => {},
+                        removeListener: () => {},
+                        setHeader: () => {},
+                        flushHeaders: () => {},
+                        writableEnded: false
+                    } as any;
+
+                    const transport = new SSEServerTransport('/message', dummyRes);
+                    session = sessionManager.createSession(sessionId, transport);
+
+                    // Connect the transport to the server
+                    await server.connect(transport);
+
+                    logger.info(`Created temporary session for ${sessionId}`);
+                } catch (e: any) {
+                    logger.error(`Failed to create temporary session: ${e.message || String(e)}`);
+                    throw new TransportError(`No active session found for ID: ${sessionId}`, ErrorTypes.TRANSPORT_CONNECTION);
+                }
             }
 
             // Handle the message
