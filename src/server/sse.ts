@@ -282,11 +282,36 @@ export async function startSseServer(
 
             logger.debug(`Received message from client for session ${sessionId}`);
 
-            // Get the session
-            const session = sessionManager.getSession(sessionId);
+            // Get the session or create a new one if it doesn't exist
+            let session = sessionManager.getSession(sessionId);
             if (!session) {
-                throw new TransportError(`No active session found for ID: ${sessionId}`, ErrorTypes.TRANSPORT_CONNECTION);
+                logger.info(`Creating new session for ID: ${sessionId}`);
+
+                // Create a new SSE transport for the session
+                const transport = new SSEServerTransport('/message', res);
+
+                // Create a new session
+                sessionManager.createSession(sessionId, transport);
+
+                // Get the session again
+                session = sessionManager.getSession(sessionId);
+
+                if (!session) {
+                    throw new TransportError(`Failed to create session for ID: ${sessionId}`, ErrorTypes.TRANSPORT_CONNECTION);
+                }
+
+                // Connect the transport to the server
+                await server.connect(session.transport);
+
+                // Send the endpoint event to confirm the session is ready
+                const endpointUrl = `/message?sessionId=${sessionId}`;
+                (session.transport as any).res.write(`event: endpoint\ndata: ${endpointUrl}\n\n`);
+
+                logger.info(`Created and connected new session for ID: ${sessionId}`);
             }
+
+            // Update last activity timestamp
+            session.lastActivity = new Date();
 
             // Handle the message
             await session.transport.handlePostMessage(req, res);
