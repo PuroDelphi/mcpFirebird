@@ -1,45 +1,48 @@
 # Usar Node.js LTS como imagen base
-FROM node:20-slim
+FROM node:20-alpine
 
 # Instalar dependencias de Firebird
-RUN apt-get update && apt-get install -y \
-    firebird3.0-server \
-    firebird3.0-utils \
-    && rm -rf /var/lib/apt/lists/*
+RUN apk add --no-cache firebird-client
 
 # Crear directorio de trabajo
 WORKDIR /app
 
-# Copiar archivos del proyecto
+# Copiar archivos de configuración y dependencias
 COPY package*.json ./
-COPY server.js ./
-COPY start-mcp-firebird.js ./
-COPY version.js ./
+COPY tsconfig.json ./
 
 # Instalar dependencias
 RUN npm install
 
-# Exponer puertos
-EXPOSE 3001
-EXPOSE 3002
+# Copiar el código fuente
+COPY src/ ./src/
+COPY run-sse-server.js ./
+COPY run-sse-proxy.js ./
+COPY run-inspector.cjs ./
+COPY run-inspector.js ./
+
+# Compilar el proyecto TypeScript
+RUN npm run build
+
+# Exponer puerto para SSE
+EXPOSE 3003
 
 # Variables de entorno por defecto
-ENV PORT=3001
-ENV WS_PORT=3002
-ENV FB_HOST=localhost
-ENV FB_PORT=3050
-ENV FB_USER=sysdba
-ENV FB_PASSWORD=masterkey
-ENV MAX_CONNECTIONS=50
-ENV QUERY_TIMEOUT=30000
-ENV LOG_LEVEL=debug
+ENV FIREBIRD_HOST=localhost
+ENV FIREBIRD_PORT=3050
+ENV FIREBIRD_USER=SYSDBA
+ENV FIREBIRD_PASSWORD=masterkey
+ENV FIREBIRD_DATABASE=/firebird/data/database.fdb
+ENV TRANSPORT_TYPE=stdio
+ENV SSE_PORT=3003
+ENV LOG_LEVEL=info
 
 # Crear directorio para la base de datos
-RUN mkdir -p /data && \
-    chown -R node:node /data
+RUN mkdir -p /firebird/data && \
+    chown -R node:node /firebird
 
 # Cambiar al usuario node por seguridad
 USER node
 
-# Comando para iniciar el servidor
-CMD ["node", "start-mcp-firebird.js"] 
+# Comando para iniciar el servidor (puede ser sobrescrito en docker-compose)
+CMD ["node", "dist/index.js"]
