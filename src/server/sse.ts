@@ -196,24 +196,24 @@ export async function startSseServer(
 
             logger.info(`New SSE connection request received from ${req.url}`, { sessionId });
 
-            // Set headers for SSE
-            res.setHeader('Content-Type', 'text/event-stream');
-            res.setHeader('Cache-Control', 'no-cache');
-            res.setHeader('Connection', 'keep-alive');
-            res.flushHeaders();
-
             // Create a new SSE transport
             const transport = new SSEServerTransport('/message', res);
 
             // Create a new session
             sessionManager.createSession(sessionId, transport);
 
+            // Set headers for SSE (moved here to ensure they are set before any write)
+            res.setHeader('Content-Type', 'text/event-stream');
+            res.setHeader('Cache-Control', 'no-cache');
+            res.setHeader('Connection', 'keep-alive');
+            res.flushHeaders();
+
+            // Send the endpoint event first
+            const endpointUrl = `/message?sessionId=${sessionId}`;
+            res.write(`event: endpoint\ndata: ${encodeURI(endpointUrl)}\n\n`);
+
             // Connect the transport to the server
             await server.connect(transport);
-
-            // Send the endpoint event
-            const endpointUrl = `/message?sessionId=${sessionId}`;
-            res.write(`event: endpoint\ndata: ${endpointUrl}\n\n`);
 
             logger.info(`SSE transport connected to server for session ${sessionId}`);
 
