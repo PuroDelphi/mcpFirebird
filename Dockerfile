@@ -2,7 +2,7 @@
 FROM node:20-alpine
 
 # Instalar dependencias de Firebird
-RUN apk add --no-cache firebird-client
+RUN apk add --no-cache --repository=http://dl-cdn.alpinelinux.org/alpine/edge/community fbclient
 
 # Crear directorio de trabajo
 WORKDIR /app
