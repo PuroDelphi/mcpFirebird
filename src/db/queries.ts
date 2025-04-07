@@ -12,6 +12,7 @@ import {
 } from './connection.js';
 import { FirebirdError } from '../utils/errors.js';
 import { validateSql } from '../utils/security.js';
+import { withCorrectConfig } from './wrapper.js';
 
 const logger = createLogger('db:queries');
 
@@ -865,3 +866,6 @@ function extractColumnsFromCondition(condition: string): string[] {
 
     return columns;
 }
+
+// Nota: En lugar de reexportar las funciones, vamos a crear un archivo separado
+// que exporte versiones wrapped de estas funciones para evitar conflictos de exportación.

@@ -1,9 +1,7 @@
 // SQL-related prompts
 import { z } from 'zod';
 import { createLogger } from '../utils/logger.js';
-import { executeQuery } from '../db/queries.js';
-import { getTableSchema } from '../db/schema.js';
-import { listTables } from '../db/queries.js';
+import { executeQuery, getTableSchema, listTables } from '../db/index.js';
 import { stringifyCompact } from '../utils/jsonHelper.js';
 import { PromptDefinition, createAssistantTextMessage, createErrorMessage } from './types.js';
 

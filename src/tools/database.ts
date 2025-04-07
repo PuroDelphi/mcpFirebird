@@ -8,7 +8,7 @@ import {
     analyzeQueryPerformance,
     getExecutionPlan,
     analyzeMissingIndexes
-} from '../db/queries.js';
+} from '../db/index.js';
 
 import {
     backupDatabase,
@@ -17,7 +17,7 @@ import {
     BackupOptions,
     RestoreOptions,
     ValidateOptions
-} from '../db/management.js';
+} from '../db/index.js';
 import { validateSql } from '../utils/security.js';
 import { createLogger } from '../utils/logger.js';
 import { stringifyCompact, wrapSuccess, wrapError, formatForClaude } from '../utils/jsonHelper.js';

@@ -1,8 +1,7 @@
 // src/prompts/database.ts
 import { z } from 'zod';
 import { createLogger } from '../utils/logger.js';
-import { getTableSchema } from '../db/schema.js';
-import { listTables, executeQuery } from '../db/queries.js';
+import { getTableSchema, listTables, executeQuery } from '../db/index.js';
 import { stringifyCompact } from '../utils/jsonHelper.js';
 import { PromptDefinition, createAssistantTextMessage, createErrorMessage } from './types.js';
 
