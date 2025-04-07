@@ -1,8 +1,9 @@
 // SQL-related prompts
 import { z } from 'zod';
 import { createLogger } from '../utils/logger.js';
-import { executeQuery, getQueryPlan } from '../db/queries.js';
-import { listTables, getTableSchema } from '../db/schema.js';
+import { executeQuery } from '../db/queries.js';
+import { getTableSchema } from '../db/schema.js';
+import { listTables } from '../db/queries.js';
 import { stringifyCompact } from '../utils/jsonHelper.js';
 import { PromptDefinition, createAssistantTextMessage, createErrorMessage } from './types.js';
 
@@ -22,11 +23,29 @@ const queryDataPrompt: PromptDefinition = {
         const rowLimit = limit || 100;
         logger.info(`Executing query-data prompt with SQL: ${sql} and limit: ${rowLimit}`);
         try {
-            // Execute the query
-            const results = await executeQuery(sql, [], rowLimit);
+            // Execute the query - limitamos los resultados en la consulta SQL
+            let limitedSql = sql;
+            if (sql.trim().toUpperCase().startsWith('SELECT') && !sql.includes('FIRST')) {
+                // Añadir FIRST para limitar los resultados
+                limitedSql = sql.replace(/SELECT\s+/i, `SELECT FIRST ${rowLimit} `);
+            }
+            const results = await executeQuery(limitedSql, []);
 
-            // Get the execution plan for analysis
-            const plan = await getQueryPlan(sql);
+            // Intentar obtener el plan de ejecución
+            // Como no tenemos acceso directo a getQueryPlan, usamos una consulta alternativa
+            let plan = "Plan de ejecución no disponible";
+
+            try {
+                // Ejecutar una consulta que no devuelve resultados pero muestra el plan
+                if (sql.trim().toUpperCase().startsWith('SELECT')) {
+                    await executeQuery(`SET PLAN ON`);
+                    await executeQuery(`SELECT FIRST 0 * FROM (${sql}) WHERE 0=1`);
+                    await executeQuery(`SET PLAN OFF`);
+                    plan = "Plan de ejecución solicitado. Consulta el log del servidor para más detalles.";
+                }
+            } catch (planError) {
+                logger.warn(`Error getting execution plan: ${planError instanceof Error ? planError.message : String(planError)}`);
+            }
 
             const resultText = `Query executed successfully. Results:\n\n**Execution Plan**:\n\`\`\`\n${plan}\n\`\`\`\n\n**Results** (${results.length} rows):\n\`\`\`json\n${stringifyCompact(results)}\n\`\`\`\n\nThe query returned ${results.length} rows.`;
             return createAssistantTextMessage(resultText);
@@ -47,12 +66,25 @@ const optimizeQueryPrompt: PromptDefinition = {
     handler: async ({ sql }: { sql: string }) => {
         logger.info(`Executing optimize-query prompt with SQL: ${sql}`);
         try {
-            // Get the execution plan
-            const plan = await getQueryPlan(sql);
+            // Intentar obtener el plan de ejecución
+            // Como no tenemos acceso directo a getQueryPlan, usamos una consulta alternativa
+            let plan = "Plan de ejecución no disponible";
+
+            try {
+                // Ejecutar una consulta que no devuelve resultados pero muestra el plan
+                if (sql.trim().toUpperCase().startsWith('SELECT')) {
+                    await executeQuery(`SET PLAN ON`);
+                    await executeQuery(`SELECT FIRST 0 * FROM (${sql}) WHERE 0=1`);
+                    await executeQuery(`SET PLAN OFF`);
+                    plan = "Plan de ejecución solicitado. Consulta el log del servidor para más detalles.";
+                }
+            } catch (planError) {
+                logger.warn(`Error getting execution plan: ${planError instanceof Error ? planError.message : String(planError)}`);
+            }
 
             // Get tables involved in the query to provide schema information
             const tables = await listTables();
-            const tablesInQuery = tables.filter(table => {
+            const tablesInQuery = tables.filter((table: string) => {
                 // Simple check for table names in the query
                 return sql.toUpperCase().includes(table.toUpperCase());
             });
@@ -121,12 +153,25 @@ const explainSqlPrompt: PromptDefinition = {
     handler: async ({ sql }: { sql: string }) => {
         logger.info(`Executing explain-sql prompt with SQL: ${sql}`);
         try {
-            // Get the execution plan
-            const plan = await getQueryPlan(sql);
+            // Intentar obtener el plan de ejecución
+            // Como no tenemos acceso directo a getQueryPlan, usamos una consulta alternativa
+            let plan = "Plan de ejecución no disponible";
+
+            try {
+                // Ejecutar una consulta que no devuelve resultados pero muestra el plan
+                if (sql.trim().toUpperCase().startsWith('SELECT')) {
+                    await executeQuery(`SET PLAN ON`);
+                    await executeQuery(`SELECT FIRST 0 * FROM (${sql}) WHERE 0=1`);
+                    await executeQuery(`SET PLAN OFF`);
+                    plan = "Plan de ejecución solicitado. Consulta el log del servidor para más detalles.";
+                }
+            } catch (planError) {
+                logger.warn(`Error getting execution plan: ${planError instanceof Error ? planError.message : String(planError)}`);
+            }
 
             // Get tables involved in the query
             const tables = await listTables();
-            const tablesInQuery = tables.filter(table => {
+            const tablesInQuery = tables.filter((table: string) => {
                 return sql.toUpperCase().includes(table.toUpperCase());
             });
 

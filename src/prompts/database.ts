@@ -1,7 +1,7 @@
 // src/prompts/database.ts
 import { z } from 'zod';
 import { createLogger } from '../utils/logger.js';
-import { getTableSchema, getTableRelationships } from '../db/schema.js';
+import { getTableSchema } from '../db/schema.js';
 import { listTables, executeQuery } from '../db/queries.js';
 import { stringifyCompact } from '../utils/jsonHelper.js';
 import { PromptDefinition, createAssistantTextMessage, createErrorMessage } from './types.js';
@@ -58,7 +58,44 @@ const analyzeTableRelationshipsPrompt: PromptDefinition = {
     handler: async (params: { tableName: string }) => {
         logger.info(`Executing analyze-table-relationships prompt for: ${params.tableName}`);
         try {
-            const relationships = await getTableRelationships(params.tableName);
+            // Obtener el esquema de la tabla
+            const schema = await getTableSchema(params.tableName);
+
+            // Extraer las relaciones de las claves foráneas
+            const relationships: {
+                foreignKeys: any[];
+                referencedBy: Array<{ table: string; references: any[] }>;
+            } = {
+                foreignKeys: schema.foreignKeys || [],
+                referencedBy: [] // Aquí podríamos añadir tablas que referencian a esta tabla
+            };
+
+            // Buscar tablas que referencian a esta tabla
+            // Esto requiere consultar todas las tablas y verificar sus claves foráneas
+            const allTables = await listTables();
+            for (const otherTable of allTables) {
+                if (otherTable === params.tableName) continue;
+
+                try {
+                    const otherSchema = await getTableSchema(otherTable);
+                    if (otherSchema.foreignKeys && otherSchema.foreignKeys.length > 0) {
+                        // Buscar referencias a nuestra tabla
+                        const references = otherSchema.foreignKeys.filter(fk =>
+                            fk.references && fk.references.table === params.tableName
+                        );
+
+                        if (references.length > 0) {
+                            relationships.referencedBy.push({
+                                table: otherTable,
+                                references: references
+                            });
+                        }
+                    }
+                } catch (error) {
+                    logger.warn(`Could not check references from table ${otherTable}: ${error instanceof Error ? error.message : String(error)}`);
+                }
+            }
+
             const resultText = `Relationships for table '${params.tableName}':\n\`\`\`json\n${stringifyCompact(relationships)}\n\`\`\``;
             return createAssistantTextMessage(resultText);
         } catch (error: any) {
@@ -91,10 +128,18 @@ const databaseSchemaOverviewPrompt: PromptDefinition = {
                 if (params.includeSampleData) {
                     try {
                         const sampleData = await executeQuery(`SELECT FIRST 3 * FROM ${table}`);
-                        schemaInfo[schemaInfo.length - 1].sampleData = sampleData;
+                        // Añadir sampleData al objeto schemaInfo
+                        schemaInfo[schemaInfo.length - 1] = {
+                            ...schemaInfo[schemaInfo.length - 1],
+                            sampleData
+                        };
                     } catch (error) {
                         logger.warn(`Could not get sample data for table ${table}: ${error instanceof Error ? error.message : String(error)}`);
-                        schemaInfo[schemaInfo.length - 1].sampleData = "Error retrieving sample data";
+                        // Añadir mensaje de error al objeto schemaInfo
+                        schemaInfo[schemaInfo.length - 1] = {
+                            ...schemaInfo[schemaInfo.length - 1],
+                            sampleData: "Error retrieving sample data"
+                        };
                     }
                 }
             }
