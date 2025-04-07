@@ -196,6 +196,12 @@ export async function startSseServer(
 
             logger.info(`New SSE connection request received from ${req.url}`, { sessionId });
 
+            // Set headers for SSE
+            res.setHeader('Content-Type', 'text/event-stream');
+            res.setHeader('Cache-Control', 'no-cache');
+            res.setHeader('Connection', 'keep-alive');
+            res.flushHeaders();
+
             // Create a new SSE transport
             const transport = new SSEServerTransport('/message', res);
 
@@ -205,6 +211,10 @@ export async function startSseServer(
             // Connect the transport to the server
             await server.connect(transport);
 
+            // Send the endpoint event
+            const endpointUrl = `/message?sessionId=${sessionId}`;
+            res.write(`event: endpoint\ndata: ${endpointUrl}\n\n`);
+
             logger.info(`SSE transport connected to server for session ${sessionId}`);
 
             // Handle client disconnect
@@ -212,6 +222,15 @@ export async function startSseServer(
                 logger.info(`Client disconnected for session ${sessionId}`);
                 sessionManager.removeSession(sessionId);
             });
+
+            // Keep the connection alive with a comment every 30 seconds
+            const keepAliveInterval = setInterval(() => {
+                if (res.writableEnded) {
+                    clearInterval(keepAliveInterval);
+                    return;
+                }
+                res.write(': keepalive\n\n');
+            }, 30000);
 
             // Set up cleanup on server close
             server.onclose = async () => {
