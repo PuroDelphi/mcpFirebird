@@ -1,6 +1,8 @@
 /**
  * SSE (Server-Sent Events) transport implementation for the MCP Firebird server
  * This allows clients to connect to the server using SSE instead of stdio
+ *
+ * Enhanced with proxy support to allow connections through an SSE proxy
  */
 
 import express from 'express';
@@ -20,6 +22,8 @@ interface SessionInfo {
     transport: SSEServerTransport;
     createdAt: Date;
     lastActivity: Date;
+    isProxy?: boolean;         // Indicates if this session is from a proxy
+    proxyClientId?: string;    // The client ID provided by the proxy
 }
 
 /**
@@ -81,19 +85,22 @@ class SessionManager {
      * Create a new session
      * @param sessionId - Session ID
      * @param transport - SSE transport
+     * @param options - Additional options for the session
      * @returns The created session
      */
-    public createSession(sessionId: string, transport: SSEServerTransport): SessionInfo {
+    public createSession(sessionId: string, transport: SSEServerTransport, options?: { isProxy?: boolean, proxyClientId?: string }): SessionInfo {
         const now = new Date();
         const session: SessionInfo = {
             id: sessionId,
             transport,
             createdAt: now,
-            lastActivity: now
+            lastActivity: now,
+            isProxy: options?.isProxy || false,
+            proxyClientId: options?.proxyClientId
         };
 
         this.sessions.set(sessionId, session);
-        logger.info(`Created new session: ${sessionId}`);
+        logger.info(`Created new session: ${sessionId}${session.isProxy ? ' (proxy)' : ''}${session.proxyClientId ? ` for client: ${session.proxyClientId}` : ''}`);
         return session;
     }
 
@@ -109,6 +116,22 @@ class SessionManager {
             session.lastActivity = new Date();
         }
         return session;
+    }
+
+    /**
+     * Get a session by proxy client ID
+     * @param proxyClientId - Proxy client ID
+     * @returns The session or undefined if not found
+     */
+    public getSessionByProxyClientId(proxyClientId: string): SessionInfo | undefined {
+        for (const session of this.sessions.values()) {
+            if (session.isProxy && session.proxyClientId === proxyClientId) {
+                // Update last activity time
+                session.lastActivity = new Date();
+                return session;
+            }
+        }
+        return undefined;
     }
 
     /**
@@ -189,29 +212,57 @@ export async function startSseServer(
     // SSE endpoint - both root and /sse path
     const handleSseRequest = async (req: express.Request, res: express.Response) => {
         try {
+            // Check for proxy-specific headers
+            const isProxy = req.headers['x-mcp-proxy'] === 'true';
+            const proxyClientId = req.headers['x-proxy-client-id']?.toString();
+
             // Generate or use provided session ID
             const sessionId = req.query.sessionId?.toString() ||
                               req.headers['x-session-id']?.toString() ||
                               `session-${Date.now()}-${Math.random().toString(36).substring(2, 10)}`;
 
-            logger.info(`New SSE connection request received from ${req.url}`, { sessionId });
+            logger.info(`New SSE connection request received from ${req.url}`, {
+                sessionId,
+                isProxy,
+                proxyClientId
+            });
 
             // Create a new SSE transport
             const transport = new SSEServerTransport('/message', res);
 
-            // Create a new session
-            sessionManager.createSession(sessionId, transport);
+            // Create a new session with proxy information if applicable
+            sessionManager.createSession(sessionId, transport, { isProxy, proxyClientId });
+
+            // Set headers for SSE (moved here to ensure they are set before any write)
+            res.setHeader('Content-Type', 'text/event-stream');
+            res.setHeader('Cache-Control', 'no-cache, no-transform');
+            res.setHeader('Connection', 'keep-alive');
+            res.flushHeaders();
 
             // Connect the transport to the server
             await server.connect(transport);
 
-            logger.info(`SSE transport connected to server for session ${sessionId}`);
+            // Send the endpoint event after connecting to the server
+            // This is important because the client waits for this event to start sending messages
+            const endpointUrl = `/message?sessionId=${sessionId}`;
+            res.write(`event: endpoint\ndata: ${encodeURI(endpointUrl)}\n\n`);
+
+            logger.info(`SSE transport connected to server for session ${sessionId}${isProxy ? ' (proxy)' : ''}${proxyClientId ? ` for client: ${proxyClientId}` : ''}`);
 
             // Handle client disconnect
             req.on('close', () => {
-                logger.info(`Client disconnected for session ${sessionId}`);
+                logger.info(`Client disconnected for session ${sessionId}${isProxy ? ' (proxy)' : ''}${proxyClientId ? ` for client: ${proxyClientId}` : ''}`);
                 sessionManager.removeSession(sessionId);
             });
+
+            // Keep the connection alive with a comment every 30 seconds
+            const keepAliveInterval = setInterval(() => {
+                if (res.writableEnded) {
+                    clearInterval(keepAliveInterval);
+                    return;
+                }
+                res.write(': keepalive\n\n');
+            }, 30000);
 
             // Set up cleanup on server close
             server.onclose = async () => {
@@ -253,6 +304,10 @@ export async function startSseServer(
     // Message endpoint for client-to-server communication
     app.post('/message', async (req: express.Request, res: express.Response) => {
         try {
+            // Check for proxy-specific headers
+            const isProxy = req.headers['x-mcp-proxy'] === 'true';
+            const proxyClientId = req.headers['x-proxy-client-id']?.toString();
+
             // Get session ID from query parameter or header
             const sessionId = req.query.sessionId?.toString() || req.headers['x-session-id']?.toString();
 
@@ -260,13 +315,30 @@ export async function startSseServer(
                 throw new TransportError('Session ID is required', ErrorTypes.TRANSPORT_PROTOCOL);
             }
 
-            logger.debug(`Received message from client for session ${sessionId}`);
+            logger.debug(`Received message from client for session ${sessionId}${isProxy ? ' (proxy)' : ''}${proxyClientId ? ` for client: ${proxyClientId}` : ''}`);
 
-            // Get the session
-            const session = sessionManager.getSession(sessionId);
-            if (!session) {
-                throw new TransportError(`No active session found for ID: ${sessionId}`, ErrorTypes.TRANSPORT_CONNECTION);
+            // Get the session - try different methods based on the request type
+            let session: SessionInfo | undefined;
+
+            if (isProxy && proxyClientId) {
+                // If this is a proxy request with a client ID, try to find the session by proxy client ID first
+                session = sessionManager.getSessionByProxyClientId(proxyClientId);
+
+                // If not found by proxy client ID, fall back to session ID
+                if (!session) {
+                    session = sessionManager.getSession(sessionId);
+                }
+            } else {
+                // Standard request - get by session ID
+                session = sessionManager.getSession(sessionId);
             }
+
+            if (!session) {
+                throw new TransportError(`No active session found for ID: ${sessionId}${proxyClientId ? ` or proxy client ID: ${proxyClientId}` : ''}`, ErrorTypes.TRANSPORT_CONNECTION);
+            }
+
+            // Update last activity timestamp
+            session.lastActivity = new Date();
 
             // Handle the message
             await session.transport.handlePostMessage(req, res);
@@ -303,12 +375,27 @@ export async function startSseServer(
         const sessions = sessionManager.getAllSessions().map(session => ({
             id: session.id,
             createdAt: session.createdAt,
-            lastActivity: session.lastActivity
+            lastActivity: session.lastActivity,
+            isProxy: session.isProxy || false,
+            proxyClientId: session.proxyClientId || null
         }));
 
         res.status(200).send({
             count: sessions.length,
             sessions
+        });
+    });
+
+    // Proxy support endpoint - returns information about proxy support
+    app.get('/proxy-support', (req: express.Request, res: express.Response) => {
+        res.status(200).send({
+            supported: true,
+            version: process.env.npm_package_version || 'unknown',
+            features: [
+                'session-tracking',
+                'client-id-mapping',
+                'proxy-headers'
+            ]
         });
     });
 

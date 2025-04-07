@@ -689,7 +689,7 @@ ENV TRANSPORT_TYPE=stdio
 ENV SSE_PORT=3003
 ENV LOG_LEVEL=info
 
-# Start command
+# Start command (can be overridden by docker-compose)
 CMD ["node", "dist/index.js"]
 ```
 
