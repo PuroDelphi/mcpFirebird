@@ -1,33 +1,19 @@
 // src/prompts/database.ts
-import { z, ZodObject, ZodTypeAny } from 'zod';
+import { z } from 'zod';
 import { createLogger } from '../utils/logger.js';
-import { getTableSchema } from '../db/schema.js';
-import { listTables } from '../db/queries.js';
+import { getTableSchema, getTableRelationships } from '../db/schema.js';
+import { listTables, executeQuery } from '../db/queries.js';
 import { stringifyCompact } from '../utils/jsonHelper.js';
+import { PromptDefinition, createAssistantTextMessage, createErrorMessage } from './types.js';
 
 const logger = createLogger('prompts:database');
 
-/**
- * Interfaz unificada para definir un Prompt MCP.
- */
-export interface PromptDefinition {
-    name: string;
-    description: string;
-    inputSchema: z.ZodTypeAny;
-    // El handler SIEMPRE debe devolver la estructura { messages: [...] }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    handler: (args: any) => Promise<{ messages: { role: string; content: any }[] }>;
-}
-
-// --- Definiciones de Prompts --- //
-
-const createAssistantTextMessage = (text: string) => ({
-    messages: [{ role: "assistant", content: { type: "text", text } }]
-});
+// --- Definiciones de Prompts de Estructura de Base de Datos --- //
 
 const analyzeTablePrompt: PromptDefinition = {
     name: "analyze-table",
     description: "Analyzes the structure of a specific table and returns its schema.",
+    category: "Database Structure",
     inputSchema: z.object({
         tableName: z.string().min(1).describe("Name of the table to analyze")
     }),
@@ -39,35 +25,179 @@ const analyzeTablePrompt: PromptDefinition = {
             return createAssistantTextMessage(resultText);
         } catch (error: any) {
             logger.error(`Error in analyze-table prompt for ${params.tableName}: ${error.message || error}`);
-            const errorText = `Error analyzing table ${params.tableName}: ${error.message || String(error)}`;
-            return createAssistantTextMessage(errorText); // Wrap error in message structure
+            return createErrorMessage(error, `analyzing table ${params.tableName}`);
         }
     }
 };
 
 const listTablesPrompt: PromptDefinition = {
-    name: "list-tables-prompt",
+    name: "list-tables",
     description: "Lists all available tables in the database.",
+    category: "Database Structure",
     inputSchema: z.object({}), // No parameters
     handler: async () => {
-        logger.info('Executing list-tables-prompt');
+        logger.info('Executing list-tables prompt');
         try {
             const tables = await listTables();
-            const tableListText = `Available tables:\n- ${tables.join('\n- ')}`;
+            const tableListText = `Available tables in the database:\n- ${tables.join('\n- ')}`;
             return createAssistantTextMessage(tableListText);
         } catch (error: any) {
-            logger.error(`Error in list-tables-prompt: ${error.message || error}`);
-            const errorText = `Error listing tables: ${error.message || String(error)}`;
-            return createAssistantTextMessage(errorText);
+            logger.error(`Error in list-tables prompt: ${error.message || error}`);
+            return createErrorMessage(error, "listing tables");
+        }
+    }
+};
+
+const analyzeTableRelationshipsPrompt: PromptDefinition = {
+    name: "analyze-table-relationships",
+    description: "Analyzes the relationships of a specific table with other tables.",
+    category: "Database Structure",
+    inputSchema: z.object({
+        tableName: z.string().min(1).describe("Name of the table to analyze relationships for")
+    }),
+    handler: async (params: { tableName: string }) => {
+        logger.info(`Executing analyze-table-relationships prompt for: ${params.tableName}`);
+        try {
+            const relationships = await getTableRelationships(params.tableName);
+            const resultText = `Relationships for table '${params.tableName}':\n\`\`\`json\n${stringifyCompact(relationships)}\n\`\`\``;
+            return createAssistantTextMessage(resultText);
+        } catch (error: any) {
+            logger.error(`Error in analyze-table-relationships prompt for ${params.tableName}: ${error.message || error}`);
+            return createErrorMessage(error, `analyzing relationships for table ${params.tableName}`);
+        }
+    }
+};
+
+const databaseSchemaOverviewPrompt: PromptDefinition = {
+    name: "database-schema-overview",
+    description: "Provides an overview of the database schema including tables and their relationships.",
+    category: "Database Structure",
+    inputSchema: z.object({
+        includeSampleData: z.boolean().optional().describe("Whether to include sample data for each table")
+    }),
+    handler: async (params: { includeSampleData?: boolean }) => {
+        logger.info(`Executing database-schema-overview prompt with includeSampleData=${params.includeSampleData}`);
+        try {
+            // Get all tables
+            const tables = await listTables();
+
+            // Build schema information for each table
+            const schemaInfo = [];
+            for (const table of tables) {
+                const schema = await getTableSchema(table);
+                schemaInfo.push({ table, schema });
+
+                // Add sample data if requested
+                if (params.includeSampleData) {
+                    try {
+                        const sampleData = await executeQuery(`SELECT FIRST 3 * FROM ${table}`);
+                        schemaInfo[schemaInfo.length - 1].sampleData = sampleData;
+                    } catch (error) {
+                        logger.warn(`Could not get sample data for table ${table}: ${error instanceof Error ? error.message : String(error)}`);
+                        schemaInfo[schemaInfo.length - 1].sampleData = "Error retrieving sample data";
+                    }
+                }
+            }
+
+            const resultText = `Database Schema Overview:\n\`\`\`json\n${stringifyCompact(schemaInfo)}\n\`\`\``;
+            return createAssistantTextMessage(resultText);
+        } catch (error: any) {
+            logger.error(`Error in database-schema-overview prompt: ${error.message || error}`);
+            return createErrorMessage(error, "generating database schema overview");
+        }
+    }
+};
+
+// --- Definiciones de Prompts de Análisis de Datos --- //
+
+const analyzeTableDataPrompt: PromptDefinition = {
+    name: "analyze-table-data",
+    description: "Analyzes the data in a specific table and provides statistics.",
+    category: "Data Analysis",
+    inputSchema: z.object({
+        tableName: z.string().min(1).describe("Name of the table to analyze data for"),
+        limit: z.number().optional().describe("Maximum number of rows to analyze")
+    }),
+    handler: async (params: { tableName: string, limit?: number }) => {
+        const limit = params.limit || 1000;
+        logger.info(`Executing analyze-table-data prompt for: ${params.tableName} with limit ${limit}`);
+        try {
+            // Get table schema first
+            const schema = await getTableSchema(params.tableName);
+
+            // Build statistics queries based on column types
+            const statsQueries = [];
+
+            // Count total rows
+            statsQueries.push(`SELECT COUNT(*) as total_rows FROM ${params.tableName}`);
+
+            // For each column, get appropriate statistics based on type
+            for (const column of schema.columns) {
+                const columnName = column.name;
+                const columnType = column.type.toLowerCase();
+
+                // For numeric columns
+                if (columnType.includes('int') || columnType.includes('float') || columnType.includes('numeric') || columnType.includes('decimal')) {
+                    statsQueries.push(`SELECT
+                        MIN(${columnName}) as min_value,
+                        MAX(${columnName}) as max_value,
+                        AVG(${columnName}) as avg_value,
+                        COUNT(${columnName}) as non_null_count
+                    FROM ${params.tableName}`);
+                }
+
+                // For string columns, get distinct value count
+                else if (columnType.includes('char') || columnType.includes('text')) {
+                    statsQueries.push(`SELECT
+                        COUNT(DISTINCT ${columnName}) as distinct_values,
+                        COUNT(${columnName}) as non_null_count
+                    FROM ${params.tableName}`);
+                }
+
+                // For date columns
+                else if (columnType.includes('date') || columnType.includes('time')) {
+                    statsQueries.push(`SELECT
+                        MIN(${columnName}) as earliest_date,
+                        MAX(${columnName}) as latest_date,
+                        COUNT(${columnName}) as non_null_count
+                    FROM ${params.tableName}`);
+                }
+            }
+
+            // Execute all statistics queries
+            const statsResults = {};
+            for (const query of statsQueries) {
+                try {
+                    const result = await executeQuery(query);
+                    // Add to results
+                    Object.assign(statsResults, result[0]);
+                } catch (error) {
+                    logger.warn(`Error executing statistics query: ${query}. Error: ${error instanceof Error ? error.message : String(error)}`);
+                }
+            }
+
+            // Get sample data
+            const sampleData = await executeQuery(`SELECT FIRST ${limit} * FROM ${params.tableName}`);
+
+            const resultText = `Data Analysis for table '${params.tableName}':\n\n**Statistics**:\n\`\`\`json\n${stringifyCompact(statsResults)}\n\`\`\`\n\n**Sample Data** (${Math.min(sampleData.length, limit)} rows):\n\`\`\`json\n${stringifyCompact(sampleData)}\n\`\`\``;
+            return createAssistantTextMessage(resultText);
+        } catch (error: any) {
+            logger.error(`Error in analyze-table-data prompt for ${params.tableName}: ${error.message || error}`);
+            return createErrorMessage(error, `analyzing data for table ${params.tableName}`);
         }
     }
 };
 
 // Array with all database prompt definitions
 const databasePrompts: PromptDefinition[] = [
+    // Database Structure prompts
     analyzeTablePrompt,
-    listTablesPrompt
-    // Add more prompts here...
+    listTablesPrompt,
+    analyzeTableRelationshipsPrompt,
+    databaseSchemaOverviewPrompt,
+
+    // Data Analysis prompts
+    analyzeTableDataPrompt
 ];
 
 // --- Configuration Function --- //

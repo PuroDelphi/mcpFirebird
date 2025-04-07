@@ -49,7 +49,7 @@ import {
 // --- Local Imports ---
 import { type ToolDefinition as DbToolDefinition } from '../tools/database.js';
 import { type ToolDefinition as MetaToolDefinition } from '../tools/metadata.js';
-import { type PromptDefinition } from '../prompts/database.js';
+import { type PromptDefinition } from '../prompts/types.js';
 import { setupDatabaseResources, type ResourceDefinition } from '../resources/database.js';
 import { setupDatabaseTools } from '../tools/database.js';
 import { setupMetadataTools } from '../tools/metadata.js';
