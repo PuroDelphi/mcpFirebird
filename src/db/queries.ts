@@ -609,7 +609,7 @@ export const analyzeQueryPerformance = async (
 export const getExecutionPlan = async (
     sql: string,
     params: any[] = [],
-    config = DEFAULT_CONFIG
+    config = getGlobalConfig() || DEFAULT_CONFIG
 ): Promise<ExecutionPlanResult> => {
     try {
         // Validate the SQL query to prevent injection
@@ -629,13 +629,15 @@ export const getExecutionPlan = async (
         // Intentamos primero con SET EXPLAIN ON que da información más detallada
         try {
             // Ejecutar SET EXPLAIN ON para habilitar la explicación del plan
-            await executeQuery('SET EXPLAIN ON', [], config);
+            // Asegurarse de que estamos usando la configuración correcta
+            const effectiveConfig = getGlobalConfig() || config;
+            await executeQuery('SET EXPLAIN ON', [], effectiveConfig);
 
             // Ejecutar la consulta original para obtener el plan
-            const explainResults = await executeQuery(sql, params, config);
+            const explainResults = await executeQuery(sql, params, effectiveConfig);
 
             // Desactivar EXPLAIN después de obtener el plan
-            await executeQuery('SET EXPLAIN OFF', [], config);
+            await executeQuery('SET EXPLAIN OFF', [], effectiveConfig);
 
             // Si llegamos aquí, el enfoque SET EXPLAIN ON funcionó
             // El plan de ejecución estará en los metadatos de la consulta
@@ -675,7 +677,9 @@ export const getExecutionPlan = async (
             }
 
             // Conectar a la base de datos directamente para ejecutar comandos especiales
-            const db = await connectToDatabase(config);
+            // Asegurarse de que estamos usando la configuración correcta
+            const effectiveConfig = getGlobalConfig() || config;
+            const db = await connectToDatabase(effectiveConfig);
 
             try {
                 // Ejecutar la consulta con PLAN para obtener el plan de ejecución
