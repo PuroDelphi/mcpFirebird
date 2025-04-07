@@ -204,16 +204,17 @@ export async function startSseServer(
 
             // Set headers for SSE (moved here to ensure they are set before any write)
             res.setHeader('Content-Type', 'text/event-stream');
-            res.setHeader('Cache-Control', 'no-cache');
+            res.setHeader('Cache-Control', 'no-cache, no-transform');
             res.setHeader('Connection', 'keep-alive');
             res.flushHeaders();
 
-            // Send the endpoint event first
-            const endpointUrl = `/message?sessionId=${sessionId}`;
-            res.write(`event: endpoint\ndata: ${encodeURI(endpointUrl)}\n\n`);
-
             // Connect the transport to the server
             await server.connect(transport);
+
+            // Send the endpoint event after connecting to the server
+            // This is important because the client waits for this event to start sending messages
+            const endpointUrl = `/message?sessionId=${sessionId}`;
+            res.write(`event: endpoint\ndata: ${encodeURI(endpointUrl)}\n\n`);
 
             logger.info(`SSE transport connected to server for session ${sessionId}`);
 
