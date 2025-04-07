@@ -17,17 +17,17 @@
 </head>
 <body>
     <h1>Cliente SSE para MCP Firebird</h1>
-    
+
     <div>
         <label for="serverUrl">URL del servidor:</label>
-        <input type="text" id="serverUrl" value="http://localhost:3003" />
+        <input type="text" id="serverUrl" value="http://localhost:3004" />
     </div>
-    
+
     <div>
         <button id="connectBtn">Conectar</button>
         <button id="disconnectBtn" disabled>Desconectar</button>
     </div>
-    
+
     <h2>Herramientas disponibles</h2>
     <div>
         <select id="toolSelect">
@@ -36,23 +36,23 @@
             <option value="execute-query">execute-query</option>
             <option value="get-methods">get-methods</option>
         </select>
-        
+
         <div id="paramContainer" style="display: none;">
             <label for="paramInput">Parámetros (JSON):</label>
             <input type="text" id="paramInput" placeholder='{"table": "EMPLOYEE"}' />
         </div>
-        
+
         <button id="executeBtn" disabled>Ejecutar</button>
     </div>
-    
+
     <h2>Registro de eventos</h2>
     <div id="log"></div>
-    
+
     <script>
         let eventSource = null;
         let sessionId = null;
         let requestId = 1;
-        
+
         const serverUrlInput = document.getElementById('serverUrl');
         const connectBtn = document.getElementById('connectBtn');
         const disconnectBtn = document.getElementById('disconnectBtn');
@@ -61,38 +61,49 @@
         const paramInput = document.getElementById('paramInput');
         const executeBtn = document.getElementById('executeBtn');
         const logElement = document.getElementById('log');
-        
+
         function log(message, type = 'info') {
             const entry = document.createElement('div');
             entry.className = `log-entry log-${type}`;
-            
+
             let formattedMessage = message;
             if (typeof message === 'object') {
                 formattedMessage = `<pre>${JSON.stringify(message, null, 2)}</pre>`;
             }
-            
+
             entry.innerHTML = `<strong>${new Date().toLocaleTimeString()}</strong>: ${formattedMessage}`;
             logElement.appendChild(entry);
             logElement.scrollTop = logElement.scrollHeight;
         }
-        
+
         connectBtn.addEventListener('click', () => {
             const serverUrl = serverUrlInput.value;
-            
+
             try {
                 // Generar un ID de sesión único
                 sessionId = `client-${Math.random().toString(36).substring(2, 15)}`;
-                
+
                 // Crear la conexión SSE
                 eventSource = new EventSource(`${serverUrl}`);
-                
+
+                // Esperar el evento 'endpoint' que contiene la URL para enviar mensajes
+                eventSource.addEventListener('endpoint', (event) => {
+                    const endpointUrl = event.data;
+                    log(`Endpoint recibido: ${endpointUrl}`, 'info');
+
+                    // Extraer el sessionId de la URL del endpoint
+                    const url = new URL(endpointUrl, serverUrl);
+                    sessionId = url.searchParams.get('sessionId');
+                    log(`ID de sesión: ${sessionId}`, 'info');
+                });
+
                 eventSource.onopen = () => {
                     log('Conexión SSE establecida', 'success');
                     connectBtn.disabled = true;
                     disconnectBtn.disabled = false;
                     executeBtn.disabled = false;
                 };
-                
+
                 eventSource.onmessage = (event) => {
                     try {
                         const data = JSON.parse(event.data);
@@ -101,41 +112,41 @@
                         log(`Mensaje recibido (no JSON): ${event.data}`, 'receive');
                     }
                 };
-                
+
                 eventSource.onerror = (error) => {
                     log(`Error en la conexión SSE: ${error.message || 'Error desconocido'}`, 'error');
                     disconnectEventSource();
                 };
-                
+
                 log(`Conectando a ${serverUrl}...`);
             } catch (error) {
                 log(`Error al crear la conexión SSE: ${error.message}`, 'error');
             }
         });
-        
+
         disconnectBtn.addEventListener('click', disconnectEventSource);
-        
+
         function disconnectEventSource() {
             if (eventSource) {
                 eventSource.close();
                 eventSource = null;
                 sessionId = null;
-                
+
                 connectBtn.disabled = false;
                 disconnectBtn.disabled = true;
                 executeBtn.disabled = true;
-                
+
                 log('Conexión SSE cerrada');
             }
         }
-        
+
         toolSelect.addEventListener('change', () => {
             // Mostrar el contenedor de parámetros para herramientas que los necesitan
             const selectedTool = toolSelect.value;
-            
+
             if (selectedTool === 'describe-table' || selectedTool === 'execute-query') {
                 paramContainer.style.display = 'block';
-                
+
                 if (selectedTool === 'describe-table') {
                     paramInput.placeholder = '{"table": "EMPLOYEE"}';
                 } else if (selectedTool === 'execute-query') {
@@ -145,16 +156,16 @@
                 paramContainer.style.display = 'none';
             }
         });
-        
+
         executeBtn.addEventListener('click', async () => {
             if (!eventSource || !sessionId) {
                 log('No hay conexión SSE activa', 'error');
                 return;
             }
-            
+
             const selectedTool = toolSelect.value;
             let params = {};
-            
+
             if (paramContainer.style.display !== 'none') {
                 try {
                     params = JSON.parse(paramInput.value || '{}');
@@ -163,28 +174,51 @@
                     return;
                 }
             }
-            
+
             const request = {
                 jsonrpc: '2.0',
                 id: String(requestId++),
                 method: selectedTool,
                 params
             };
-            
+
             log(request, 'send');
-            
+
             try {
                 const serverUrl = serverUrlInput.value;
-                const response = await fetch(`${serverUrl}/message?sessionId=${sessionId}`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(request)
-                });
-                
-                const responseData = await response.json();
-                log(responseData, 'receive');
+
+                // Usar XMLHttpRequest en lugar de fetch para mayor compatibilidad
+                const xhr = new XMLHttpRequest();
+                xhr.open('POST', `${serverUrl}/message?sessionId=${sessionId}`, true);
+                xhr.setRequestHeader('Content-Type', 'application/json');
+
+                xhr.onload = function() {
+                    if (xhr.status >= 200 && xhr.status < 300) {
+                        try {
+                            const responseData = JSON.parse(xhr.responseText);
+                            log(responseData, 'receive');
+                        } catch (jsonError) {
+                            log(`Error al parsear la respuesta JSON: ${jsonError.message}`, 'error');
+                            log(`Respuesta recibida (texto): ${xhr.responseText}`, 'receive');
+                        }
+                    } else {
+                        log(`Error del servidor (${xhr.status}): ${xhr.responseText}`, 'error');
+
+                        // Intentar parsear el error como JSON
+                        try {
+                            const errorJson = JSON.parse(xhr.responseText);
+                            log(`Error JSON: ${JSON.stringify(errorJson, null, 2)}`, 'error');
+                        } catch (e) {
+                            // No es JSON, ya mostramos el texto
+                        }
+                    }
+                };
+
+                xhr.onerror = function() {
+                    log(`Error de red al enviar la solicitud`, 'error');
+                };
+
+                xhr.send(JSON.stringify(request));
             } catch (error) {
                 log(`Error al enviar la solicitud: ${error.message}`, 'error');
             }
