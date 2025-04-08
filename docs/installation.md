@@ -1,35 +1,35 @@
-# Instalación de MCP Firebird
+# Installing MCP Firebird
 
-Este documento proporciona instrucciones detalladas para instalar MCP Firebird y sus dependencias.
+This document provides detailed instructions for installing MCP Firebird and its dependencies.
 
-## Instalación del paquete Node.js
+## Installing the Node.js Package
 
-MCP Firebird está disponible como un paquete npm que puede instalarse globalmente o como dependencia de un proyecto:
+MCP Firebird is available as an npm package that can be installed globally or as a project dependency:
 
 ```bash
-# Instalación global
+# Global installation
 npm install -g mcp-firebird
 
-# Instalación en un proyecto
+# Project installation
 npm install mcp-firebird
 ```
 
-## Herramientas cliente de Firebird
+## Firebird Client Tools
 
-Para las funciones de gestión de bases de datos (backup, restore, validación), necesitas instalar las herramientas cliente de Firebird:
+For database management functions (backup, restore, validation), you need to install the Firebird client tools:
 
 ### Windows
 
-1. Descarga Firebird desde https://firebirdsql.org/en/downloads/
-2. Ejecuta el instalador y selecciona "Componentes cliente" durante la instalación
-3. Añade el directorio bin de Firebird a tu variable de entorno PATH
-   (típicamente C:\Program Files\Firebird\Firebird_X_X\bin)
-4. Reinicia tu terminal o aplicación
+1. Download Firebird from https://firebirdsql.org/en/downloads/
+2. Run the installer and select "Client components" during installation
+3. Add the Firebird bin directory to your PATH environment variable
+   (typically C:\Program Files\Firebird\Firebird_X_X\bin)
+4. Restart your terminal or application
 
 ### macOS
 
 ```bash
-# Usando Homebrew
+# Using Homebrew
 brew install firebird
 ```
 
@@ -47,23 +47,23 @@ sudo dnf install firebird-utils
 
 ### Alpine Linux
 
-Alpine Linux no incluye las herramientas cliente de Firebird necesarias para operaciones de backup/restore.
-Se recomienda usar Debian/Ubuntu para estas operaciones.
+Alpine Linux doesn't include the Firebird client tools needed for backup/restore operations.
+It's recommended to use Debian/Ubuntu for these operations.
 
-## Verificación de la instalación
+## Verifying the Installation
 
-Para verificar que MCP Firebird se ha instalado correctamente, ejecuta:
+To verify that MCP Firebird has been installed correctly, run:
 
 ```bash
 npx mcp-firebird --version
 ```
 
-Deberías ver la versión actual de MCP Firebird.
+You should see the current version of MCP Firebird.
 
-## Próximos pasos
+## Next Steps
 
-Una vez instalado, puedes:
+Once installed, you can:
 
-1. [Configurar MCP Firebird](./configuration.md)
-2. [Ejecutar MCP Firebird con Docker](./docker.md)
-3. [Explorar las herramientas disponibles](./tools.md)
+1. [Configure MCP Firebird](./configuration.md)
+2. [Run MCP Firebird with Docker](./docker.md)
+3. [Explore the available tools](./tools.md)

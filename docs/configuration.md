@@ -1,30 +1,30 @@
-# Configuración de MCP Firebird
+# MCP Firebird Configuration
 
-Este documento describe las diferentes opciones de configuración disponibles para MCP Firebird.
+This document describes the different configuration options available for MCP Firebird.
 
-## Variables de entorno
+## Environment Variables
 
-Puedes configurar el servidor usando variables de entorno:
+You can configure the server using environment variables:
 
 ```bash
-# Configuración básica
+# Basic configuration
 export FIREBIRD_HOST=localhost
 export FIREBIRD_PORT=3050
 export FIREBIRD_DATABASE=/path/to/database.fdb
 export FIREBIRD_USER=SYSDBA
 export FIREBIRD_PASSWORD=masterkey
-export FIREBIRD_ROLE=undefined  # Opcional
+export FIREBIRD_ROLE=undefined  # Optional
 
-# Configuración de directorio (alternativa)
-export FIREBIRD_DATABASE_DIR=/path/to/databases  # Directorio con bases de datos
+# Directory configuration (alternative)
+export FIREBIRD_DATABASE_DIR=/path/to/databases  # Directory with databases
 
-# Configuración de logging
-export LOG_LEVEL=info  # Opciones: debug, info, warn, error
+# Logging configuration
+export LOG_LEVEL=info  # Options: debug, info, warn, error
 ```
 
-Puedes crear un archivo `.env` en la raíz del proyecto para establecer estas variables. Se proporciona un archivo `.env.example` como plantilla.
+You can create a `.env` file in the project root to set these variables. A `.env.example` file is provided as a template.
 
-## Archivo .env de ejemplo
+## Example .env file
 
 ```
 FIREBIRD_HOST=localhost
@@ -34,40 +34,40 @@ FIREBIRD_USER=SYSDBA
 FIREBIRD_PASSWORD=masterkey
 FIREBIRD_ROLE=
 
-# Configuración de transporte
-TRANSPORT_TYPE=stdio  # Opciones: stdio, sse
+# Transport configuration
+TRANSPORT_TYPE=stdio  # Options: stdio, sse
 SSE_PORT=3003
 ```
 
-## Uso con npx
+## Using with npx
 
-Puedes ejecutar el servidor directamente con npx:
+You can run the server directly with npx:
 
 ```bash
 npx mcp-firebird --host localhost --port 3050 --database /path/to/database.fdb --user SYSDBA --password masterkey
 ```
 
-## Transporte SSE (Server-Sent Events)
+## SSE (Server-Sent Events) Transport
 
-MCP Firebird soporta el transporte SSE para comunicación con clientes web:
+MCP Firebird supports SSE transport for communication with web clients:
 
 ```bash
-# Ejecutar con transporte SSE
+# Run with SSE transport
 export TRANSPORT_TYPE=sse
 export SSE_PORT=3003
 npx mcp-firebird
 ```
 
-O usando parámetros de línea de comandos:
+Or using command line parameters:
 
 ```bash
 npx mcp-firebird --transport-type sse --sse-port 3003
 ```
 
-### Ejemplos de cliente SSE
+### SSE Client Examples
 
 ```javascript
-// Cliente JavaScript
+// JavaScript client
 const eventSource = new EventSource('http://localhost:3003');
 
 eventSource.onmessage = (event) => {
@@ -75,7 +75,7 @@ eventSource.onmessage = (event) => {
   console.log('Received:', data);
 };
 
-// Enviar solicitud
+// Send request
 fetch('http://localhost:3003', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
@@ -89,9 +89,9 @@ fetch('http://localhost:3003', {
 });
 ```
 
-## Configuración con Claude Desktop
+## Configuration with Claude Desktop
 
-Para usar el servidor MCP Firebird con Claude Desktop:
+To use the MCP Firebird server with Claude Desktop:
 
 ### Windows
 ```powershell
@@ -103,7 +103,7 @@ code $env:AppData\Claude\claude_desktop_config.json
 code ~/Library/Application\ Support/Claude/claude_desktop_config.json
 ```
 
-Añade la siguiente configuración:
+Add the following configuration:
 
 ```json
 {
@@ -129,6 +129,6 @@ Añade la siguiente configuración:
 }
 ```
 
-> **Nota**: Asegúrate de usar rutas absolutas en la configuración.
+> **Note**: Make sure to use absolute paths in the configuration.
 
-Después de guardar el archivo, necesitas reiniciar Claude Desktop completamente.
+After saving the file, you need to completely restart Claude Desktop.

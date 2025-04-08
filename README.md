@@ -1,44 +1,44 @@
 # MCP Firebird
 
-Implementación del protocolo MCP (Model Context Protocol) de Anthropic para bases de datos Firebird.
+Implementation of Anthropic's MCP (Model Context Protocol) for Firebird databases.
 
-## ¿Qué es MCP Firebird?
+## What is MCP Firebird?
 
-MCP Firebird es un servidor que implementa el [Protocolo de Contexto de Modelo (MCP)](https://github.com/anthropics/anthropic-cookbook/tree/main/model_context_protocol) de Anthropic para bases de datos [Firebird SQL](https://firebirdsql.org/). Permite a los Modelos de Lenguaje de Gran Tamaño (LLMs) como Claude acceder, analizar y manipular datos en bases de datos Firebird de manera segura y controlada.
+MCP Firebird is a server that implements Anthropic's [Model Context Protocol (MCP)](https://github.com/anthropics/anthropic-cookbook/tree/main/model_context_protocol) for [Firebird SQL databases](https://firebirdsql.org/). It allows Large Language Models (LLMs) like Claude to access, analyze, and manipulate data in Firebird databases securely and in a controlled manner.
 
-## Características principales
+## Key Features
 
-- **Consultas SQL**: Ejecuta consultas SQL en bases de datos Firebird
-- **Análisis de esquema**: Obtiene información detallada sobre tablas, columnas y relaciones
-- **Gestión de bases de datos**: Realiza operaciones de backup, restore y validación
-- **Análisis de rendimiento**: Analiza el rendimiento de consultas y sugiere optimizaciones
-- **Múltiples transportes**: Soporta transportes STDIO y SSE (Server-Sent Events)
-- **Integración con Claude**: Funciona perfectamente con Claude Desktop y otros clientes MCP
-- **Seguridad**: Incluye validación de consultas SQL y opciones de configuración de seguridad
+- **SQL Queries**: Execute SQL queries on Firebird databases
+- **Schema Analysis**: Get detailed information about tables, columns, and relationships
+- **Database Management**: Perform backup, restore, and validation operations
+- **Performance Analysis**: Analyze query performance and suggest optimizations
+- **Multiple Transports**: Supports STDIO and SSE (Server-Sent Events) transports
+- **Claude Integration**: Works seamlessly with Claude Desktop and other MCP clients
+- **Security**: Includes SQL query validation and security configuration options
 
-## Instalación rápida
+## Quick Installation
 
 ```bash
-# Instalación global
+# Global installation
 npm install -g mcp-firebird
 
-# Ejecutar el servidor
+# Run the server
 npx mcp-firebird --database /path/to/database.fdb
 ```
 
-Para operaciones de backup/restore, necesitarás instalar las herramientas cliente de Firebird. Ver [Instalación completa](./docs/installation.md) para más detalles.
+For backup/restore operations, you'll need to install the Firebird client tools. See [Complete Installation](./docs/installation.md) for more details.
 
-## Uso básico
+## Basic Usage
 
-### Con Claude Desktop
+### With Claude Desktop
 
-1. Edita la configuración de Claude Desktop:
+1. Edit the Claude Desktop configuration:
    ```bash
    code $env:AppData\Claude\claude_desktop_config.json  # Windows
    code ~/Library/Application\ Support/Claude/claude_desktop_config.json  # macOS
    ```
 
-2. Añade la configuración de MCP Firebird:
+2. Add the MCP Firebird configuration:
    ```json
    {
      "mcpServers": {
@@ -55,45 +55,46 @@ Para operaciones de backup/restore, necesitarás instalar las herramientas clien
    }
    ```
 
-3. Reinicia Claude Desktop
+3. Restart Claude Desktop
 
-### Con transporte SSE
+### With SSE Transport
 
 ```bash
-# Iniciar con transporte SSE
+# Start with SSE transport
 npx mcp-firebird --transport-type sse --sse-port 3003 --database /path/to/database.fdb
 ```
 
-## Documentación
+## Documentation
 
-Para información más detallada, consulta los siguientes documentos:
+For more detailed information, check the following documents:
 
-- [Instalación completa](./docs/installation.md)
-- [Opciones de configuración](./docs/configuration.md)
-- [Herramientas disponibles](./docs/tools.md)
-- [Configuración de Docker](./docs/docker.md)
-- [Uso desde diferentes lenguajes](./docs/clients.md)
-- [Seguridad](./docs/security.md)
-- [Solución de problemas](./docs/troubleshooting.md)
-- [Casos de uso y ejemplos](./docs/use-cases.md)
+- [Complete Installation](./docs/installation.md)
+- [Configuration Options](./docs/configuration.md)
+- [Available Tools](./docs/tools.md)
+- [Docker Configuration](./docs/docker.md)
+- [Usage from Different Languages](./docs/clients.md)
+- [Security](./docs/security.md)
+- [Troubleshooting](./docs/troubleshooting.md)
+- [Use Cases and Examples](./docs/use-cases.md)
 
-## Versiones recientes
+## Recent Versions
 
-### Versión 2.0.7-alpha.4
+### Version 2.0.7-alpha.5
 
-- Mejorada la detección de herramientas cliente de Firebird
-- Actualizado el Dockerfile para usar Debian en lugar de Alpine
-- Corregidos problemas con las operaciones de backup/restore
-- Mejorada la documentación y organización
-- Ampliada la documentación de seguridad con ejemplos detallados
+- Improved detection of Firebird client tools
+- Updated Dockerfile to use Debian instead of Alpine
+- Fixed issues with backup/restore operations
+- Improved documentation and organization
+- Expanded security documentation with detailed examples
+- Translated documentation to English
 
-### Versión 2.0.5-alpha.27
+### Version 2.0.5-alpha.27
 
-- Añadido soporte para transporte SSE
-- Mejorada la compatibilidad con Claude Desktop
-- Añadidas herramientas de análisis de rendimiento
-- Corregidos problemas de conexión a la base de datos
+- Added support for SSE transport
+- Improved compatibility with Claude Desktop
+- Added performance analysis tools
+- Fixed database connection issues
 
-## Licencia
+## License
 
-Este proyecto está licenciado bajo la Licencia MIT - ver el archivo [LICENSE](LICENSE) para más detalles.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
