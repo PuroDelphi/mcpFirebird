@@ -1,5 +1,7 @@
 # MCP Firebird
 
+[![smithery badge](https://smithery.ai/badge/@PuroDelphi/mcpFirebird)](https://smithery.ai/server/@PuroDelphi/mcpFirebird)
+
 Implementation of Anthropic's MCP protocol for Firebird databases.
 
 ## What is MCP Firebird and what is it for?
@@ -10,6 +12,15 @@ You'll find use cases and examples below.
 
 ## Installation
 
+### Installing via Smithery
+
+To install MCP Firebird for Claude Desktop automatically via [Smithery](https://smithery.ai/server/@PuroDelphi/mcpFirebird):
+
+```bash
+npx -y @smithery/cli install @PuroDelphi/mcpFirebird --client claude
+```
+
+### Manual Installation
 ```bash
 # Global installation
 npm install -g mcp-firebird
