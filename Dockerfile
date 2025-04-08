@@ -1,7 +1,11 @@
-# Usar Node.js LTS como imagen base
-FROM node:20-alpine
+# Usar Node.js LTS con Debian como imagen base
+FROM node:20-slim
 
-# No se requiere instalar el cliente de Firebird ya que MCP Firebird incluye su propio cliente Node.js
+# Instalar herramientas cliente de Firebird
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends firebird3.0-utils && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
 # Crear directorio de trabajo
 WORKDIR /app
