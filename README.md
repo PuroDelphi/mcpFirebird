@@ -79,12 +79,13 @@ Para información más detallada, consulta los siguientes documentos:
 
 ## Versiones recientes
 
-### Versión 2.0.7-alpha.3
+### Versión 2.0.7-alpha.4
 
 - Mejorada la detección de herramientas cliente de Firebird
 - Actualizado el Dockerfile para usar Debian en lugar de Alpine
 - Corregidos problemas con las operaciones de backup/restore
 - Mejorada la documentación y organización
+- Ampliada la documentación de seguridad con ejemplos detallados
 
 ### Versión 2.0.5-alpha.27
 
