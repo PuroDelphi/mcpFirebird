@@ -1,8 +1,7 @@
 # Usar Node.js LTS como imagen base
 FROM node:20-alpine
 
-# Instalar dependencias de Firebird
-RUN apk add --no-cache --repository=http://dl-cdn.alpinelinux.org/alpine/edge/community fbclient
+# No se requiere instalar el cliente de Firebird ya que MCP Firebird incluye su propio cliente Node.js
 
 # Crear directorio de trabajo
 WORKDIR /app

@@ -653,8 +653,7 @@ You can run the MCP Firebird server in a Docker container with support for both 
 ```dockerfile
 FROM node:20-alpine
 
-# Install necessary dependencies for Firebird
-RUN apk add --no-cache --repository=http://dl-cdn.alpinelinux.org/alpine/edge/community fbclient
+# No external Firebird client needed as MCP Firebird includes its own Node.js client
 
 # Create application directory
 WORKDIR /app
