@@ -1,11 +1,11 @@
-# Uso de MCP Firebird desde diferentes lenguajes
+# Using MCP Firebird from Different Languages
 
-Este documento muestra cómo usar MCP Firebird desde diferentes lenguajes de programación.
+This document shows how to use MCP Firebird from different programming languages.
 
 ## TypeScript/JavaScript
 
 ```typescript
-// Ejemplo con TypeScript/JavaScript
+// Example with TypeScript/JavaScript
 import { spawn } from 'child_process';
 import { createInterface } from 'readline';
 
@@ -16,7 +16,7 @@ class McpFirebirdClient {
   private responseHandlers = new Map();
 
   constructor(databasePath: string, user = 'SYSDBA', password = 'masterkey') {
-    // Iniciar el proceso del servidor MCP
+    // Start the MCP server process
     this.process = spawn('npx', [
       'mcp-firebird',
       '--database', databasePath,
@@ -24,7 +24,7 @@ class McpFirebirdClient {
       '--password', password
     ]);
 
-    // Configurar el lector de líneas para procesar respuestas
+    // Configure the line reader to process responses
     this.readline = createInterface({
       input: this.process.stdout,
       terminal: false
@@ -78,16 +78,16 @@ class McpFirebirdClient {
   }
 }
 
-// Uso del cliente
+// Client usage
 async function main() {
   const client = new McpFirebirdClient('/path/to/database.fdb');
-  
+
   try {
-    // Listar tablas
+    // List tables
     const tables = await client.listTables();
     console.log('Tables:', tables);
-    
-    // Ejecutar una consulta
+
+    // Execute a query
     const results = await client.executeQuery('SELECT * FROM EMPLOYEES');
     console.log('Results:', results);
   } finally {
@@ -101,14 +101,14 @@ main().catch(console.error);
 ## Python
 
 ```python
-# Ejemplo con Python
+# Example with Python
 import json
 import subprocess
 from subprocess import PIPE
 
 class McpFirebirdClient:
     def __init__(self, database_path, user='SYSDBA', password='masterkey'):
-        # Iniciar el proceso del servidor MCP
+        # Start the MCP server process
         self.process = subprocess.Popen(
             ['npx', 'mcp-firebird', '--database', database_path, '--user', user, '--password', password],
             stdin=PIPE,
@@ -118,56 +118,56 @@ class McpFirebirdClient:
             bufsize=1
         )
         self.request_id = 1
-    
+
     def send_request(self, method, params=None):
         if params is None:
             params = {}
-        
+
         request = {
             'id': self.request_id,
             'method': method,
             'params': params
         }
         self.request_id += 1
-        
-        # Enviar la solicitud al proceso
+
+        # Send the request to the process
         request_str = json.dumps(request) + '\n'
         self.process.stdin.write(request_str)
         self.process.stdin.flush()
-        
-        # Leer la respuesta
+
+        # Read the response
         response_str = self.process.stdout.readline()
         response = json.loads(response_str)
-        
+
         if 'error' in response:
             raise Exception(response['error'])
-        
+
         return response['result']
-    
+
     def list_tables(self):
         return self.send_request('list-tables')
-    
+
     def execute_query(self, sql, params=None):
         if params is None:
             params = []
         return self.send_request('execute-query', {'sql': sql, 'params': params})
-    
+
     def close(self):
         self.process.terminate()
         self.process.wait()
 
-# Uso del cliente
+# Client usage
 client = McpFirebirdClient('/path/to/database.fdb')
 try:
-    # Obtener información del servidor
+    # Get server information
     server_info = client.send_request('ping')
     print(f"MCP Server: {server_info}")
 
-    # Listar tablas
+    # List tables
     tables = client.list_tables()
     print(f"Available tables: {tables}")
 
-    # Ejecutar una consulta
+    # Execute a query
     results = client.execute_query("SELECT FIRST 10 * FROM EMPLOYEES")
     print(f"Results: {results}")
 finally:
@@ -177,7 +177,7 @@ finally:
 ## Delphi
 
 ```delphi
-// Ejemplo con Delphi
+// Example with Delphi
 program McpFirebirdClient;
 
 {$APPTYPE CONSOLE}
@@ -205,7 +205,7 @@ begin
   inherited Create;
   FRequestId := 1;
 
-  // Crear y configurar el proceso
+  // Create and configure the process
   FProcess := TProcess.Create(nil);
   FProcess.Executable := 'npx';
   FProcess.Parameters.Add('mcp-firebird');
@@ -219,7 +219,7 @@ begin
   FProcess.Options := [poUsePipes, poStderrToOutPut];
   FProcess.Execute;
 
-  // Esperar a que el servidor se inicie
+  // Wait for the server to start
   Sleep(2000);
 end;
 
@@ -234,7 +234,7 @@ var
   Request: TJSONObject;
   RequestStr, ResponseStr: string;
 begin
-  // Crear la solicitud JSON
+  // Create the JSON request
   Request := TJSONObject.Create;
   try
     Request.AddPair('id', TJSONNumber.Create(FRequestId));
@@ -248,10 +248,10 @@ begin
 
     RequestStr := Request.ToString + #10;
 
-    // Enviar la solicitud al proceso
+    // Send the request to the process
     FProcess.Input.Write(RequestStr[1], Length(RequestStr) * 2);
 
-    // Leer la respuesta
+    // Read the response
     ResponseStr := ReadResponse;
     Result := TJSONObject.ParseJSONValue(ResponseStr) as TJSONObject;
   finally
@@ -324,16 +324,16 @@ begin
   try
     WriteLn('Starting MCP Firebird client...');
 
-    // Crear el cliente
+    // Create the client
     Client := TMcpFirebirdClient.Create('C:\Databases\example.fdb', 'SYSDBA', 'masterkey');
     try
-      // Listar tablas
+      // List tables
       Tables := Client.ListTables;
       WriteLn('Available tables:');
       for I := 0 to Tables.Count - 1 do
         WriteLn('- ', Tables.Items[I].GetValue<string>('name'));
 
-      // Ejecutar una consulta
+      // Execute a query
       QueryResults := Client.ExecuteQuery('SELECT FIRST 10 * FROM EMPLOYEES');
       WriteLn('Query results: ', QueryResults.Count, ' rows');
     finally

@@ -1,12 +1,12 @@
-# Herramientas disponibles en MCP Firebird
+# Available Tools in MCP Firebird
 
-MCP Firebird proporciona varias herramientas para interactuar con bases de datos Firebird. Estas herramientas están disponibles a través del protocolo MCP.
+MCP Firebird provides several tools for interacting with Firebird databases. These tools are available through the MCP protocol.
 
-## Herramientas de consulta
+## Query Tools
 
 ### 1. execute-query
 
-Ejecuta una consulta SQL en la base de datos Firebird.
+Executes a SQL query in the Firebird database.
 
 ```json
 {
@@ -17,7 +17,7 @@ Ejecuta una consulta SQL en la base de datos Firebird.
 
 ### 2. list-tables
 
-Lista todas las tablas de usuario en la base de datos actual.
+Lists all user tables in the current database.
 
 ```json
 {}
@@ -25,7 +25,7 @@ Lista todas las tablas de usuario en la base de datos actual.
 
 ### 3. describe-table
 
-Obtiene el esquema detallado (columnas, tipos, etc.) de una tabla específica.
+Gets the detailed schema (columns, types, etc.) of a specific table.
 
 ```json
 {
@@ -35,7 +35,7 @@ Obtiene el esquema detallado (columnas, tipos, etc.) de una tabla específica.
 
 ### 4. get-field-descriptions
 
-Obtiene las descripciones almacenadas para los campos de una tabla específica (si existen).
+Gets the stored descriptions for fields of a specific table (if they exist).
 
 ```json
 {
@@ -43,11 +43,11 @@ Obtiene las descripciones almacenadas para los campos de una tabla específica (
 }
 ```
 
-## Herramientas de análisis
+## Analysis Tools
 
 ### 5. analyze-query-performance
 
-Analiza el rendimiento de una consulta SQL ejecutándola varias veces y midiendo el tiempo de ejecución.
+Analyzes the performance of a SQL query by executing it multiple times and measuring execution time.
 
 ```json
 {
@@ -59,7 +59,7 @@ Analiza el rendimiento de una consulta SQL ejecutándola varias veces y midiendo
 
 ### 6. get-execution-plan
 
-Obtiene el plan de ejecución para una consulta SQL para entender cómo la base de datos la ejecutará.
+Gets the execution plan for a SQL query to understand how the database will execute it.
 
 ```json
 {
@@ -69,7 +69,7 @@ Obtiene el plan de ejecución para una consulta SQL para entender cómo la base 
 
 ### 7. analyze-missing-indexes
 
-Analiza una consulta SQL para identificar índices faltantes que podrían mejorar el rendimiento.
+Analyzes a SQL query to identify missing indexes that could improve performance.
 
 ```json
 {
@@ -77,60 +77,60 @@ Analiza una consulta SQL para identificar índices faltantes que podrían mejora
 }
 ```
 
-## Herramientas de gestión de bases de datos
+## Database Management Tools
 
 ### 8. backup-database
 
-Crea una copia de seguridad de la base de datos Firebird.
+Creates a backup of the Firebird database.
 
 ```json
 {
   "backupPath": "C:\\backups\\mydb_backup.fbk",
   "options": {
-    "format": "gbak",  // "gbak" (copia de seguridad completa) o "nbackup" (incremental)
-    "compress": true,  // Si se debe comprimir la copia de seguridad
-    "metadata_only": false,  // Si solo se debe hacer copia de seguridad de los metadatos (sin datos)
-    "verbose": true  // Si se debe mostrar progreso detallado
+    "format": "gbak",  // "gbak" (full backup) or "nbackup" (incremental)
+    "compress": true,  // Whether to compress the backup
+    "metadata_only": false,  // Whether to backup only metadata (no data)
+    "verbose": true  // Whether to show detailed progress
   }
 }
 ```
 
 ### 9. restore-database
 
-Restaura una base de datos Firebird desde una copia de seguridad.
+Restores a Firebird database from a backup.
 
 ```json
 {
   "backupPath": "C:\\backups\\mydb_backup.fbk",
   "targetPath": "C:\\databases\\restored_db.fdb",
   "options": {
-    "replace": true,  // Si se debe reemplazar la base de datos destino si existe
-    "pageSize": 8192,  // Tamaño de página para la base de datos restaurada
-    "verbose": true  // Si se debe mostrar progreso detallado
+    "replace": true,  // Whether to replace the target database if it exists
+    "pageSize": 8192,  // Page size for the restored database
+    "verbose": true  // Whether to show detailed progress
   }
 }
 ```
 
 ### 10. validate-database
 
-Valida la integridad de la base de datos Firebird.
+Validates the integrity of the Firebird database.
 
 ```json
 {
   "options": {
-    "checkData": true,  // Si se debe validar la integridad de los datos
-    "checkIndexes": true,  // Si se debe validar los índices
-    "fixErrors": false,  // Si se debe intentar corregir errores
-    "verbose": true  // Si se debe mostrar progreso detallado
+    "checkData": true,  // Whether to validate data integrity
+    "checkIndexes": true,  // Whether to validate indexes
+    "fixErrors": false,  // Whether to attempt to fix errors
+    "verbose": true  // Whether to show detailed progress
   }
 }
 ```
 
-## Herramientas de utilidad
+## Utility Tools
 
 ### 11. ping
 
-Prueba la conectividad al servidor MCP Firebird.
+Tests connectivity to the MCP Firebird server.
 
 ```json
 {}
@@ -138,7 +138,7 @@ Prueba la conectividad al servidor MCP Firebird.
 
 ### 12. echo
 
-Devuelve el mensaje de entrada.
+Echoes back the input message.
 
 ```json
 {
@@ -148,7 +148,7 @@ Devuelve el mensaje de entrada.
 
 ### 13. get-methods
 
-Devuelve una descripción de todas las herramientas MCP disponibles.
+Returns a description of all available MCP tools.
 
 ```json
 {}
@@ -156,7 +156,7 @@ Devuelve una descripción de todas las herramientas MCP disponibles.
 
 ### 14. describe-method
 
-Devuelve una descripción de una herramienta MCP específica.
+Returns a description of a specific MCP tool.
 
 ```json
 {

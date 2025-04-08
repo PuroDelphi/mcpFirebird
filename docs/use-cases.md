@@ -1,150 +1,161 @@
-# Casos de uso de MCP Firebird
+# MCP Firebird Use Cases
 
-Este documento presenta ejemplos prácticos y casos de uso para MCP Firebird.
+This document presents practical examples and use cases for MCP Firebird.
 
-## Casos de uso
+## Use Cases
 
-### 1. Análisis de datos con LLMs
+### 1. Data Analysis with LLMs
 
-MCP Firebird permite a modelos de lenguaje como Claude analizar datos en bases de datos Firebird, generando informes, visualizaciones y recomendaciones basadas en los datos.
+MCP Firebird allows language models like Claude to analyze data in Firebird databases, generating reports, visualizations, and recommendations based on the data.
 
-### 2. Asistente de consultas SQL
+### 2. SQL Query Assistant
 
-Utiliza MCP Firebird con un LLM para generar consultas SQL a partir de preguntas en lenguaje natural, explicar consultas existentes o sugerir optimizaciones.
+Use MCP Firebird with an LLM to generate SQL queries from natural language questions, explain existing queries, or suggest optimizations.
 
-### 3. Documentación automática de bases de datos
+### 3. Automatic Database Documentation
 
-Genera documentación detallada de la estructura de la base de datos, incluyendo descripciones de tablas, relaciones y ejemplos de uso.
+Generate detailed documentation of the database structure, including table descriptions, relationships, and usage examples.
 
-### 4. Migración y transformación de datos
+### 4. Data Migration and Transformation
 
-Facilita la migración entre diferentes versiones de Firebird o hacia otros sistemas de bases de datos, generando scripts de transformación.
+Facilitate migration between different Firebird versions or to other database systems by generating transformation scripts.
 
-### 5. Monitoreo y diagnóstico
+### 5. Monitoring and Diagnostics
 
-Analiza el rendimiento de la base de datos, identifica cuellos de botella y sugiere mejoras en índices o estructura.
+Analyze database performance, identify bottlenecks, and suggest improvements in indexes or structure.
 
-### 6. Interfaz conversacional para bases de datos
+### 6. Conversational Database Interface
 
-Crea una interfaz de chat que permita a usuarios no técnicos consultar y actualizar datos mediante conversaciones en lenguaje natural.
+Create a chat interface that allows non-technical users to query and update data through natural language conversations.
 
-## Ejemplo de análisis de ventas
+## Example Scenarios
 
-Este ejemplo muestra cómo usar MCP Firebird con Claude para analizar datos de ventas:
-
-```
-Usuario: Analiza las tendencias de ventas del último trimestre por región.
-
-Claude: Voy a analizar las tendencias de ventas del último trimestre por región. Primero, necesito obtener los datos relevantes.
-
-[Claude usa MCP Firebird para ejecutar consultas SQL]
-
-Basado en los datos de ventas del último trimestre, puedo identificar las siguientes tendencias por región:
-
-1. **Región Norte**: 
-   - Ventas totales: $1,245,678
-   - Crecimiento: +12.3% respecto al trimestre anterior
-   - Productos más vendidos: Electrónicos (42%), Muebles (28%)
-
-2. **Región Sur**:
-   - Ventas totales: $987,654
-   - Crecimiento: +5.7% respecto al trimestre anterior
-   - Productos más vendidos: Ropa (38%), Alimentos (31%)
-
-3. **Región Este**:
-   - Ventas totales: $1,567,890
-   - Crecimiento: +18.2% respecto al trimestre anterior
-   - Productos más vendidos: Electrónicos (45%), Ropa (25%)
-
-4. **Región Oeste**:
-   - Ventas totales: $876,543
-   - Crecimiento: -2.1% respecto al trimestre anterior
-   - Productos más vendidos: Muebles (35%), Alimentos (30%)
-
-**Conclusiones clave**:
-- La Región Este muestra el mayor crecimiento (+18.2%)
-- La Región Oeste es la única con crecimiento negativo (-2.1%)
-- Los Electrónicos son la categoría líder en las regiones de mayor crecimiento
-
-**Recomendaciones**:
-1. Investigar la caída en ventas de la Región Oeste
-2. Aumentar el inventario de Electrónicos en las Regiones Norte y Este
-3. Considerar promociones cruzadas de Muebles y Electrónicos
-
-¿Te gustaría profundizar en alguna región o categoría específica?
-```
-
-## Ejemplo de optimización de consultas
-
-Este ejemplo muestra cómo usar MCP Firebird con Claude para optimizar consultas SQL:
+### Example 1: Sales Data Analysis
 
 ```
-Usuario: Esta consulta está funcionando lento. ¿Puedes ayudarme a optimizarla?
-SELECT c.CUSTOMER_NAME, o.ORDER_DATE, p.PRODUCT_NAME, oi.QUANTITY, oi.PRICE
-FROM CUSTOMERS c, ORDERS o, ORDER_ITEMS oi, PRODUCTS p
-WHERE c.CUSTOMER_ID = o.CUSTOMER_ID
-AND o.ORDER_ID = oi.ORDER_ID
-AND oi.PRODUCT_ID = p.PRODUCT_ID
-AND o.ORDER_DATE > '2023-01-01'
+User: I need to analyze our sales data for the last quarter. Can you help me identify the top-selling products and any trends?
 
-Claude: Voy a analizar esta consulta y sugerir optimizaciones. Primero, veamos el plan de ejecución actual.
+Claude: I'll help you analyze the sales data. Let me first check what tables are available.
 
-[Claude usa MCP Firebird para obtener el plan de ejecución]
+[Claude uses MCP Firebird to list tables and examine the schema]
 
-La consulta actual tiene varios problemas:
+Based on the data, here are the top-selling products for Q3 2023:
+1. Product X - 1,245 units ($125,450)
+2. Product Y - 987 units ($98,700)
+3. Product Z - 856 units ($42,800)
 
-1. Usa sintaxis de join implícito (estilo antiguo) en lugar de JOINs explícitos
-2. No tiene índices adecuados para las condiciones de filtrado
-3. No limita el número de resultados
-
-Aquí está la consulta optimizada:
-
-```sql
-SELECT c.CUSTOMER_NAME, o.ORDER_DATE, p.PRODUCT_NAME, oi.QUANTITY, oi.PRICE
-FROM ORDERS o
-INNER JOIN CUSTOMERS c ON c.CUSTOMER_ID = o.CUSTOMER_ID
-INNER JOIN ORDER_ITEMS oi ON o.ORDER_ID = oi.ORDER_ID
-INNER JOIN PRODUCTS p ON oi.PRODUCT_ID = p.PRODUCT_ID
-WHERE o.ORDER_DATE > '2023-01-01'
+I've noticed a trend where sales of Product X increase by 15% on weekends, while Product Z sells better during weekdays. Would you like me to generate a detailed report with visualizations?
 ```
 
-También recomiendo crear los siguientes índices:
+### Example 2: Database Schema Optimization
 
-```sql
-CREATE INDEX IDX_ORDERS_DATE ON ORDERS (ORDER_DATE);
-CREATE INDEX IDX_ORDER_ITEMS_ORDER_ID ON ORDER_ITEMS (ORDER_ID);
+```
+User: Our application is running slowly when querying the ORDERS table. Can you help optimize it?
+
+Claude: I'll help you optimize the ORDERS table. Let me analyze its structure and query performance.
+
+[Claude uses MCP Firebird to examine the table schema, indexes, and query execution plans]
+
+I've identified several issues:
+1. The query "SELECT * FROM ORDERS WHERE CUSTOMER_ID = ?" is missing an index on CUSTOMER_ID
+2. The ORDER_DATE column is being stored as VARCHAR instead of DATE type
+3. There's a JOIN with CUSTOMERS table that could be optimized
+
+Here's my recommendation for creating an index:
+
+CREATE INDEX IDX_ORDERS_CUSTOMER_ID ON ORDERS (CUSTOMER_ID);
+
+Would you like me to suggest more optimizations or help implement this one?
 ```
 
-[Claude usa MCP Firebird para analizar el rendimiento de la consulta optimizada]
+### Example 3: Data Migration Planning
 
-La consulta optimizada es aproximadamente 3.5 veces más rápida que la original. El tiempo de ejecución se redujo de 1250ms a 350ms.
+```
+User: We need to migrate our Firebird 2.5 database to Firebird 3.0. What should we consider?
 
-¿Quieres que implemente estos cambios o necesitas más detalles sobre la optimización?
+Claude: I'll help you plan your migration from Firebird 2.5 to 3.0. Let me analyze your current database structure.
+
+[Claude uses MCP Firebird to examine the database schema and features in use]
+
+Based on your database, here are key considerations for migration:
+1. Firebird 3.0 uses a new ODS (On-Disk Structure) version, requiring a backup/restore
+2. Your database uses 8 legacy UDFs that need to be replaced with UDRs in Firebird 3.0
+3. You have 3 triggers using deprecated syntax that needs updating
+4. The new SQL features in FB 3.0 can optimize your complex reporting queries
+
+Here's a step-by-step migration plan including backup commands, syntax updates, and testing procedures...
 ```
 
-## Integración con agentes de IA
+## Integration Examples
 
-### Claude en la terminal
+### Web Application Integration
 
-Puedes usar MCP Firebird con Claude en la terminal para análisis de datos ad-hoc:
+```javascript
+// Example of integrating MCP Firebird with a web application
+const express = require('express');
+const { spawn } = require('child_process');
+const app = express();
 
-```bash
-# Iniciar MCP Firebird
-npx mcp-firebird --database /path/to/database.fdb &
+// Start MCP Firebird server
+const mcpServer = spawn('npx', [
+  'mcp-firebird',
+  '--database', '/path/to/database.fdb',
+  '--transport-type', 'sse',
+  '--sse-port', '3003'
+]);
 
-# Configurar Claude para usar MCP Firebird
-export CLAUDE_API_KEY=your_api_key
-export CLAUDE_MCP_SERVER=mcp-firebird
+// API endpoint that uses MCP Firebird
+app.get('/api/sales-report', async (req, res) => {
+  // Call Claude API with MCP Firebird connection info
+  const claudeResponse = await callClaude({
+    prompt: "Generate a sales report for the last month",
+    tools: [{
+      name: "mcp-firebird",
+      url: "http://localhost:3003"
+    }]
+  });
+  
+  res.json(claudeResponse);
+});
 
-# Iniciar Claude CLI
-claude-cli
+app.listen(3000, () => {
+  console.log('Server running on port 3000');
+});
 ```
 
-### Otros agentes de IA
+### Desktop Application Integration
 
-MCP Firebird se puede integrar con cualquier agente de IA que soporte el protocolo MCP, incluyendo:
+```csharp
+// Example of integrating MCP Firebird with a desktop application
+using System;
+using System.Diagnostics;
 
-- Asistentes personalizados basados en Claude
-- Agentes de automatización
-- Herramientas de análisis de datos
-- Chatbots empresariales
+class McpFirebirdIntegration
+{
+    private Process mcpProcess;
+    
+    public void StartMcpServer()
+    {
+        mcpProcess = new Process();
+        mcpProcess.StartInfo.FileName = "npx";
+        mcpProcess.StartInfo.Arguments = "mcp-firebird --database C:\\path\\to\\database.fdb";
+        mcpProcess.StartInfo.UseShellExecute = false;
+        mcpProcess.Start();
+    }
+    
+    public void StopMcpServer()
+    {
+        if (!mcpProcess.HasExited)
+        {
+            mcpProcess.Kill();
+        }
+    }
+    
+    public string GenerateReport(string reportType)
+    {
+        // Call Claude API with MCP connection
+        // Process results and return formatted report
+        return "Generated report content";
+    }
+}
+```

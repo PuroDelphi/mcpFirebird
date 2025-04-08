@@ -1,45 +1,45 @@
-# Configuración de Docker para MCP Firebird
+# Docker Configuration for MCP Firebird
 
-Este documento describe cómo ejecutar MCP Firebird en un contenedor Docker.
+This document describes how to run MCP Firebird in a Docker container.
 
 ## Dockerfile
 
-Puedes ejecutar el servidor MCP Firebird en un contenedor Docker con soporte para transportes STDIO y SSE:
+You can run the MCP Firebird server in a Docker container with support for STDIO and SSE transports:
 
 ```dockerfile
-# Usar Node.js LTS con Debian como imagen base
+# Use Node.js LTS with Debian as base image
 FROM node:20-slim
 
-# Instalar herramientas cliente de Firebird para operaciones de backup/restore
+# Install Firebird client tools for backup/restore operations
 RUN apt-get update && \
     apt-get install -y --no-install-recommends firebird3.0-utils && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Crear directorio de trabajo
+# Create working directory
 WORKDIR /app
 
-# Copiar archivos de configuración y dependencias
+# Copy configuration files and dependencies
 COPY package*.json ./
 COPY tsconfig.json ./
 
-# Instalar dependencias
+# Install dependencies
 RUN npm install
 
-# Copiar el código fuente
+# Copy source code
 COPY src/ ./src/
 COPY run-sse-server.js ./
 COPY run-sse-proxy.js ./
 COPY run-inspector.cjs ./
 COPY run-inspector.js ./
 
-# Compilar el proyecto TypeScript
+# Compile the TypeScript project
 RUN npm run build
 
-# Exponer puerto para SSE
+# Expose port for SSE
 EXPOSE 3003
 
-# Variables de entorno por defecto
+# Default environment variables
 ENV FIREBIRD_HOST=localhost
 ENV FIREBIRD_PORT=3050
 ENV FIREBIRD_USER=SYSDBA
@@ -49,14 +49,14 @@ ENV TRANSPORT_TYPE=stdio
 ENV SSE_PORT=3003
 ENV LOG_LEVEL=info
 
-# Crear directorio para la base de datos
+# Create directory for the database
 RUN mkdir -p /firebird/data && \
     chown -R node:node /firebird
 
-# Cambiar al usuario node por seguridad
+# Switch to node user for security
 USER node
 
-# Comando para iniciar el servidor (puede ser sobrescrito en docker-compose)
+# Command to start the server (can be overridden in docker-compose)
 CMD ["node", "dist/index.js"]
 ```
 
@@ -66,7 +66,7 @@ CMD ["node", "dist/index.js"]
 version: '3.8'
 
 services:
-  # Servidor de base de datos Firebird
+  # Firebird database server
   firebird-db:
     image: jacobalberty/firebird:3.0
     environment:
@@ -80,7 +80,7 @@ services:
     networks:
       - mcp-network
 
-  # Servidor MCP Firebird con transporte STDIO (para Claude Desktop)
+  # MCP Firebird server with STDIO transport (for Claude Desktop)
   mcp-firebird-stdio:
     build:
       context: .
@@ -96,11 +96,11 @@ services:
       - firebird-db
     networks:
       - mcp-network
-    # Para uso con Claude Desktop, exponer STDIO
+    # For use with Claude Desktop, expose STDIO
     stdin_open: true
     tty: true
 
-  # Servidor MCP Firebird con transporte SSE (para clientes web)
+  # MCP Firebird server with SSE transport (for web clients)
   mcp-firebird-sse:
     build:
       context: .
@@ -121,7 +121,7 @@ services:
       - mcp-network
     command: node run-sse-server.js
 
-  # Proxy SSE (opcional, para clientes que necesitan soporte de proxy)
+  # SSE Proxy (optional, for clients that need proxy support)
   mcp-sse-proxy:
     build:
       context: .
@@ -145,33 +145,33 @@ volumes:
   firebird-data:
 ```
 
-## Ejecutar con Docker
+## Running with Docker
 
 ```bash
-# Construir y ejecutar con Docker Compose
+# Build and run with Docker Compose
 docker compose up -d
 
-# Ejecutar solo la versión STDIO (para Claude Desktop)
+# Run only the STDIO version (for Claude Desktop)
 docker compose up -d mcp-firebird-stdio
 
-# Ejecutar solo la versión SSE (para clientes web)
+# Run only the SSE version (for web clients)
 docker compose up -d mcp-firebird-sse
 
-# Ejecutar la versión SSE con proxy (para clientes que necesitan soporte de proxy)
+# Run the SSE version with proxy (for clients that need proxy support)
 docker compose up -d mcp-firebird-sse mcp-sse-proxy
 
-# Verificar logs
+# Check logs
 docker compose logs -f mcp-firebird-sse
 
-# Detener servicios
+# Stop services
 docker compose down
 ```
 
-## Conectar al servidor MCP Dockerizado
+## Connecting to the Dockerized MCP Server
 
-### Con Claude Desktop
+### With Claude Desktop
 
-Actualiza tu configuración de Claude Desktop para usar el contenedor Docker:
+Update your Claude Desktop configuration to use the Docker container:
 
 ```json
 {
@@ -185,17 +185,17 @@ Actualiza tu configuración de Claude Desktop para usar el contenedor Docker:
 }
 ```
 
-### Con clientes web
+### With Web Clients
 
-Para conectar desde un cliente web, usa la URL del servidor SSE:
+To connect from a web client, use the SSE server URL:
 
 ```javascript
 const eventSource = new EventSource('http://localhost:3003');
 ```
 
-### Con MCP Inspector
+### With MCP Inspector
 
-Para usar el MCP Inspector con el servidor Dockerizado:
+To use the MCP Inspector with the Dockerized server:
 
 ```bash
 npx @modelcontextprotocol/inspector http://localhost:3003

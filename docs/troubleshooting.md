@@ -1,67 +1,66 @@
-# Depuración y solución de problemas en MCP Firebird
+# Debugging and Troubleshooting in MCP Firebird
 
-Este documento proporciona información para solucionar problemas comunes con MCP Firebird.
+This document provides information for solving common problems with MCP Firebird.
 
-## Problemas comunes
+## Common Issues
 
-### Error de conexión a la base de datos
+### Database Connection Error
 
-**Síntoma**: Error "No se puede conectar a la base de datos" o "Connection refused".
+**Symptom**: Error "Cannot connect to database" or "Connection refused".
 
-**Posibles soluciones**:
-1. Verifica que el servidor Firebird esté en ejecución.
-2. Comprueba que la ruta de la base de datos sea correcta.
-3. Verifica las credenciales de usuario y contraseña.
-4. Asegúrate de que el host y puerto sean correctos.
+**Possible solutions**:
+1. Verify that the Firebird server is running.
+2. Check that the database path is correct.
+3. Verify the user credentials and password.
+4. Make sure the host and port are correct.
 
 ```bash
-# Verificar la conexión a la base de datos
+# Verify the database connection
 npx mcp-firebird --database /path/to/database.fdb --user SYSDBA --password masterkey --test-connection
 ```
 
 ### Error "No database specified"
 
-**Síntoma**: Error "No database specified" al ejecutar herramientas de base de datos.
+**Symptom**: Error "No database specified" when running database tools.
 
-**Posibles soluciones**:
-1. Asegúrate de que la variable de entorno `FIREBIRD_DATABASE` esté configurada.
-2. Proporciona la ruta de la base de datos como parámetro.
-3. Verifica que la ruta de la base de datos sea accesible.
+**Possible solutions**:
+1. Make sure the `FIREBIRD_DATABASE` environment variable is set.
+2. Provide the database path as a parameter.
+3. Verify that the database path is accessible.
 
 ```bash
-# Configurar la variable de entorno
+# Set the environment variable
 export FIREBIRD_DATABASE=/path/to/database.fdb
 
-# O proporcionar como parámetro
+# Or provide the path as a parameter
 npx mcp-firebird --database /path/to/database.fdb
 ```
 
-### Error "spawn gbak ENOENT"
+### Error "gbak not found" during backup/restore
 
-**Síntoma**: Error "spawn gbak ENOENT" al intentar hacer backup o restore.
+**Symptom**: Error "spawn gbak ENOENT" when trying to backup or restore a database.
 
-**Posibles soluciones**:
-1. Instala las herramientas cliente de Firebird.
-2. Añade el directorio bin de Firebird a la variable PATH.
-3. Usa la imagen Docker basada en Debian que incluye las herramientas.
+**Possible solutions**:
+1. Install the Firebird client tools.
+2. Add the Firebird bin directory to your PATH.
+3. Specify the full path to gbak in your configuration.
 
 ```bash
-# En Debian/Ubuntu
+# Install Firebird client tools (Debian/Ubuntu)
 sudo apt-get install firebird3.0-utils
 
-# En Windows, añade a PATH
-# C:\Program Files\Firebird\Firebird_X_X\bin
+# Add to PATH (Windows)
+set PATH=%PATH%;C:\Program Files\Firebird\Firebird_3_0\bin
 ```
 
-### Error de transporte con Claude Desktop
+### Claude Desktop Integration Issues
 
-**Síntoma**: Claude Desktop no puede conectar con MCP Firebird o muestra errores de transporte.
+**Symptom**: Claude Desktop cannot connect to MCP Firebird or shows "Server transport closed" errors.
 
-**Posibles soluciones**:
-1. Verifica la configuración en `claude_desktop_config.json`.
-2. Asegúrate de usar rutas absolutas en la configuración.
-3. Reinicia Claude Desktop completamente.
-4. Verifica que MCP Firebird esté instalado globalmente o usa la ruta completa.
+**Possible solutions**:
+1. Verify that the configuration in `claude_desktop_config.json` is correct.
+2. Make sure the database path is absolute and uses double backslashes on Windows.
+3. Restart Claude Desktop after making changes to the configuration.
 
 ```json
 {
@@ -79,49 +78,59 @@ sudo apt-get install firebird3.0-utils
 }
 ```
 
-### Problemas con SSE
+### SSE Transport Issues
 
-**Síntoma**: No se puede conectar al servidor SSE o no se reciben eventos.
+**Symptom**: Cannot connect to the SSE server or receiving CORS errors.
 
-**Posibles soluciones**:
-1. Verifica que el puerto SSE esté expuesto y accesible.
-2. Comprueba que no haya conflictos de puerto.
-3. Verifica la configuración CORS si accedes desde un navegador.
-4. Usa el proxy SSE si es necesario.
+**Possible solutions**:
+1. Verify that the SSE server is running on the correct port.
+2. Check for CORS issues if connecting from a web browser.
+3. Make sure the client is using the correct URL.
 
 ```bash
-# Iniciar con transporte SSE en un puerto específico
-npx mcp-firebird --transport-type sse --sse-port 3003
+# Start with SSE transport and CORS enabled
+npx mcp-firebird --transport-type sse --sse-port 3003 --cors-enabled
 ```
 
-## Habilitando logs detallados
+## Debugging
 
-Para obtener más información sobre los problemas, puedes habilitar logs detallados:
+### Enable Debug Logging
+
+Set the `LOG_LEVEL` environment variable to `debug` for more detailed logs:
 
 ```bash
-# Configurar nivel de log a debug
 export LOG_LEVEL=debug
-
-# Iniciar MCP Firebird con logs detallados
 npx mcp-firebird
 ```
 
-## Verificando la instalación
+### Check Server Status
 
-Para verificar que MCP Firebird está instalado correctamente:
+Use the `ping` method to check if the server is responding:
 
 ```bash
-# Verificar la versión
-npx mcp-firebird --version
-
-# Verificar la conexión a la base de datos
-npx mcp-firebird --test-connection
+echo '{"id":1,"method":"ping","params":{}}' | npx mcp-firebird
 ```
 
-## Contacto y soporte
+### Inspect Database Schema
 
-Si encuentras problemas que no puedes resolver, puedes:
+Use the `list-tables` and `describe-table` methods to inspect the database schema:
 
-1. Abrir un issue en el [repositorio de GitHub](https://github.com/PuroDelphi/mcpFirebird)
-2. Consultar la documentación oficial en la carpeta `docs/`
-3. Contactar al equipo de soporte en soporte@asistentesautonomos.com
+```bash
+# List all tables
+echo '{"id":1,"method":"list-tables","params":{}}' | npx mcp-firebird
+
+# Describe a specific table
+echo '{"id":1,"method":"describe-table","params":{"tableName":"EMPLOYEES"}}' | npx mcp-firebird
+```
+
+## Getting Help
+
+If you continue to experience issues, you can:
+
+1. Open an issue on the GitHub repository.
+2. Check the Firebird SQL documentation for database-specific issues.
+3. Use the MCP Inspector to debug the server:
+
+```bash
+npx @modelcontextprotocol/inspector http://localhost:3003
+```
