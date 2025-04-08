@@ -1,0 +1,74 @@
+# Smithery configuration file: https://smithery.ai/docs/config#smitheryyaml
+
+startCommand:
+  type: stdio
+  configSchema:
+    # JSON Schema defining the configuration options for the MCP.
+    type: object
+    required:
+      - firebirdDatabase
+    properties:
+      firebirdHost:
+        type: string
+        default: localhost
+        description: Hostname of the Firebird database server
+      firebirdPort:
+        type: number
+        default: 3050
+        description: Port for the Firebird database
+      firebirdDatabase:
+        type: string
+        description: Absolute path to the Firebird database file
+      firebirdUser:
+        type: string
+        default: SYSDBA
+        description: Database user
+      firebirdPassword:
+        type: string
+        default: masterkey
+        description: Database password
+      transportType:
+        type: string
+        default: stdio
+        description: "Transport type: 'stdio' for local or 'sse' for server-sent events"
+      ssePort:
+        type: number
+        default: 3003
+        description: Port for SSE transport (if transportType is 'sse')
+      logLevel:
+        type: string
+        default: info
+        description: Logging level (debug, info, warn, error)
+  commandFunction:
+    # A JS function that produces the CLI command based on the given config to start the MCP on stdio.
+    |-
+    (config) => { 
+      // Set environment variables based on config
+      const env = Object.assign({}, process.env, {
+        FIREBIRD_HOST: config.firebirdHost,
+        FIREBIRD_PORT: String(config.firebirdPort),
+        FIREBIRD_DATABASE: config.firebirdDatabase,
+        FIREBIRD_USER: config.firebirdUser,
+        FIREBIRD_PASSWORD: config.firebirdPassword,
+        TRANSPORT_TYPE: config.transportType,
+        LOG_LEVEL: config.logLevel
+      });
+      // If transport is sse, add SSE_PORT
+      if(config.transportType === 'sse') {
+        env.SSE_PORT = String(config.ssePort);
+      }
+      return {
+        command: 'node',
+        args: ['dist/index.js'],
+        env
+      };
+    }
+  exampleConfig:
+    firebirdHost: localhost
+    firebirdPort: 3050
+    firebirdDatabase: /firebird/data/database.fdb
+    firebirdUser: SYSDBA
+    firebirdPassword: masterkey
+    transportType: stdio
+    ssePort: 3003
+    logLevel: info
