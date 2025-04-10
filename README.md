@@ -61,7 +61,16 @@ For VSCode and GitHub Copilot integration, see [VSCode Integration](./docs/vscod
          "args": [
            "mcp-firebird",
            "--database",
-           "C:\\path\\to\\database.fdb"
+           "C:\\path\\to\\database.fdb",
+           "--host",
+           "localhost"
+           "--port 3050",
+           "--database",
+           "/path/to/database.fdb"
+           "--user"
+           "SYSDBA"
+           "--password"
+           "masterkey"
          ],
          "type": "stdio"
        }
