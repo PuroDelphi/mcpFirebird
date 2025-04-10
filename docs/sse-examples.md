@@ -1,297 +1,273 @@
-# Ejemplos de uso del transporte SSE en MCP Firebird
+# SSE Transport Usage Examples in MCP Firebird
 
-Este documento proporciona ejemplos detallados sobre cómo usar el transporte SSE (Server-Sent Events) con el servidor MCP Firebird.
+This document provides detailed examples on how to use the SSE (Server-Sent Events) transport with the MCP Firebird server.
 
-## Introducción
+## Introduction
 
-El servidor MCP Firebird soporta el transporte SSE, lo que permite a los clientes conectarse al servidor a través de HTTP y recibir actualizaciones en tiempo real. Esta funcionalidad es especialmente útil para aplicaciones web que necesitan mantener una conexión persistente con el servidor.
+The MCP Firebird server supports SSE transport, which allows clients to connect to the server via HTTP and receive real-time updates. This functionality is especially useful for web applications that need to maintain a persistent connection with the server.
 
-## Configuración del servidor
+## Server Configuration
 
-Para iniciar el servidor MCP Firebird con soporte para SSE, siga estos pasos:
+To start the MCP Firebird server with SSE support, follow these steps:
 
-1. Configure las variables de entorno en su archivo `.env`:
+1. Configure the environment variables in your `.env` file:
 
 ```
 TRANSPORT_TYPE=sse
 SSE_PORT=3003
 ```
 
-2. Inicie el servidor con el comando:
+2. Start the server with the command:
 
 ```bash
 npm run sse
 ```
 
-El servidor estará disponible en `http://localhost:3003`.
+The server will be available at `http://localhost:3003`.
 
-## Ejemplos de clientes
+## Client Examples
 
-### 1. Cliente básico en HTML/JavaScript
+### 1. Basic HTML/JavaScript Client
 
-Este es un ejemplo simple de un cliente SSE que se conecta al servidor MCP Firebird:
+Create a simple HTML file with the following content:
 
 ```html
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Cliente SSE para MCP Firebird</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MCP Firebird SSE Client</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 20px; }
-        #log { border: 1px solid #ccc; padding: 10px; height: 300px; overflow-y: auto; margin-bottom: 10px; }
-        button { padding: 8px 16px; margin-right: 10px; }
-        input, select { padding: 8px; margin-bottom: 10px; width: 100%; }
+        #output { border: 1px solid #ccc; padding: 10px; height: 300px; overflow-y: auto; }
+        button { margin: 10px 0; padding: 5px 10px; }
     </style>
 </head>
 <body>
-    <h1>Cliente SSE para MCP Firebird</h1>
+    <h1>MCP Firebird SSE Client</h1>
     
     <div>
-        <label for="serverUrl">URL del servidor:</label>
-        <input type="text" id="serverUrl" value="http://localhost:3003" />
+        <button id="listTablesBtn">List Tables</button>
+        <button id="executeQueryBtn">Execute Query</button>
     </div>
     
-    <div>
-        <button id="connectBtn">Conectar</button>
-        <button id="disconnectBtn" disabled>Desconectar</button>
-    </div>
-    
-    <h2>Herramientas disponibles</h2>
-    <div>
-        <select id="toolSelect">
-            <option value="list-tables">list-tables</option>
-            <option value="describe-table">describe-table</option>
-            <option value="execute-query">execute-query</option>
-            <option value="get-methods">get-methods</option>
-        </select>
-        
-        <div id="paramContainer" style="display: none;">
-            <label for="paramInput">Parámetros (JSON):</label>
-            <input type="text" id="paramInput" placeholder='{"table": "EMPLOYEE"}' />
-        </div>
-        
-        <button id="executeBtn" disabled>Ejecutar</button>
-    </div>
-    
-    <h2>Registro de eventos</h2>
-    <div id="log"></div>
+    <h2>Output:</h2>
+    <pre id="output"></pre>
     
     <script>
-        let eventSource = null;
-        let sessionId = null;
+        const output = document.getElementById('output');
+        const listTablesBtn = document.getElementById('listTablesBtn');
+        const executeQueryBtn = document.getElementById('executeQueryBtn');
+        
+        // Connect to the SSE server
+        const eventSource = new EventSource('http://localhost:3003');
         let requestId = 1;
         
-        const serverUrlInput = document.getElementById('serverUrl');
-        const connectBtn = document.getElementById('connectBtn');
-        const disconnectBtn = document.getElementById('disconnectBtn');
-        const toolSelect = document.getElementById('toolSelect');
-        const paramContainer = document.getElementById('paramContainer');
-        const paramInput = document.getElementById('paramInput');
-        const executeBtn = document.getElementById('executeBtn');
-        const logElement = document.getElementById('log');
+        // Handle incoming messages
+        eventSource.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            output.innerHTML += `Received: ${JSON.stringify(data, null, 2)}\n\n`;
+            output.scrollTop = output.scrollHeight;
+        };
         
-        function log(message, type = 'info') {
-            const entry = document.createElement('div');
-            entry.className = `log-entry log-${type}`;
-            entry.innerHTML = `<strong>${new Date().toLocaleTimeString()}</strong>: ${message}`;
-            logElement.appendChild(entry);
-            logElement.scrollTop = logElement.scrollHeight;
-        }
+        // Handle connection open
+        eventSource.onopen = () => {
+            output.innerHTML += "Connected to MCP Firebird server\n\n";
+        };
         
-        connectBtn.addEventListener('click', () => {
-            const serverUrl = serverUrlInput.value;
-            
-            try {
-                // Generar un ID de sesión único
-                sessionId = `client-${Math.random().toString(36).substring(2, 15)}`;
-                
-                // Crear la conexión SSE
-                eventSource = new EventSource(`${serverUrl}`);
-                
-                eventSource.onopen = () => {
-                    log('Conexión SSE establecida', 'success');
-                    connectBtn.disabled = true;
-                    disconnectBtn.disabled = false;
-                    executeBtn.disabled = false;
-                };
-                
-                eventSource.onmessage = (event) => {
-                    try {
-                        const data = JSON.parse(event.data);
-                        log(`Mensaje recibido: ${JSON.stringify(data, null, 2)}`, 'receive');
-                    } catch (error) {
-                        log(`Mensaje recibido (no JSON): ${event.data}`, 'receive');
-                    }
-                };
-                
-                eventSource.onerror = (error) => {
-                    log(`Error en la conexión SSE: ${error.message || 'Error desconocido'}`, 'error');
-                    disconnectEventSource();
-                };
-                
-                log(`Conectando a ${serverUrl}...`);
-            } catch (error) {
-                log(`Error al crear la conexión SSE: ${error.message}`, 'error');
-            }
-        });
+        // Handle errors
+        eventSource.onerror = (error) => {
+            output.innerHTML += `Error: ${error.type}\n\n`;
+            eventSource.close();
+        };
         
-        disconnectBtn.addEventListener('click', disconnectEventSource);
-        
-        function disconnectEventSource() {
-            if (eventSource) {
-                eventSource.close();
-                eventSource = null;
-                sessionId = null;
-                
-                connectBtn.disabled = false;
-                disconnectBtn.disabled = true;
-                executeBtn.disabled = true;
-                
-                log('Conexión SSE cerrada');
-            }
-        }
-        
-        toolSelect.addEventListener('change', () => {
-            // Mostrar el contenedor de parámetros para herramientas que los necesitan
-            const selectedTool = toolSelect.value;
-            
-            if (selectedTool === 'describe-table' || selectedTool === 'execute-query') {
-                paramContainer.style.display = 'block';
-                
-                if (selectedTool === 'describe-table') {
-                    paramInput.placeholder = '{"table": "EMPLOYEE"}';
-                } else if (selectedTool === 'execute-query') {
-                    paramInput.placeholder = '{"query": "SELECT * FROM EMPLOYEE LIMIT 5"}';
-                }
-            } else {
-                paramContainer.style.display = 'none';
-            }
-        });
-        
-        executeBtn.addEventListener('click', async () => {
-            if (!eventSource || !sessionId) {
-                log('No hay conexión SSE activa', 'error');
-                return;
-            }
-            
-            const selectedTool = toolSelect.value;
-            let params = {};
-            
-            if (paramContainer.style.display !== 'none') {
-                try {
-                    params = JSON.parse(paramInput.value || '{}');
-                } catch (error) {
-                    log(`Error al parsear los parámetros JSON: ${error.message}`, 'error');
-                    return;
-                }
-            }
-            
+        // Send a request to list tables
+        listTablesBtn.addEventListener('click', () => {
             const request = {
-                jsonrpc: '2.0',
-                id: String(requestId++),
-                method: selectedTool,
-                params
+                id: requestId++,
+                method: 'list-tables',
+                params: {}
             };
             
-            log(`Enviando solicitud: ${JSON.stringify(request)}`, 'send');
+            fetch('http://localhost:3003', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(request)
+            });
             
-            try {
-                const serverUrl = serverUrlInput.value;
-                const response = await fetch(`${serverUrl}/message?sessionId=${sessionId}`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(request)
-                });
-                
-                const responseData = await response.json();
-                log(`Respuesta recibida: ${JSON.stringify(responseData, null, 2)}`, 'receive');
-            } catch (error) {
-                log(`Error al enviar la solicitud: ${error.message}`, 'error');
-            }
+            output.innerHTML += `Sent: ${JSON.stringify(request, null, 2)}\n\n`;
+        });
+        
+        // Send a request to execute a query
+        executeQueryBtn.addEventListener('click', () => {
+            const request = {
+                id: requestId++,
+                method: 'execute-query',
+                params: {
+                    sql: 'SELECT FIRST 5 * FROM RDB$RELATIONS'
+                }
+            };
+            
+            fetch('http://localhost:3003', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(request)
+            });
+            
+            output.innerHTML += `Sent: ${JSON.stringify(request, null, 2)}\n\n`;
         });
     </script>
 </body>
 </html>
 ```
 
-### 2. Cliente Node.js
+Save this file as `sse-client.html` and open it in a web browser. You can click the buttons to send requests to the MCP Firebird server and see the responses.
 
-Este es un ejemplo de un cliente Node.js que se conecta al servidor MCP Firebird usando SSE:
+### 2. Python Client
+
+Here's an example of a Python client that uses the `requests` and `sseclient` libraries:
+
+```python
+import json
+import requests
+import sseclient
+import threading
+
+# Server URL
+SERVER_URL = 'http://localhost:3003'
+
+# Request ID counter
+request_id = 1
+
+# Function to handle SSE events
+def handle_events():
+    client = sseclient.SSEClient(SERVER_URL)
+    
+    print("Connected to SSE server. Waiting for events...")
+    
+    for event in client.events():
+        try:
+            data = json.loads(event.data)
+            print(f"Received: {json.dumps(data, indent=2)}")
+        except Exception as e:
+            print(f"Error parsing event: {e}")
+
+# Start the event handler in a separate thread
+event_thread = threading.Thread(target=handle_events)
+event_thread.daemon = True
+event_thread.start()
+
+# Function to send a request
+def send_request(method, params=None):
+    global request_id
+    
+    if params is None:
+        params = {}
+    
+    request = {
+        'id': request_id,
+        'method': method,
+        'params': params
+    }
+    
+    request_id += 1
+    
+    print(f"Sending: {json.dumps(request, indent=2)}")
+    
+    response = requests.post(
+        SERVER_URL,
+        headers={'Content-Type': 'application/json'},
+        data=json.dumps(request)
+    )
+    
+    print(f"HTTP Response: {response.status_code}")
+
+# Interactive menu
+while True:
+    print("\nMCP Firebird SSE Client")
+    print("1. List Tables")
+    print("2. Execute Query")
+    print("3. Describe Table")
+    print("4. Exit")
+    
+    choice = input("Enter your choice (1-4): ")
+    
+    if choice == '1':
+        send_request('list-tables')
+    elif choice == '2':
+        sql = input("Enter SQL query: ")
+        send_request('execute-query', {'sql': sql})
+    elif choice == '3':
+        table_name = input("Enter table name: ")
+        send_request('describe-table', {'tableName': table_name})
+    elif choice == '4':
+        break
+    else:
+        print("Invalid choice. Please try again.")
+```
+
+Save this file as `sse_client.py` and run it with Python. Make sure to install the required libraries first:
+
+```bash
+pip install requests sseclient-py
+```
+
+### 3. Node.js Client
+
+Here's an example of a Node.js client that uses the `eventsource` and `node-fetch` libraries:
 
 ```javascript
-// sse-client.js
-const fetch = require('node-fetch');
 const EventSource = require('eventsource');
+const fetch = require('node-fetch');
+const readline = require('readline');
 
-class McpFirebirdSseClient {
-    constructor(serverUrl = 'http://localhost:3003') {
-        this.serverUrl = serverUrl;
-        this.eventSource = null;
-        this.sessionId = `node-client-${Math.random().toString(36).substring(2, 15)}`;
-        this.requestId = 1;
-        this.connected = false;
+// Server URL
+const SERVER_URL = 'http://localhost:3003';
+
+// Request ID counter
+let requestId = 1;
+
+// Create EventSource for SSE
+const eventSource = new EventSource(SERVER_URL);
+
+// Handle incoming messages
+eventSource.onmessage = (event) => {
+    try {
+        const data = JSON.parse(event.data);
+        console.log('Received:', JSON.stringify(data, null, 2));
+    } catch (error) {
+        console.error('Error parsing event:', error);
     }
+};
+
+// Handle connection open
+eventSource.onopen = () => {
+    console.log('Connected to MCP Firebird server');
+};
+
+// Handle errors
+eventSource.onerror = (error) => {
+    console.error('Error:', error);
+    eventSource.close();
+};
+
+// Function to send a request
+async function sendRequest(method, params = {}) {
+    const request = {
+        id: requestId++,
+        method,
+        params
+    };
     
-    connect() {
-        return new Promise((resolve, reject) => {
-            try {
-                console.log(`Conectando a ${this.serverUrl}...`);
-                
-                this.eventSource = new EventSource(`${this.serverUrl}`);
-                
-                this.eventSource.onopen = () => {
-                    console.log('Conexión SSE establecida');
-                    this.connected = true;
-                    resolve();
-                };
-                
-                this.eventSource.onmessage = (event) => {
-                    try {
-                        const data = JSON.parse(event.data);
-                        console.log('Mensaje recibido:', data);
-                    } catch (error) {
-                        console.log('Mensaje recibido (no JSON):', event.data);
-                    }
-                };
-                
-                this.eventSource.onerror = (error) => {
-                    console.error('Error en la conexión SSE:', error);
-                    this.connected = false;
-                    reject(error);
-                };
-            } catch (error) {
-                console.error('Error al crear la conexión SSE:', error);
-                reject(error);
-            }
-        });
-    }
+    console.log('Sending:', JSON.stringify(request, null, 2));
     
-    disconnect() {
-        if (this.eventSource) {
-            this.eventSource.close();
-            this.eventSource = null;
-            this.connected = false;
-            console.log('Conexión SSE cerrada');
-        }
-    }
-    
-    async executeMethod(method, params = {}) {
-        if (!this.connected) {
-            throw new Error('No hay conexión SSE activa');
-        }
-        
-        const request = {
-            jsonrpc: '2.0',
-            id: String(this.requestId++),
-            method,
-            params
-        };
-        
-        console.log('Enviando solicitud:', request);
-        
-        const response = await fetch(`${this.serverUrl}/message?sessionId=${this.sessionId}`, {
+    try {
+        const response = await fetch(SERVER_URL, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -299,256 +275,148 @@ class McpFirebirdSseClient {
             body: JSON.stringify(request)
         });
         
-        const responseData = await response.json();
-        console.log('Respuesta recibida:', responseData);
-        
-        return responseData;
-    }
-    
-    async listTables() {
-        return this.executeMethod('list-tables');
-    }
-    
-    async describeTable(table) {
-        return this.executeMethod('describe-table', { table });
-    }
-    
-    async executeQuery(query) {
-        return this.executeMethod('execute-query', { query });
-    }
-    
-    async getMethods() {
-        return this.executeMethod('get-methods');
-    }
-}
-
-// Ejemplo de uso
-async function main() {
-    const client = new McpFirebirdSseClient();
-    
-    try {
-        await client.connect();
-        
-        // Obtener la lista de métodos disponibles
-        const methods = await client.getMethods();
-        console.log('Métodos disponibles:', methods.result);
-        
-        // Listar tablas
-        const tables = await client.listTables();
-        console.log('Tablas disponibles:', tables.result);
-        
-        // Describir una tabla
-        if (tables.result && tables.result.length > 0) {
-            const tableInfo = await client.describeTable(tables.result[0]);
-            console.log(`Información de la tabla ${tables.result[0]}:`, tableInfo.result);
-        }
-        
-        // Ejecutar una consulta
-        const queryResult = await client.executeQuery('SELECT * FROM EMPLOYEE LIMIT 5');
-        console.log('Resultado de la consulta:', queryResult.result);
+        console.log('HTTP Response:', response.status);
     } catch (error) {
-        console.error('Error:', error);
-    } finally {
-        client.disconnect();
+        console.error('Error sending request:', error);
     }
 }
 
-main();
-```
+// Create readline interface for user input
+const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout
+});
 
-Para ejecutar este ejemplo, necesitará instalar las dependencias:
-
-```bash
-npm install node-fetch eventsource
-```
-
-### 3. Cliente Python
-
-Este es un ejemplo de un cliente Python que se conecta al servidor MCP Firebird usando SSE:
-
-```python
-# sse_client.py
-import json
-import random
-import string
-import time
-import requests
-import sseclient
-
-class McpFirebirdSseClient:
-    def __init__(self, server_url='http://localhost:3003'):
-        self.server_url = server_url
-        self.session_id = f"python-client-{''.join(random.choices(string.ascii_lowercase + string.digits, k=10))}"
-        self.request_id = 1
-        self.connected = False
-        self.sse_client = None
+// Interactive menu
+function showMenu() {
+    console.log('\nMCP Firebird SSE Client');
+    console.log('1. List Tables');
+    console.log('2. Execute Query');
+    console.log('3. Describe Table');
+    console.log('4. Exit');
     
-    def connect(self):
-        try:
-            print(f"Conectando a {self.server_url}...")
-            
-            headers = {'Accept': 'text/event-stream'}
-            response = requests.get(f"{self.server_url}", stream=True, headers=headers)
-            self.sse_client = sseclient.SSEClient(response)
-            
-            self.connected = True
-            print("Conexión SSE establecida")
-            
-            # Iniciar un hilo para procesar eventos
-            import threading
-            self.event_thread = threading.Thread(target=self._process_events)
-            self.event_thread.daemon = True
-            self.event_thread.start()
-            
-            return True
-        except Exception as e:
-            print(f"Error al crear la conexión SSE: {e}")
-            return False
-    
-    def _process_events(self):
-        try:
-            for event in self.sse_client.events():
-                try:
-                    data = json.loads(event.data)
-                    print(f"Mensaje recibido: {data}")
-                except:
-                    print(f"Mensaje recibido (no JSON): {event.data}")
-        except Exception as e:
-            print(f"Error en el procesamiento de eventos: {e}")
-            self.connected = False
-    
-    def disconnect(self):
-        if self.sse_client:
-            self.sse_client.close()
-            self.sse_client = None
-            self.connected = False
-            print("Conexión SSE cerrada")
-    
-    def execute_method(self, method, params=None):
-        if not self.connected:
-            raise Exception("No hay conexión SSE activa")
-        
-        if params is None:
-            params = {}
-        
-        request = {
-            "jsonrpc": "2.0",
-            "id": str(self.request_id),
-            "method": method,
-            "params": params
+    rl.question('Enter your choice (1-4): ', (choice) => {
+        switch (choice) {
+            case '1':
+                sendRequest('list-tables').then(showMenu);
+                break;
+            case '2':
+                rl.question('Enter SQL query: ', (sql) => {
+                    sendRequest('execute-query', { sql }).then(showMenu);
+                });
+                break;
+            case '3':
+                rl.question('Enter table name: ', (tableName) => {
+                    sendRequest('describe-table', { tableName }).then(showMenu);
+                });
+                break;
+            case '4':
+                eventSource.close();
+                rl.close();
+                break;
+            default:
+                console.log('Invalid choice. Please try again.');
+                showMenu();
+                break;
         }
-        self.request_id += 1
-        
-        print(f"Enviando solicitud: {request}")
-        
-        response = requests.post(
-            f"{self.server_url}/message?sessionId={self.session_id}",
-            headers={"Content-Type": "application/json"},
-            json=request
-        )
-        
-        response_data = response.json()
-        print(f"Respuesta recibida: {response_data}")
-        
-        return response_data
-    
-    def list_tables(self):
-        return self.execute_method("list-tables")
-    
-    def describe_table(self, table):
-        return self.execute_method("describe-table", {"table": table})
-    
-    def execute_query(self, query):
-        return self.execute_method("execute-query", {"query": query})
-    
-    def get_methods(self):
-        return self.execute_method("get-methods")
+    });
+}
 
-# Ejemplo de uso
-def main():
-    client = McpFirebirdSseClient()
-    
-    try:
-        if client.connect():
-            # Dar tiempo para que se establezca la conexión
-            time.sleep(1)
-            
-            # Obtener la lista de métodos disponibles
-            methods = client.get_methods()
-            print(f"Métodos disponibles: {methods.get('result', [])}")
-            
-            # Listar tablas
-            tables = client.list_tables()
-            print(f"Tablas disponibles: {tables.get('result', [])}")
-            
-            # Describir una tabla
-            if tables.get('result') and len(tables['result']) > 0:
-                table_info = client.describe_table(tables['result'][0])
-                print(f"Información de la tabla {tables['result'][0]}: {table_info.get('result', {})}")
-            
-            # Ejecutar una consulta
-            query_result = client.execute_query("SELECT * FROM EMPLOYEE LIMIT 5")
-            print(f"Resultado de la consulta: {query_result.get('result', {})}")
-            
-            # Mantener la conexión abierta por un tiempo
-            time.sleep(5)
-    except Exception as e:
-        print(f"Error: {e}")
-    finally:
-        client.disconnect()
-
-if __name__ == "__main__":
-    main()
+// Start the menu
+showMenu();
 ```
 
-Para ejecutar este ejemplo, necesitará instalar las dependencias:
+Save this file as `sse-client.js` and run it with Node.js. Make sure to install the required libraries first:
 
 ```bash
-pip install requests sseclient-py
+npm install eventsource node-fetch
 ```
 
-## Notas importantes
+## Using with MCP Inspector
 
-1. **Manejo de sesiones**: El servidor MCP Firebird utiliza IDs de sesión para mantener el seguimiento de las conexiones SSE. Asegúrese de incluir el ID de sesión en todas las solicitudes POST al endpoint `/message`.
+The MCP Inspector is a tool that allows you to interact with MCP servers. You can use it to test your MCP Firebird server with SSE transport:
 
-2. **Formato de mensajes**: Todas las solicitudes deben seguir el formato JSON-RPC 2.0:
-   ```json
-   {
-     "jsonrpc": "2.0",
-     "id": "1",
-     "method": "list-tables",
-     "params": {}
-   }
-   ```
+```bash
+npx @modelcontextprotocol/inspector http://localhost:3003
+```
 
-3. **Manejo de errores**: Es importante implementar un manejo adecuado de errores en su cliente, especialmente para la reconexión en caso de que se pierda la conexión SSE.
+This will open the MCP Inspector in your browser, where you can send requests to the MCP Firebird server and see the responses.
 
-4. **CORS**: El servidor MCP Firebird tiene habilitado CORS para permitir conexiones desde cualquier origen. Si está teniendo problemas con CORS, asegúrese de que su cliente esté configurado correctamente.
+## Advanced Configuration
 
-## Solución de problemas
+### CORS Support
 
-### La conexión SSE se cierra inesperadamente
+If you need to access the SSE server from a different domain, you can enable CORS support:
 
-Si la conexión SSE se cierra inesperadamente, puede deberse a varias razones:
+```
+CORS_ENABLED=true
+CORS_ORIGIN=*
+```
 
-1. **Timeout del servidor**: Algunas configuraciones de servidor pueden cerrar conexiones inactivas después de un cierto tiempo. Considere implementar un mecanismo de "heartbeat" en su cliente.
+Or specify allowed origins:
 
-2. **Problemas de red**: Las conexiones SSE son sensibles a problemas de red. Implemente un mecanismo de reconexión automática en su cliente.
+```
+CORS_ENABLED=true
+CORS_ORIGIN=https://example.com,https://app.example.com
+```
 
-3. **Errores en el servidor**: Verifique los logs del servidor para identificar posibles errores.
+### SSL/TLS Support
 
-### No se reciben respuestas a las solicitudes
+For production environments, it's recommended to use SSL/TLS:
 
-Si no recibe respuestas a sus solicitudes, verifique:
+```
+SSL_ENABLED=true
+SSL_CERT=/path/to/cert.pem
+SSL_KEY=/path/to/key.pem
+```
 
-1. **ID de sesión**: Asegúrese de que está incluyendo el ID de sesión correcto en sus solicitudes POST.
+### Using with a Proxy
 
-2. **Formato de la solicitud**: Verifique que sus solicitudes siguen el formato JSON-RPC 2.0 correcto.
+If you need to use the SSE server behind a proxy, you can use the included SSE proxy:
 
-3. **Endpoint correcto**: Asegúrese de que está enviando las solicitudes al endpoint `/message` correcto.
+```bash
+# Start the MCP Firebird server with SSE transport
+npx mcp-firebird --transport-type sse --sse-port 3003
 
-## Conclusión
+# In another terminal, start the SSE proxy
+node run-sse-proxy.js
+```
 
-El transporte SSE proporciona una forma eficiente y sencilla de conectarse al servidor MCP Firebird desde aplicaciones web y otros clientes. Con los ejemplos proporcionados en este documento, debería poder implementar su propio cliente SSE para interactuar con el servidor MCP Firebird.
+The proxy will be available at `http://localhost:3005` and will forward requests to the MCP Firebird server.
 
-Para más información, consulte la documentación oficial del protocolo MCP y la especificación SSE.
+## Troubleshooting
+
+### Connection Issues
+
+If you're having trouble connecting to the SSE server, check the following:
+
+1. Make sure the server is running and listening on the correct port.
+2. Check for CORS issues if you're connecting from a web browser.
+3. Verify that there are no firewalls or network restrictions blocking the connection.
+
+### Event Handling
+
+If you're not receiving events, check the following:
+
+1. Make sure the EventSource is properly initialized.
+2. Check the browser console for any errors.
+3. Verify that the server is sending events in the correct format.
+
+### Request Format
+
+Make sure your requests follow the MCP protocol format:
+
+```json
+{
+  "id": 1,
+  "method": "method-name",
+  "params": {
+    "param1": "value1",
+    "param2": "value2"
+  }
+}
+```
+
+## Conclusion
+
+The SSE transport provides a convenient way to interact with the MCP Firebird server from web applications and other clients. By following the examples in this document, you should be able to integrate MCP Firebird with your applications using SSE.

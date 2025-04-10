@@ -8,7 +8,7 @@ import {
     analyzeQueryPerformance,
     getExecutionPlan,
     analyzeMissingIndexes
-} from '../db/queries.js';
+} from '../db/index.js';
 
 import {
     backupDatabase,
@@ -17,7 +17,7 @@ import {
     BackupOptions,
     RestoreOptions,
     ValidateOptions
-} from '../db/management.js';
+} from '../db/index.js';
 import { validateSql } from '../utils/security.js';
 import { createLogger } from '../utils/logger.js';
 import { stringifyCompact, wrapSuccess, wrapError, formatForClaude } from '../utils/jsonHelper.js';
@@ -28,18 +28,18 @@ const logger = createLogger('tools:database');
 // Define and export Zod schemas at the module's top level
 export const ExecuteQueryArgsSchema = z.object({
     sql: z.string().min(1).describe("SQL query to execute (Firebird uses FIRST/ROWS for pagination instead of LIMIT)"),
-    params: z.array(z.any()).optional().describe("Parameters for parameterized queries to prevent SQL injection")
+    params: z.array(z.string().or(z.number()).or(z.boolean()).or(z.null())).optional().describe("Parameters for parameterized queries to prevent SQL injection")
 });
 
 export const AnalyzeQueryPerformanceArgsSchema = z.object({
     sql: z.string().min(1).describe("SQL query to analyze"),
-    params: z.array(z.any()).optional().describe("Parameters for parameterized queries"),
+    params: z.array(z.string().or(z.number()).or(z.boolean()).or(z.null())).optional().describe("Parameters for parameterized queries"),
     iterations: z.number().int().positive().default(3).describe("Number of times to run the query for averaging performance")
 });
 
 export const GetExecutionPlanArgsSchema = z.object({
     sql: z.string().min(1).describe("SQL query to analyze"),
-    params: z.array(z.any()).optional().describe("Parameters for parameterized queries")
+    params: z.array(z.string().or(z.number()).or(z.boolean()).or(z.null())).optional().describe("Parameters for parameterized queries")
 });
 
 export const AnalyzeMissingIndexesArgsSchema = z.object({

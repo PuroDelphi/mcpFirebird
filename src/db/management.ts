@@ -7,22 +7,10 @@ import { spawn } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import { createLogger } from '../utils/logger.js';
+import { checkFirebirdTools, findFirebirdBinPath } from '../utils/firebird-tools.js';
+import { FirebirdError } from '../utils/errors.js';
+
 const logger = createLogger('db:management');
-
-// Define FirebirdError class if it doesn't exist
-class FirebirdError extends Error {
-    type: string;
-    originalError?: any;
-
-    constructor(message: string, type: string = 'UNKNOWN_ERROR', cause?: any) {
-        super(message);
-        this.name = 'FirebirdError';
-        this.type = type;
-        if (cause) {
-            this.originalError = cause;
-        }
-    }
-}
 import { ConfigOptions, DEFAULT_CONFIG } from './connection.js';
 
 /**
@@ -103,6 +91,15 @@ export const backupDatabase = async (
     const startTime = Date.now();
 
     try {
+        // Check if Firebird tools are installed
+        const toolsCheck = await checkFirebirdTools();
+        if (!toolsCheck.installed) {
+            throw new FirebirdError(
+                `Firebird client tools are not installed. ${toolsCheck.installInstructions}`,
+                'MISSING_FIREBIRD_TOOLS'
+            );
+        }
+
         // Ensure the backup directory exists
         const backupDir = path.dirname(backupPath);
         if (!fs.existsSync(backupDir)) {
@@ -114,8 +111,18 @@ export const backupDatabase = async (
         let command: string;
         let args: string[] = [];
 
+        // Try to find Firebird bin directory
+        const firebirdBinPath = await findFirebirdBinPath();
+        if (firebirdBinPath) {
+            logger.info(`Found Firebird bin directory: ${firebirdBinPath}`);
+            // Use full path to command if bin directory was found
+            command = path.join(firebirdBinPath, format);
+        } else {
+            // Use command name only, relying on system PATH
+            command = format;
+        }
+
         if (format === 'gbak') {
-            command = 'gbak';
             args = [
                 '-b',  // Backup
                 '-v',  // Verbose output
@@ -135,7 +142,6 @@ export const backupDatabase = async (
             const connectionString = `${config.host}/${config.port}:${config.database}`;
             args.push(connectionString, backupPath);
         } else if (format === 'nbackup') {
-            command = 'nbackup';
             args = [
                 '-B', '0',  // Level 0 backup (full)
                 '-user', config.user || 'SYSDBA',
@@ -205,6 +211,15 @@ export const restoreDatabase = async (
     const startTime = Date.now();
 
     try {
+        // Check if Firebird tools are installed
+        const toolsCheck = await checkFirebirdTools();
+        if (!toolsCheck.installed) {
+            throw new FirebirdError(
+                `Firebird client tools are not installed. ${toolsCheck.installInstructions}`,
+                'MISSING_FIREBIRD_TOOLS'
+            );
+        }
+
         // Check if the backup file exists
         if (!fs.existsSync(backupPath)) {
             throw new FirebirdError(
@@ -232,9 +247,12 @@ export const restoreDatabase = async (
         let command: string;
         let args: string[] = [];
 
+        // Try to find Firebird bin directory
+        const firebirdBinPath = await findFirebirdBinPath();
+
         if (ext === '.fbk' || ext === '.gbk') {
             // GBAK restore
-            command = 'gbak';
+            command = firebirdBinPath ? path.join(firebirdBinPath, 'gbak') : 'gbak';
             args = [
                 '-c',  // Create (restore)
                 '-v',  // Verbose output
@@ -251,7 +269,7 @@ export const restoreDatabase = async (
             args.push(backupPath, targetPath);
         } else if (ext === '.nbk') {
             // NBACKUP restore
-            command = 'nbackup';
+            command = firebirdBinPath ? path.join(firebirdBinPath, 'nbackup') : 'nbackup';
             args = [
                 '-R',  // Restore
                 '-user', config.user || 'SYSDBA',
@@ -312,8 +330,20 @@ export const validateDatabase = async (
     const startTime = Date.now();
 
     try {
+        // Check if Firebird tools are installed
+        const toolsCheck = await checkFirebirdTools();
+        if (!toolsCheck.installed) {
+            throw new FirebirdError(
+                `Firebird client tools are not installed. ${toolsCheck.installInstructions}`,
+                'MISSING_FIREBIRD_TOOLS'
+            );
+        }
+
+        // Try to find Firebird bin directory
+        const firebirdBinPath = await findFirebirdBinPath();
+
         // Use GFIX for validation
-        const command = 'gfix';
+        const command = firebirdBinPath ? path.join(firebirdBinPath, 'gfix') : 'gfix';
         let args: string[] = [
             '-user', config.user || 'SYSDBA',
             '-password', config.password || 'masterkey'
