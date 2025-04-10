@@ -1,0 +1,21 @@
+{
+  "servers": {
+    "mcp-firebird": {
+      "command": "npx",
+      "args": [
+        "mcp-firebird",
+        "--host",
+        "localhost",
+        "--port",
+        "3050",
+        "--database",
+        "/path/to/your/database.fdb",
+        "--user",
+        "SYSDBA",
+        "--password",
+        "masterkey"
+      ],
+      "type": "stdio"
+    }
+  }
+}

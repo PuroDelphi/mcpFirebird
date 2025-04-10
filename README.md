@@ -14,6 +14,7 @@ MCP Firebird is a server that implements Anthropic's [Model Context Protocol (MC
 - **Performance Analysis**: Analyze query performance and suggest optimizations
 - **Multiple Transports**: Supports STDIO and SSE (Server-Sent Events) transports
 - **Claude Integration**: Works seamlessly with Claude Desktop and other MCP clients
+- **VSCode Integration**: Works with GitHub Copilot in Visual Studio Code
 - **Security**: Includes SQL query validation and security configuration options
 
 ## Quick Installation
@@ -27,6 +28,8 @@ npx mcp-firebird --database /path/to/database.fdb
 ```
 
 For backup/restore operations, you'll need to install the Firebird client tools. See [Complete Installation](./docs/installation.md) for more details.
+
+For VSCode and GitHub Copilot integration, see [VSCode Integration](./docs/vscode-integration.md).
 
 ## Basic Usage
 
