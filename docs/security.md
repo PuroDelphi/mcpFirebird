@@ -1,40 +1,40 @@
-# Seguridad en MCP Firebird
+# Security in MCP Firebird
 
-Este documento describe las consideraciones de seguridad y opciones de configuración para MCP Firebird, incluyendo ejemplos detallados de todas las capacidades de seguridad implementadas.
+This document describes the security considerations and configuration options for MCP Firebird, including detailed examples of all implemented security capabilities.
 
-## Consideraciones generales
+## General Considerations
 
-MCP Firebird proporciona acceso a bases de datos Firebird, lo que implica ciertos riesgos de seguridad. Considera las siguientes recomendaciones:
+MCP Firebird provides access to Firebird databases, which implies certain security risks. Consider the following recommendations:
 
-1. **Privilegios mínimos**: Usa un usuario de base de datos con los privilegios mínimos necesarios.
-2. **Aislamiento**: Ejecuta MCP Firebird en un entorno aislado, como un contenedor Docker.
-3. **Firewall**: Limita el acceso a los puertos utilizados por MCP Firebird.
-4. **HTTPS**: Usa HTTPS para conexiones SSE en producción.
-5. **Validación de entrada**: MCP Firebird valida las consultas SQL para prevenir inyección, pero es una buena práctica validar también en el cliente.
+1. **Minimum Privileges**: Use a database user with the minimum necessary privileges.
+2. **Isolation**: Run MCP Firebird in an isolated environment, such as a Docker container.
+3. **Firewall**: Limit access to the ports used by MCP Firebird.
+4. **HTTPS**: Use HTTPS for SSE connections in production.
+5. **Input Validation**: MCP Firebird validates SQL queries to prevent injection, but it's good practice to validate on the client side as well.
 
-## Capacidades de seguridad implementadas
+## Implemented Security Capabilities
 
-MCP Firebird incluye un sistema de seguridad completo con las siguientes capacidades:
+MCP Firebird includes a comprehensive security system with the following capabilities:
 
-- **Restricción de tablas**: Limita qué tablas son accesibles
-- **Limitación de operaciones SQL**: Controla qué tipos de operaciones SQL están permitidas
-- **Enmascaramiento de datos sensibles**: Oculta información confidencial en los resultados
-- **Filtrado de filas**: Aplica condiciones para limitar qué registros son visibles
-- **Límites de recursos**: Previene consultas que consumen demasiados recursos
-- **Integración con sistemas de autorización**: Soporte para OAuth2 y mapeo de roles a permisos
-- **Auditoría**: Registro detallado de operaciones para fines de seguridad
+- **Table Restriction**: Limits which tables are accessible
+- **SQL Operation Limitation**: Controls which types of SQL operations are allowed
+- **Sensitive Data Masking**: Hides confidential information in results
+- **Row Filtering**: Applies conditions to limit which records are visible
+- **Resource Limits**: Prevents queries that consume too many resources
+- **Integration with Authorization Systems**: Support for OAuth2 and role-to-permission mapping
+- **Auditing**: Detailed logging of operations for security purposes
 
-## Restricción de acceso a tablas y vistas
+## Restricting Access to Tables and Views
 
-Puedes restringir qué tablas y vistas están disponibles para el servidor MCP usando filtros de inclusión y exclusión:
+You can restrict which tables and views are available to the MCP server using inclusion and exclusion filters:
 
 ```javascript
-// En tu configuración personalizada (config.js)
+// In your custom configuration (config.js)
 module.exports = {
-  // Configuración básica...
+  // Basic configuration...
 
   security: {
-    // Sólo permitir acceso a estas tablas
+    // Only allow access to these tables
     allowedTables: [
       'CUSTOMERS',
       'PRODUCTS',
@@ -42,106 +42,106 @@ module.exports = {
       'ORDER_ITEMS'
     ],
 
-    // Excluir estas tablas explícitamente (tiene precedencia sobre allowedTables)
+    // Explicitly exclude these tables (takes precedence over allowedTables)
     forbiddenTables: [
       'USERS',
       'USER_CREDENTIALS',
       'AUDIT_LOG'
     ],
 
-    // Filtro de patrón de nombre (expresión regular)
-    tableNamePattern: '^(?!TMP_|TEMP_|BAK_).*$'  // Excluir tablas temporales/backup
+    // Name pattern filter (regular expression)
+    tableNamePattern: '^(?!TMP_|TEMP_|BAK_).*$'  // Exclude temporary/backup tables
   }
 };
 ```
 
-Para usar esta configuración:
+To use this configuration:
 
 ```bash
 npx mcp-firebird --config ./config.js
 ```
 
-## Limitación de operaciones SQL
+## Limiting SQL Operations
 
-Puedes restringir qué operaciones SQL están permitidas:
+You can restrict which SQL operations are allowed:
 
 ```javascript
-// En tu configuración personalizada
+// In your custom configuration
 module.exports = {
-  // Configuración básica...
+  // Basic configuration...
 
   security: {
-    // Operaciones SQL permitidas
-    allowedOperations: ['SELECT', 'EXECUTE'],  // Solo consultas y procedimientos almacenados
+    // Allowed SQL operations
+    allowedOperations: ['SELECT', 'EXECUTE'],  // Only queries and stored procedures
 
-    // Bloquear estas operaciones específicamente
+    // Specifically block these operations
     forbiddenOperations: ['DROP', 'TRUNCATE', 'ALTER', 'GRANT', 'REVOKE'],
 
-    // Número máximo de filas que se pueden devolver en una consulta
+    // Maximum number of rows that can be returned in a query
     maxRows: 1000,
 
-    // Tiempo máximo de ejecución para consultas (en ms)
+    // Maximum execution time for queries (in ms)
     queryTimeout: 5000
   }
 };
 ```
 
-## Enmascaramiento de datos sensibles
+## Sensitive Data Masking
 
-Puedes configurar reglas para enmascarar o filtrar datos sensibles:
+You can configure rules to mask or filter sensitive data:
 
 ```javascript
 module.exports = {
-  // Configuración básica...
+  // Basic configuration...
 
   security: {
     dataMasking: [
       {
-        // Enmascarar columnas específicas
+        // Mask specific columns
         columns: ['CREDIT_CARD_NUMBER', 'SSN', 'PASSWORD'],
         pattern: /^.*/,
         replacement: '************'
       },
       {
-        // Enmascarar parcialmente emails
+        // Partially mask emails
         columns: ['EMAIL'],
         pattern: /^(.{3})(.*)(@.*)$/,
         replacement: '$1***$3'
       }
     ],
 
-    // Filtros de línea para excluir datos sensibles
+    // Row filters to exclude sensitive data
     rowFilters: {
-      'CUSTOMERS': 'GDPR_CONSENT = 1',  // Solo mostrar clientes con consentimiento GDPR
-      'EMPLOYEES': 'IS_PUBLIC_PROFILE = 1'  // Solo perfiles públicos de empleados
+      'CUSTOMERS': 'GDPR_CONSENT = 1',  // Only show customers with GDPR consent
+      'EMPLOYEES': 'IS_PUBLIC_PROFILE = 1'  // Only public employee profiles
     }
   }
 };
 ```
 
-## Limitaciones de volumen de datos
+## Data Volume Limitations
 
-Configura límites para prevenir consultas que consumen demasiados recursos:
+Configure limits to prevent queries that consume too many resources:
 
 ```javascript
 module.exports = {
-  // Configuración básica...
+  // Basic configuration...
 
   security: {
     resourceLimits: {
-      // Límite de filas por consulta
+      // Row limit per query
       maxRowsPerQuery: 5000,
 
-      // Límite de tamaño de resultado (en bytes)
+      // Result size limit (in bytes)
       maxResponseSize: 1024 * 1024 * 5,  // 5 MB
 
-      // Límite de tiempo de CPU por consulta (ms)
+      // CPU time limit per query (ms)
       maxQueryCpuTime: 10000,
 
-      // Límite de consultas por sesión
+      // Query limit per session
       maxQueriesPerSession: 100,
 
-      // Limitación de tasa (consultas por minuto)
+      // Rate limiting (queries per minute)
       rateLimit: {
         queriesPerMinute: 60,
         burstLimit: 20
@@ -151,20 +151,20 @@ module.exports = {
 };
 ```
 
-## Integración con sistemas de autorización externos
+## Integration with External Authorization Systems
 
-MCP Firebird puede integrarse con sistemas de autorización externos para un control de acceso más preciso:
+MCP Firebird can integrate with external authorization systems for more precise access control:
 
 ```javascript
 module.exports = {
-  // Configuración básica...
+  // Basic configuration...
 
   security: {
     authorization: {
-      // Usar un servicio de autorización externo
+      // Use an external authorization service
       type: 'oauth2',
 
-      // Configuración para OAuth2
+      // OAuth2 configuration
       oauth2: {
         tokenVerifyUrl: 'https://auth.example.com/verify',
         clientId: 'mcp-firebird-client',
@@ -172,7 +172,7 @@ module.exports = {
         scope: 'database:read'
       },
 
-      // Mapeo de roles a permisos
+      // Role to permission mapping
       rolePermissions: {
         'analyst': {
           tables: ['SALES', 'PRODUCTS', 'CUSTOMERS'],
@@ -192,9 +192,9 @@ module.exports = {
 };
 ```
 
-## Ejemplos prácticos de seguridad
+## Practical Security Examples
 
-### Ejemplo 1: Servidor MCP para análisis de ventas
+### Example 1: MCP Server for Sales Analysis
 
 ```javascript
 // config-sales-analysis.js
@@ -204,16 +204,16 @@ module.exports = {
   password: process.env.FIREBIRD_PASSWORD,
 
   security: {
-    // Acceso limitado a tablas de ventas
+    // Limited access to sales tables
     allowedTables: [
       'SALES', 'PRODUCTS', 'CUSTOMERS', 'REGIONS',
       'SALES_TARGETS', 'PRODUCT_CATEGORIES'
     ],
 
-    // Solo permitir consultas SELECT
+    // Only allow SELECT queries
     allowedOperations: ['SELECT'],
 
-    // Enmascarar datos sensibles de clientes
+    // Mask sensitive customer data
     dataMasking: [
       {
         columns: ['CUSTOMER_EMAIL', 'CUSTOMER_PHONE'],
@@ -222,7 +222,7 @@ module.exports = {
       }
     ],
 
-    // Límites de recursos
+    // Resource limits
     resourceLimits: {
       maxRowsPerQuery: 10000,
       maxQueryCpuTime: 5000
@@ -231,7 +231,7 @@ module.exports = {
 };
 ```
 
-### Ejemplo 2: Servidor MCP para gestión de inventario
+### Example 2: MCP Server for Inventory Management
 
 ```javascript
 // config-inventory.js
@@ -241,21 +241,21 @@ module.exports = {
   password: process.env.FIREBIRD_PASSWORD,
 
   security: {
-    // Acceso a tablas de inventario
+    // Access to inventory tables
     allowedTables: [
       'INVENTORY', 'PRODUCTS', 'WAREHOUSES',
       'STOCK_MOVEMENTS', 'SUPPLIERS'
     ],
 
-    // Permitir operaciones de lectura y escritura limitadas
+    // Allow limited read and write operations
     allowedOperations: ['SELECT', 'INSERT', 'UPDATE'],
 
-    // Prevenir modificación de registros históricos
+    // Prevent modification of historical records
     rowFilters: {
       'STOCK_MOVEMENTS': 'MOVEMENT_DATE > DATEADD(-30 DAY TO CURRENT_DATE)'
     },
 
-    // Auditoría completa
+    // Full auditing
     audit: {
       enabled: true,
       destination: 'both',
@@ -267,7 +267,7 @@ module.exports = {
 };
 ```
 
-### Ejemplo 3: Configuración para desarrollo y pruebas
+### Example 3: Configuration for Development and Testing
 
 ```javascript
 // config-development.js
@@ -277,20 +277,20 @@ module.exports = {
   password: process.env.FIREBIRD_PASSWORD_DEV,
 
   security: {
-    // En desarrollo, permitir más operaciones
+    // In development, allow more operations
     allowedOperations: ['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'CREATE'],
 
-    // Excluir solo tablas críticas
+    // Exclude only critical tables
     forbiddenTables: ['SYSTEM_CONFIG', 'APP_SECRETS'],
 
-    // Limitar impacto de consultas pesadas
+    // Limit impact of heavy queries
     resourceLimits: {
       maxRowsPerQuery: 1000,
       maxQueryCpuTime: 3000,
       queriesPerMinute: 120
     },
 
-    // Auditoría básica
+    // Basic auditing
     audit: {
       enabled: true,
       destination: 'file',
@@ -301,9 +301,9 @@ module.exports = {
 };
 ```
 
-## Opciones de seguridad SQL
+## SQL Security Options
 
-MCP Firebird proporciona opciones adicionales para controlar la seguridad de las consultas SQL:
+MCP Firebird provides additional options to control SQL query security:
 
 ```json
 {
@@ -316,7 +316,7 @@ MCP Firebird proporciona opciones adicionales para controlar la seguridad de las
 }
 ```
 
-Para usar esta configuración con Claude Desktop:
+To use this configuration with Claude Desktop:
 
 ```json
 "mcp-firebird": {
@@ -333,49 +333,49 @@ Para usar esta configuración con Claude Desktop:
         "--port",
         "3050",
         "--security-config",
-        "C:\\ruta\\a\\tu\\security-config.json"
+        "C:\\path\\to\\your\\security-config.json"
     ],
     "command": "npx",
     "type": "stdio"
 }
 ```
 
-## Validación de consultas SQL
+## SQL Query Validation
 
-MCP Firebird incluye validación de consultas SQL para prevenir inyección SQL. Esta validación se realiza antes de ejecutar cualquier consulta.
+MCP Firebird includes SQL query validation to prevent SQL injection. This validation is performed before executing any query.
 
 ```javascript
-// Ejemplo de validación de consulta SQL
+// Example of SQL query validation
 const isSafe = validateSql("SELECT * FROM EMPLOYEES WHERE ID = ?");
 ```
 
-## Implementación del enmascaramiento de datos
+## Data Masking Implementation
 
-El enmascaramiento de datos se implementa a nivel de aplicación, aplicando reglas de transformación a los resultados de las consultas antes de devolverlos al cliente:
+Data masking is implemented at the application level, applying transformation rules to query results before returning them to the client:
 
 ```typescript
-// Ejemplo de implementación de enmascaramiento de datos
+// Example of data masking implementation
 function maskSensitiveData(results: any[]): any[] {
     if (!securityConfig.dataMasking || securityConfig.dataMasking.length === 0) {
         return results;
     }
 
     try {
-        // Crear una copia profunda de los resultados para evitar modificar el original
+        // Create a deep copy of the results to avoid modifying the original
         const maskedResults = JSON.parse(JSON.stringify(results));
 
-        // Aplicar cada regla de enmascaramiento
+        // Apply each masking rule
         for (const rule of securityConfig.dataMasking) {
             const { columns, pattern, replacement } = rule;
 
-            // Convertir patrón de string a RegExp si es necesario
+            // Convert pattern from string to RegExp if necessary
             const regex = typeof pattern === 'string' ? new RegExp(pattern) : pattern;
 
-            // Aplicar la regla a cada fila
+            // Apply the rule to each row
             for (const row of maskedResults) {
                 for (const column of columns) {
                     if (column in row && row[column] !== null && row[column] !== undefined) {
-                        // Aplicar el enmascaramiento
+                        // Apply masking
                         const originalValue = String(row[column]);
                         row[column] = originalValue.replace(regex, replacement);
                     }
@@ -385,39 +385,39 @@ function maskSensitiveData(results: any[]): any[] {
 
         return maskedResults;
     } catch (error) {
-        logger.error(`Error al enmascarar datos sensibles: ${error.message}`);
+        logger.error(`Error masking sensitive data: ${error.message}`);
         return results;
     }
 }
 ```
 
-## Mejores prácticas
+## Best Practices
 
-1. **No exponer credenciales**: No incluyas credenciales de base de datos en el código fuente.
-2. **Usar variables de entorno**: Almacena información sensible en variables de entorno o archivos `.env` que no se incluyan en el control de versiones.
-3. **Actualizar regularmente**: Mantén MCP Firebird y sus dependencias actualizadas.
-4. **Auditoría**: Implementa registro de auditoría para operaciones sensibles.
-5. **Backup**: Realiza copias de seguridad regulares de tus bases de datos.
-6. **Principio de mínimo privilegio**: Configura cada instancia de MCP Firebird con acceso solo a las tablas y operaciones que realmente necesita.
-7. **Segmentación**: Usa diferentes instancias de MCP Firebird para diferentes casos de uso, cada una con su propia configuración de seguridad.
+1. **Don't Expose Credentials**: Don't include database credentials in source code.
+2. **Use Environment Variables**: Store sensitive information in environment variables or `.env` files that aren't included in version control.
+3. **Update Regularly**: Keep MCP Firebird and its dependencies updated.
+4. **Auditing**: Implement audit logging for sensitive operations.
+5. **Backup**: Perform regular backups of your databases.
+6. **Principle of Least Privilege**: Configure each MCP Firebird instance with access only to the tables and operations it actually needs.
+7. **Segmentation**: Use different MCP Firebird instances for different use cases, each with its own security configuration.
 
-## Ejemplo de configuración segura
+## Secure Configuration Example
 
 ```bash
-# Configuración de base de datos con usuario de privilegios limitados
+# Database configuration with limited privilege user
 export FIREBIRD_USER=app_user
 export FIREBIRD_PASSWORD=strong_password
 export FIREBIRD_DATABASE=/path/to/database.fdb
 
-# Configuración de transporte seguro
+# Secure transport configuration
 export TRANSPORT_TYPE=sse
 export SSE_PORT=3003
 export SSL_CERT=/path/to/cert.pem
 export SSL_KEY=/path/to/key.pem
 
-# Configuración de seguridad
+# Security configuration
 export SECURITY_CONFIG=/path/to/security-config.json
 
-# Iniciar MCP Firebird
+# Start MCP Firebird
 npx mcp-firebird
 ```
