@@ -21,16 +21,18 @@ This guide explains how to integrate MCP Firebird with Visual Studio Code and Gi
       "command": "npx",
       "args": [
         "mcp-firebird",
+        "--database",
+        "C:\\path\\to\\database.fdb",
         "--host",
-        "your_host",
+        "localhost",
         "--port",
         "3050",
         "--database",
-        "/path/to/your/database.fdb",
+        "/path/to/database.fdb",
         "--user",
-        "your_username",
+        "SYSDBA",
         "--password",
-        "your_password"
+        "masterkey"
       ],
       "type": "stdio"
     }
