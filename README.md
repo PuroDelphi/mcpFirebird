@@ -1,5 +1,7 @@
 # MCP Firebird
 
+[![smithery badge](https://smithery.ai/badge/@PuroDelphi/mcpFirebird)](https://smithery.ai/server/@PuroDelphi/mcpFirebird)
+
 Implementation of Anthropic's MCP (Model Context Protocol) for Firebird databases.
 
 ## What is MCP Firebird?
@@ -19,6 +21,15 @@ MCP Firebird is a server that implements Anthropic's [Model Context Protocol (MC
 
 ## Quick Installation
 
+### Installing via Smithery
+
+To install MCP Firebird for Claude Desktop automatically via [Smithery](https://smithery.ai/server/@PuroDelphi/mcpFirebird):
+
+```bash
+npx -y @smithery/cli install @PuroDelphi/mcpFirebird --client claude
+```
+
+### Manual Installation
 ```bash
 # Global installation
 npm install -g mcp-firebird
@@ -50,7 +61,17 @@ For VSCode and GitHub Copilot integration, see [VSCode Integration](./docs/vscod
          "args": [
            "mcp-firebird",
            "--database",
-           "C:\\path\\to\\database.fdb"
+           "C:\\path\\to\\database.fdb",
+           "--host",
+           "localhost",
+           "--port",
+           "3050",
+           "--database",
+           "/path/to/database.fdb",
+           "--user",
+           "SYSDBA",
+           "--password",
+           "masterkey"
          ],
          "type": "stdio"
        }
@@ -64,7 +85,7 @@ For VSCode and GitHub Copilot integration, see [VSCode Integration](./docs/vscod
 
 ```bash
 # Start with SSE transport
-npx mcp-firebird --transport-type sse --sse-port 3003 --database /path/to/database.fdb
+npx mcp-firebird --transport-type sse --sse-port 3003 --database /path/to/database.fdb --host localhost --port 3050 --user SYSDBA --password masterkey
 ```
 
 ## Documentation
@@ -91,7 +112,7 @@ For more detailed information, check the following documents:
 - Expanded security documentation with detailed examples
 - Translated documentation to English
 
-### Version 2.0.5-alpha.27
+### Version 2.0.5
 
 - Added support for SSE transport
 - Improved compatibility with Claude Desktop
