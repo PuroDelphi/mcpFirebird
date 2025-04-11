@@ -61,7 +61,7 @@ npx mcp-firebird
 Or using command line parameters:
 
 ```bash
-npx mcp-firebird --transport-type sse --sse-port 3003
+npx mcp-firebird --transport-type sse --sse-port 3003 --database /path/to/database.fdb --host localhost --port 3050 --user SYSDBA --password masterkey
 ```
 
 ### SSE Client Examples
@@ -112,12 +112,14 @@ Add the following configuration:
       "command": "npx",
       "args": [
         "mcp-firebird",
+        "--database",
+        "C:\\path\\to\\database.fdb",
         "--host",
         "localhost",
         "--port",
         "3050",
         "--database",
-        "C:\\Databases\\example.fdb",
+        "/path/to/database.fdb",
         "--user",
         "SYSDBA",
         "--password",

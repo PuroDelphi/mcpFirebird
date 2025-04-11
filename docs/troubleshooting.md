@@ -89,7 +89,7 @@ set PATH=%PATH%;C:\Program Files\Firebird\Firebird_3_0\bin
 
 ```bash
 # Start with SSE transport and CORS enabled
-npx mcp-firebird --transport-type sse --sse-port 3003 --cors-enabled
+npx mcp-firebird --transport-type sse --sse-port 3003 --cors-enabled --database /path/to/database.fdb --host localhost --port 3050 --user SYSDBA --password masterkey
 ```
 
 ## Debugging

@@ -20,7 +20,7 @@ SSE_PORT=3003
 2. Start the server with the command:
 
 ```bash
-npm run sse
+npx mcp-firebird --transport-type sse --sse-port 3003 --database /path/to/database.fdb --host localhost --port 3050 --user SYSDBA --password masterkey
 ```
 
 The server will be available at `http://localhost:3003`.
@@ -46,42 +46,42 @@ Create a simple HTML file with the following content:
 </head>
 <body>
     <h1>MCP Firebird SSE Client</h1>
-    
+
     <div>
         <button id="listTablesBtn">List Tables</button>
         <button id="executeQueryBtn">Execute Query</button>
     </div>
-    
+
     <h2>Output:</h2>
     <pre id="output"></pre>
-    
+
     <script>
         const output = document.getElementById('output');
         const listTablesBtn = document.getElementById('listTablesBtn');
         const executeQueryBtn = document.getElementById('executeQueryBtn');
-        
+
         // Connect to the SSE server
         const eventSource = new EventSource('http://localhost:3003');
         let requestId = 1;
-        
+
         // Handle incoming messages
         eventSource.onmessage = (event) => {
             const data = JSON.parse(event.data);
             output.innerHTML += `Received: ${JSON.stringify(data, null, 2)}\n\n`;
             output.scrollTop = output.scrollHeight;
         };
-        
+
         // Handle connection open
         eventSource.onopen = () => {
             output.innerHTML += "Connected to MCP Firebird server\n\n";
         };
-        
+
         // Handle errors
         eventSource.onerror = (error) => {
             output.innerHTML += `Error: ${error.type}\n\n`;
             eventSource.close();
         };
-        
+
         // Send a request to list tables
         listTablesBtn.addEventListener('click', () => {
             const request = {
@@ -89,7 +89,7 @@ Create a simple HTML file with the following content:
                 method: 'list-tables',
                 params: {}
             };
-            
+
             fetch('http://localhost:3003', {
                 method: 'POST',
                 headers: {
@@ -97,10 +97,10 @@ Create a simple HTML file with the following content:
                 },
                 body: JSON.stringify(request)
             });
-            
+
             output.innerHTML += `Sent: ${JSON.stringify(request, null, 2)}\n\n`;
         });
-        
+
         // Send a request to execute a query
         executeQueryBtn.addEventListener('click', () => {
             const request = {
@@ -110,7 +110,7 @@ Create a simple HTML file with the following content:
                     sql: 'SELECT FIRST 5 * FROM RDB$RELATIONS'
                 }
             };
-            
+
             fetch('http://localhost:3003', {
                 method: 'POST',
                 headers: {
@@ -118,7 +118,7 @@ Create a simple HTML file with the following content:
                 },
                 body: JSON.stringify(request)
             });
-            
+
             output.innerHTML += `Sent: ${JSON.stringify(request, null, 2)}\n\n`;
         });
     </script>
@@ -147,9 +147,9 @@ request_id = 1
 # Function to handle SSE events
 def handle_events():
     client = sseclient.SSEClient(SERVER_URL)
-    
+
     print("Connected to SSE server. Waiting for events...")
-    
+
     for event in client.events():
         try:
             data = json.loads(event.data)
@@ -165,26 +165,26 @@ event_thread.start()
 # Function to send a request
 def send_request(method, params=None):
     global request_id
-    
+
     if params is None:
         params = {}
-    
+
     request = {
         'id': request_id,
         'method': method,
         'params': params
     }
-    
+
     request_id += 1
-    
+
     print(f"Sending: {json.dumps(request, indent=2)}")
-    
+
     response = requests.post(
         SERVER_URL,
         headers={'Content-Type': 'application/json'},
         data=json.dumps(request)
     )
-    
+
     print(f"HTTP Response: {response.status_code}")
 
 # Interactive menu
@@ -194,9 +194,9 @@ while True:
     print("2. Execute Query")
     print("3. Describe Table")
     print("4. Exit")
-    
+
     choice = input("Enter your choice (1-4): ")
-    
+
     if choice == '1':
         send_request('list-tables')
     elif choice == '2':
@@ -263,9 +263,9 @@ async function sendRequest(method, params = {}) {
         method,
         params
     };
-    
+
     console.log('Sending:', JSON.stringify(request, null, 2));
-    
+
     try {
         const response = await fetch(SERVER_URL, {
             method: 'POST',
@@ -274,7 +274,7 @@ async function sendRequest(method, params = {}) {
             },
             body: JSON.stringify(request)
         });
-        
+
         console.log('HTTP Response:', response.status);
     } catch (error) {
         console.error('Error sending request:', error);
@@ -294,7 +294,7 @@ function showMenu() {
     console.log('2. Execute Query');
     console.log('3. Describe Table');
     console.log('4. Exit');
-    
+
     rl.question('Enter your choice (1-4): ', (choice) => {
         switch (choice) {
             case '1':

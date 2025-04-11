@@ -55,7 +55,7 @@ TRANSPORT_TYPE=sse
 SSE_PORT=3003
 
 # Ejecuta el servidor con transporte SSE
-npm run sse
+npx mcp-firebird --transport-type sse --sse-port 3003 --database /path/to/database.fdb --host localhost --port 3050 --user SYSDBA --password masterkey
 ```
 
 Puedes conectarte al servidor usando el Inspector MCP:
@@ -106,17 +106,20 @@ Añade la siguiente configuración:
       "command": "npx",
       "args": [
         "mcp-firebird",
+        "--database",
+        "C:\\path\\to\\database.fdb",
         "--host",
         "localhost",
         "--port",
         "3050",
         "--database",
-        "C:\\Databases\\example.fdb",
+        "/path/to/database.fdb",
         "--user",
         "SYSDBA",
         "--password",
         "masterkey"
-      ]
+      ],
+      "type": "stdio"
     }
   }
 }
