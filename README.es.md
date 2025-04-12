@@ -2,6 +2,8 @@
 
 Implementación del protocolo MCP de Anthropic para bases de datos Firebird.
 
+![image](https://github.com/user-attachments/assets/7538524b-c65d-441d-b773-326a69cf8c56)
+
 ## ¿Qué es MCP Firebird y para qué sirve?
 
 MCP Firebird es un servidor que implementa el [Protocolo de Contexto de Modelo (MCP)](https://github.com/anthropics/anthropic-cookbook/tree/main/model_context_protocol) de Anthropic para bases de datos [Firebird SQL](https://firebirdsql.org/). Permite a los Modelos de Lenguaje de Gran Tamaño (LLMs) como Claude acceder, analizar y manipular datos en bases de datos Firebird de manera segura y controlada.
