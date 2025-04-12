@@ -28,17 +28,34 @@ console.log('Environment variables before starting MCP Firebird:');
 console.log(`FIREBIRD_DATABASE: ${env.FIREBIRD_DATABASE}`);
 console.log(`FB_DATABASE: ${env.FB_DATABASE}`);
 
-// Start the MCP Firebird server in STDIO mode with explicit environment variables
-const mcpProcess = spawn('node', [
-  path.join(__dirname, 'dist/cli.js'),
-  '--database', databasePath,
-  '--env', JSON.stringify({
-    FIREBIRD_DATABASE: databasePath,
-    FB_DATABASE: databasePath
-  })
-], {
+// Create a batch file to set environment variables and run the MCP Firebird server
+const batchContent = `
+@echo off
+set FIREBIRD_DATABASE=${databasePath.replace(/\//g, '\\')}
+set FB_DATABASE=${databasePath.replace(/\//g, '\\')}
+node "${path.join(__dirname, 'dist/cli.js')}" --database "${databasePath}"
+`;
+
+// Write the batch file
+const batchFilePath = path.join(__dirname, 'run-mcp-temp.bat');
+fs.writeFileSync(batchFilePath, batchContent);
+console.log(`Created temporary batch file: ${batchFilePath}`);
+
+// Start the MCP Firebird server using the batch file
+const mcpProcess = spawn(batchFilePath, [], {
   stdio: 'inherit',
-  env: env
+  env: env,
+  shell: true
+});
+
+// Clean up the batch file when the process exits
+mcpProcess.on('exit', () => {
+  try {
+    fs.unlinkSync(batchFilePath);
+    console.log(`Removed temporary batch file: ${batchFilePath}`);
+  } catch (error) {
+    console.error(`Error removing temporary batch file: ${error}`);
+  }
 });
 
 // Handle process exit
