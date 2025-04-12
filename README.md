@@ -90,12 +90,7 @@ npx mcp-firebird --transport-type sse --sse-port 3003 --database /path/to/databa
 
 ## Example Usage
 
-Watch this video to see MCP Firebird in action with Claude:
-
-<video src="https://github.com/PuroDelphi/mcpFirebird/raw/alpha/examples/ExampleClaudeV2.mp4" controls="controls" style="max-width: 730px;">
-</video>
-
-[Download Example Video](https://github.com/PuroDelphi/mcpFirebird/raw/alpha/examples/ExampleClaudeV2.mp4)
+[Watch Example Video: MCP Firebird in action with Claude](https://github.com/PuroDelphi/mcpFirebird/raw/alpha/examples/ExampleClaudeV2.mp4)
 
 ## Documentation
 
