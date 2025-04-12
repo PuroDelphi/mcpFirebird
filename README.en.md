@@ -1149,9 +1149,13 @@ If you find MCP Firebird useful for your work or projects, please consider suppo
 
 ![image](https://github.com/user-attachments/assets/d04cf0eb-32a8-48a7-9324-c02af5269370)
 
+### Hire Our AI Agents
+
+Another great way to support this project is by hiring our AI agents through [Asistentes Autónomos](https://asistentesautonomos.com). We offer specialized AI assistants for various business needs, helping you automate tasks and improve productivity.
+
 ### Priority Support
 
-⭐ **Donors and sponsors receive priority support and assistance** with issues, feature requests, and implementation guidance. While we strive to help all users, those who support the project financially will receive faster response times and dedicated assistance.
+⭐ **Donors, sponsors, and clients receive priority support and assistance** with issues, feature requests, and implementation guidance. While we strive to help all users, those who support the project financially will receive faster response times and dedicated assistance.
 
 Your support is greatly appreciated and helps ensure the continued development of MCP Firebird!
 
