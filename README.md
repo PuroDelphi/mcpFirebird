@@ -2,10 +2,9 @@
 
 [![smithery badge](https://smithery.ai/badge/@PuroDelphi/mcpFirebird)](https://smithery.ai/server/@PuroDelphi/mcpFirebird)
 
-![image](https://github.com/user-attachments/assets/7538524b-c65d-441d-b773-326a69cf8c56)
-
-
 Implementation of Anthropic's MCP (Model Context Protocol) for Firebird databases.
+
+![image](https://github.com/user-attachments/assets/7538524b-c65d-441d-b773-326a69cf8c56)
 
 ## What is MCP Firebird?
 
