@@ -116,7 +116,8 @@ Añade la siguiente configuración:
         "SYSDBA",
         "--password",
         "masterkey"
-      ]
+      ],
+      "type": "stdio"
     }
   }
 }
