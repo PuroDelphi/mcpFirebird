@@ -136,14 +136,28 @@ async function performHealthCheck(): Promise<boolean> {
         await import('./db/connection.js');
         await import('./db/queries.js');
 
-        // Verificar variables de entorno necesarias
-        logger.info('Verificando variables de entorno...');
-        const requiredEnvVars = ['FIREBIRD_DATABASE', 'FIREBIRD_HOST', 'FIREBIRD_PORT', 'FIREBIRD_USER', 'FIREBIRD_PASSWORD'];
-        const missingEnvVars = requiredEnvVars.filter(varName => !process.env[varName]);
+        // Verificar configuración global y variables de entorno
+        logger.info('Verificando configuración...');
 
-        if (missingEnvVars.length > 0) {
-            logger.warn(`Variables de entorno faltantes: ${missingEnvVars.join(', ')}`);
-            logger.warn('Se utilizarán valores predeterminados donde sea posible');
+        // Verificar si existe configuración global
+        const globalConfig = (global as any).MCP_FIREBIRD_CONFIG;
+        if (globalConfig && globalConfig.database) {
+            logger.info('Configuración global encontrada');
+            logger.info(`Database: ${globalConfig.database}`);
+            logger.info(`Host: ${globalConfig.host}`);
+            logger.info(`Port: ${globalConfig.port}`);
+            logger.info(`User: ${globalConfig.user}`);
+            // No mostrar la contraseña
+        } else {
+            // Verificar variables de entorno necesarias
+            logger.info('Verificando variables de entorno...');
+            const requiredEnvVars = ['FIREBIRD_DATABASE', 'FIREBIRD_HOST', 'FIREBIRD_PORT', 'FIREBIRD_USER', 'FIREBIRD_PASSWORD'];
+            const missingEnvVars = requiredEnvVars.filter(varName => !process.env[varName]);
+
+            if (missingEnvVars.length > 0) {
+                logger.warn(`Variables de entorno faltantes: ${missingEnvVars.join(', ')}`);
+                logger.warn('Se utilizarán valores predeterminados donde sea posible');
+            }
         }
 
         return true;

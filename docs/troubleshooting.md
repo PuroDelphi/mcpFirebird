@@ -19,14 +19,63 @@ This document provides information for solving common problems with MCP Firebird
 npx mcp-firebird --database /path/to/database.fdb --user SYSDBA --password masterkey --test-connection
 ```
 
-### Error "No database specified"
+### Error "No database specified" or "FIREBIRD_DATABASE is not set"
 
-**Symptom**: Error "No database specified" when running database tools.
+**Symptom**: Error "No database specified" or "FIREBIRD_DATABASE is not set" when running database tools or using Claude Desktop.
 
 **Possible solutions**:
-1. Make sure the `FIREBIRD_DATABASE` environment variable is set.
-2. Provide the database path as a parameter.
-3. Verify that the database path is accessible.
+
+1. **When using Claude Desktop or Smithery**:
+   - Make sure to include the database path in the configuration:
+   ```json
+   {
+     "mcpServers": {
+       "mcp-firebird": {
+         "command": "npx",
+         "args": [
+           "mcp-firebird",
+           "--database",
+           "C:\\path\\to\\database.fdb",
+           "--host",
+           "localhost",
+           "--port",
+           "3050",
+           "--user",
+           "SYSDBA",
+           "--password",
+           "masterkey"
+         ],
+         "type": "stdio"
+       }
+     }
+   }
+   ```
+
+2. **When using command line**:
+   - Provide the database path as a parameter:
+   ```bash
+   npx mcp-firebird --database /path/to/database.fdb
+   ```
+
+3. **When using environment variables**:
+   - Set the `FIREBIRD_DATABASE` environment variable:
+   ```bash
+   # Windows
+   set FIREBIRD_DATABASE=C:\path\to\database.fdb
+
+   # Linux/macOS
+   export FIREBIRD_DATABASE=/path/to/database.fdb
+   ```
+
+4. **Using a .env file**:
+   - Create a `.env` file in the project root with:
+   ```
+   FIREBIRD_DATABASE=/path/to/database.fdb
+   FIREBIRD_HOST=localhost
+   FIREBIRD_PORT=3050
+   FIREBIRD_USER=SYSDBA
+   FIREBIRD_PASSWORD=masterkey
+   ```
 
 ```bash
 # Set the environment variable
