@@ -14,16 +14,26 @@ const argv = minimist(process.argv.slice(2));
 console.error('Command line arguments:', JSON.stringify(argv));
 console.error('Raw process.argv:', JSON.stringify(process.argv));
 
+// Default database path for testing
+const DEFAULT_DATABASE_PATH = 'F:/Proyectos/SAI/EMPLOYEE.FDB';
+
 // Create database configuration object directly from command line arguments
 export const dbConfig: ConfigOptions = {
   host: argv.host || 'localhost',
   port: argv.port ? parseInt(argv.port, 10) : 3050,
-  database: argv.database ? normalizeDatabasePath(argv.database) : '',
+  database: argv.database ? normalizeDatabasePath(argv.database) : normalizeDatabasePath(DEFAULT_DATABASE_PATH),
   user: argv.user || 'SYSDBA',
   password: argv.password || 'masterkey',
   role: argv.role,
   pageSize: 4096
 };
+
+// Set environment variables for the default database if not provided
+if (!process.env.FIREBIRD_DATABASE && !process.env.FB_DATABASE && !argv.database) {
+  process.env.FIREBIRD_DATABASE = DEFAULT_DATABASE_PATH;
+  process.env.FB_DATABASE = DEFAULT_DATABASE_PATH;
+  console.error(`Setting default FIREBIRD_DATABASE to ${DEFAULT_DATABASE_PATH}`);
+}
 
 // Make the configuration globally available
 (global as any).MCP_FIREBIRD_CONFIG = dbConfig;

@@ -43,6 +43,8 @@ set FIREBIRD_PASSWORD=masterkey
 set FB_PASSWORD=masterkey
 
 node "${path.join(__dirname, 'dist/cli.js')}" --database "${databasePath}" --host localhost --port 3050 --user SYSDBA --password masterkey
+
+echo "Database path: ${databasePath.replace(/\//g, '\\')}"
 `;
 
 // Write the batch file
