@@ -61,17 +61,7 @@ For VSCode and GitHub Copilot integration, see [VSCode Integration](./docs/vscod
          "args": [
            "mcp-firebird",
            "--database",
-           "C:\\path\\to\\database.fdb",
-           "--host",
-           "localhost",
-           "--port",
-           "3050",
-           "--database",
-           "/path/to/database.fdb",
-           "--user",
-           "SYSDBA",
-           "--password",
-           "masterkey"
+           "C:\\path\\to\\database.fdb"
          ],
          "type": "stdio"
        }
@@ -85,7 +75,7 @@ For VSCode and GitHub Copilot integration, see [VSCode Integration](./docs/vscod
 
 ```bash
 # Start with SSE transport
-npx mcp-firebird --transport-type sse --sse-port 3003 --database /path/to/database.fdb --host localhost --port 3050 --user SYSDBA --password masterkey
+npx mcp-firebird --transport-type sse --sse-port 3003 --database /path/to/database.fdb
 ```
 
 ## Documentation
@@ -118,6 +108,21 @@ For more detailed information, check the following documents:
 - Improved compatibility with Claude Desktop
 - Added performance analysis tools
 - Fixed database connection issues
+
+## Support the Project
+
+### Donations
+
+If you find MCP Firebird useful for your work or projects, please consider supporting its development through a donation. Your contributions help maintain and improve this tool.
+
+- **GitHub Sponsors**: [Sponsor @PuroDelphi](https://github.com/sponsors/PuroDelphi)
+- **PayPal**: [Donate via PayPal](https://paypal.me/jhonnysuarez)
+
+### Priority Support
+
+⭐ **Donors and sponsors receive priority support and assistance** with issues, feature requests, and implementation guidance. While we strive to help all users, those who support the project financially will receive faster response times and dedicated assistance.
+
+Your support is greatly appreciated and helps ensure the continued development of MCP Firebird!
 
 ## License
 

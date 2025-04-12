@@ -71,14 +71,12 @@ Add the following configuration:
       "command": "npx",
       "args": [
         "mcp-firebird",
-        "--database",
-        "C:\\path\\to\\database.fdb",
         "--host",
         "localhost",
         "--port",
         "3050",
         "--database",
-        "/path/to/database.fdb",
+        "C:\\Databases\\example.fdb",
         "--user",
         "SYSDBA",
         "--password",
@@ -1133,6 +1131,21 @@ export LOG_LEVEL=debug
 3. **STDIO issues**:
    - Ensure standard output is not being redirected
    - Don't use `console.log` for debugging (use `console.error` instead)
+
+## Support the Project
+
+### Donations
+
+If you find MCP Firebird useful for your work or projects, please consider supporting its development through a donation. Your contributions help maintain and improve this tool.
+
+- **GitHub Sponsors**: [Sponsor @PuroDelphi](https://github.com/sponsors/PuroDelphi)
+- **PayPal**: [Donate via PayPal](https://paypal.me/jhonnysuarez)
+
+### Priority Support
+
+⭐ **Donors and sponsors receive priority support and assistance** with issues, feature requests, and implementation guidance. While we strive to help all users, those who support the project financially will receive faster response times and dedicated assistance.
+
+Your support is greatly appreciated and helps ensure the continued development of MCP Firebird!
 
 ## License
 

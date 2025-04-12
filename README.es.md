@@ -55,7 +55,7 @@ TRANSPORT_TYPE=sse
 SSE_PORT=3003
 
 # Ejecuta el servidor con transporte SSE
-npx mcp-firebird --transport-type sse --sse-port 3003 --database /path/to/database.fdb --host localhost --port 3050 --user SYSDBA --password masterkey
+npm run sse
 ```
 
 Puedes conectarte al servidor usando el Inspector MCP:
@@ -106,20 +106,17 @@ Añade la siguiente configuración:
       "command": "npx",
       "args": [
         "mcp-firebird",
-        "--database",
-        "C:\\path\\to\\database.fdb",
         "--host",
         "localhost",
         "--port",
         "3050",
         "--database",
-        "/path/to/database.fdb",
+        "C:\\Databases\\example.fdb",
         "--user",
         "SYSDBA",
         "--password",
         "masterkey"
-      ],
-      "type": "stdio"
+      ]
     }
   }
 }
@@ -1099,6 +1096,21 @@ export LOG_LEVEL=debug
 3. **Problemas con STDIO**:
    - Asegúrate de que la salida estándar no esté siendo redirigida
    - No utilices `console.log` para depuración (usa `console.error`)
+
+## Apoya el Proyecto
+
+### Donaciones
+
+Si encuentras que MCP Firebird es útil para tu trabajo o proyectos, por favor considera apoyar su desarrollo a través de una donación. Tus contribuciones ayudan a mantener y mejorar esta herramienta.
+
+- **GitHub Sponsors**: [Patrocinar a @PuroDelphi](https://github.com/sponsors/PuroDelphi)
+- **PayPal**: [Donar vía PayPal](https://paypal.me/jhonnysuarez)
+
+### Soporte Prioritario
+
+⭐ **Los donantes y patrocinadores reciben soporte y asistencia prioritaria** con problemas, solicitudes de funciones y orientación de implementación. Aunque nos esforzamos por ayudar a todos los usuarios, aquellos que apoyan financieramente el proyecto recibirán tiempos de respuesta más rápidos y asistencia dedicada.
+
+¡Tu apoyo es muy apreciado y ayuda a asegurar el desarrollo continuo de MCP Firebird!
 
 ## Licencia
 
