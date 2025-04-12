@@ -2,7 +2,9 @@
 
 Implementación del protocolo MCP de Anthropic para bases de datos Firebird.
 
-![image](https://github.com/user-attachments/assets/7538524b-c65d-441d-b773-326a69cf8c56)
+## Ejemplo de Uso
+
+https://github.com/user-attachments/assets/e68e873f-f87b-4afd-874f-157086e223af
 
 ## ¿Qué es MCP Firebird y para qué sirve?
 
@@ -132,10 +134,6 @@ Añade la siguiente configuración:
 <Note>
   Después de guardar el archivo, necesitas reiniciar Claude Desktop completamente.
 </Note>
-
-## Ejemplo de Uso
-
-[Ver Video de Ejemplo: MCP Firebird en acción con Claude](https://github.com/PuroDelphi/mcpFirebird/raw/alpha/examples/ExampleClaudeV2.mp4)
 
 ## Recursos y Funcionalidades
 
