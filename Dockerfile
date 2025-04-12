@@ -24,6 +24,8 @@ COPY run-sse-server.js ./
 COPY run-sse-proxy.js ./
 COPY run-inspector.cjs ./
 COPY run-inspector.js ./
+COPY run-all-stdio.js ./
+COPY start-mcp-stdio.js ./
 
 # Compilar el proyecto TypeScript
 RUN npm run build

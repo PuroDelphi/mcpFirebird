@@ -32,6 +32,8 @@ COPY run-sse-server.js ./
 COPY run-sse-proxy.js ./
 COPY run-inspector.cjs ./
 COPY run-inspector.js ./
+COPY run-all-stdio.js ./
+COPY start-mcp-stdio.js ./
 
 # Compile the TypeScript project
 RUN npm run build
@@ -195,8 +197,33 @@ const eventSource = new EventSource('http://localhost:3003');
 
 ### With MCP Inspector
 
-To use the MCP Inspector with the Dockerized server:
+To use the MCP Inspector with the Dockerized server in SSE mode:
 
 ```bash
 npx @modelcontextprotocol/inspector http://localhost:3003
 ```
+
+For STDIO mode with the MCP Inspector, you can add a new service to your docker-compose.yml:
+
+```yaml
+  # MCP Inspector with STDIO transport
+  mcp-inspector-stdio:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      FIREBIRD_HOST: firebird-db
+      FIREBIRD_PORT: 3050
+      FIREBIRD_USER: SYSDBA
+      FIREBIRD_PASSWORD: masterkey
+      FIREBIRD_DATABASE: /firebird/data/database.fdb
+    ports:
+      - "6274:6274"
+    depends_on:
+      - firebird-db
+    networks:
+      - mcp-network
+    command: node run-all-stdio.js
+```
+
+This will start both the MCP Inspector and the MCP Firebird server with the correct configuration.
