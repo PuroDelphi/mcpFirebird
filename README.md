@@ -4,7 +4,9 @@
 
 Implementation of Anthropic's MCP (Model Context Protocol) for Firebird databases.
 
-![image](https://github.com/user-attachments/assets/7538524b-c65d-441d-b773-326a69cf8c56)
+## Example Usage
+
+https://github.com/user-attachments/assets/e68e873f-f87b-4afd-874f-157086e223af
 
 ## What is MCP Firebird?
 
@@ -87,10 +89,6 @@ For VSCode and GitHub Copilot integration, see [VSCode Integration](./docs/vscod
 # Start with SSE transport
 npx mcp-firebird --transport-type sse --sse-port 3003 --database /path/to/database.fdb
 ```
-
-## Example Usage
-
-https://github.com/user-attachments/assets/e68e873f-f87b-4afd-874f-157086e223af
 
 ## Documentation
 
