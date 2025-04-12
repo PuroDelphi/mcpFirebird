@@ -1106,7 +1106,7 @@ Si encuentras que MCP Firebird es útil para tu trabajo o proyectos, por favor c
 - **GitHub Sponsors**: [Patrocinar a @PuroDelphi](https://github.com/sponsors/PuroDelphi)
 - **PayPal**: [Donar vía PayPal](https://www.paypal.com/donate/?hosted_button_id=KBAUBYYDNHQNQ)
 
-<img src="docs/images/paypal-qr.png" alt="Código QR de PayPal" width="150"/>
+![image](https://github.com/user-attachments/assets/d04cf0eb-32a8-48a7-9324-c02af5269370)
 
 ### Soporte Prioritario
 
