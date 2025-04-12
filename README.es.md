@@ -1,6 +1,8 @@
 # MCP Firebird
 
-Implementación del protocolo MCP de Anthropic para bases de datos Firebird.
+[![smithery badge](https://smithery.ai/badge/@PuroDelphi/mcpFirebird)](https://smithery.ai/server/@PuroDelphi/mcpFirebird)
+
+Implementación del protocolo MCP (Model Context Protocol) de Anthropic para bases de datos Firebird.
 
 ## Ejemplo de Uso
 
