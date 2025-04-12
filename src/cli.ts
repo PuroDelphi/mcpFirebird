@@ -14,57 +14,55 @@ const argv = minimist(process.argv.slice(2));
 console.error('Command line arguments:', JSON.stringify(argv));
 console.error('Raw process.argv:', JSON.stringify(process.argv));
 
-// Load environment variables from .env file first (will be overridden by command line args)
-import dotenv from 'dotenv';
-dotenv.config();
-
-// Create database configuration object from command line arguments and environment variables
+// Create database configuration object directly from command line arguments
 export const dbConfig: ConfigOptions = {
-  host: argv.host || process.env.FIREBIRD_HOST || process.env.FB_HOST || 'localhost',
-  port: argv.port ? parseInt(argv.port, 10) : process.env.FIREBIRD_PORT ? parseInt(process.env.FIREBIRD_PORT, 10) : process.env.FB_PORT ? parseInt(process.env.FB_PORT, 10) : 3050,
-  database: argv.database ? normalizeDatabasePath(argv.database) : process.env.FIREBIRD_DATABASE ? normalizeDatabasePath(process.env.FIREBIRD_DATABASE) : process.env.FB_DATABASE ? normalizeDatabasePath(process.env.FB_DATABASE) : '',
-  user: argv.user || process.env.FIREBIRD_USER || process.env.FB_USER || 'SYSDBA',
-  password: argv.password || process.env.FIREBIRD_PASSWORD || process.env.FB_PASSWORD || 'masterkey',
-  role: argv.role || process.env.FIREBIRD_ROLE || process.env.FB_ROLE,
+  host: argv.host || 'localhost',
+  port: argv.port ? parseInt(argv.port, 10) : 3050,
+  database: argv.database ? normalizeDatabasePath(argv.database) : '',
+  user: argv.user || 'SYSDBA',
+  password: argv.password || 'masterkey',
+  role: argv.role,
   pageSize: 4096
 };
 
 // Make the configuration globally available
 (global as any).MCP_FIREBIRD_CONFIG = dbConfig;
 
-// Also set environment variables for backward compatibility and to ensure they're available throughout the application
-if (argv.database || dbConfig.database) {
-  process.env.FIREBIRD_DATABASE = dbConfig.database;
-  process.env.FB_DATABASE = dbConfig.database;
-  console.error(`Setting FIREBIRD_DATABASE to ${dbConfig.database}`);
+// Also set environment variables for backward compatibility
+if (argv.database) {
+  process.env.FIREBIRD_DATABASE = argv.database;
+  process.env.FB_DATABASE = argv.database;
+  console.error(`Setting FIREBIRD_DATABASE to ${argv.database}`);
 }
-if (argv.user || dbConfig.user) {
-  process.env.FIREBIRD_USER = dbConfig.user;
-  process.env.FB_USER = dbConfig.user;
-  console.error(`Setting FIREBIRD_USER to ${dbConfig.user}`);
+if (argv.user) {
+  process.env.FIREBIRD_USER = argv.user;
+  process.env.FB_USER = argv.user;
+  console.error(`Setting FIREBIRD_USER to ${argv.user}`);
 }
-if (argv.password || dbConfig.password) {
-  process.env.FIREBIRD_PASSWORD = dbConfig.password;
-  process.env.FB_PASSWORD = dbConfig.password;
+if (argv.password) {
+  process.env.FIREBIRD_PASSWORD = argv.password;
+  process.env.FB_PASSWORD = argv.password;
   console.error('Setting FIREBIRD_PASSWORD (value hidden)');
 }
-if (argv.host || dbConfig.host) {
-  process.env.FIREBIRD_HOST = dbConfig.host;
-  process.env.FB_HOST = dbConfig.host;
-  console.error(`Setting FIREBIRD_HOST to ${dbConfig.host}`);
+if (argv.host) {
+  process.env.FIREBIRD_HOST = argv.host;
+  process.env.FB_HOST = argv.host;
+  console.error(`Setting FIREBIRD_HOST to ${argv.host}`);
 }
-if (argv.port || dbConfig.port) {
-  process.env.FIREBIRD_PORT = String(dbConfig.port);
-  process.env.FB_PORT = String(dbConfig.port);
-  console.error(`Setting FIREBIRD_PORT to ${dbConfig.port}`);
+if (argv.port) {
+  process.env.FIREBIRD_PORT = argv.port;
+  process.env.FB_PORT = argv.port;
+  console.error(`Setting FIREBIRD_PORT to ${argv.port}`);
 }
-if (argv.role || dbConfig.role) {
-  process.env.FIREBIRD_ROLE = dbConfig.role || '';
-  process.env.FB_ROLE = dbConfig.role || '';
-  console.error(`Setting FIREBIRD_ROLE to ${dbConfig.role || 'not set'}`);
+if (argv.role) {
+  process.env.FIREBIRD_ROLE = argv.role;
+  process.env.FB_ROLE = argv.role;
+  console.error(`Setting FIREBIRD_ROLE to ${argv.role}`);
 }
 
-// Environment variables are already loaded above
+// Load environment variables from .env file (will not override existing env vars)
+import dotenv from 'dotenv';
+dotenv.config();
 
 // Import stdout guard to prevent accidental writes to stdout
 import './utils/stdout-guard.js';

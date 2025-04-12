@@ -47,12 +47,6 @@ export const getGlobalConfig = (): ConfigOptions | null => {
             const config = (global as any).MCP_FIREBIRD_CONFIG;
             console.error('Using global database configuration');
             console.error(`Global config: database=${config.database}, host=${config.host}, port=${config.port}, user=${config.user}`);
-
-            // Ensure the database path is normalized
-            if (config.database) {
-                config.database = normalizeDatabasePath(config.database);
-            }
-
             return config;
         } else {
             console.error('No global database configuration found');
@@ -135,19 +129,11 @@ export const connectToDatabase = (config = getDefaultConfig()): Promise<Firebird
 
         // Verify minimum parameters
         if (!config.database) {
-            // Check if we have a global configuration
-            const globalConfig = getGlobalConfig();
-            if (globalConfig && globalConfig.database) {
-                // Use the global configuration instead
-                logger.info('Using global configuration for database connection');
-                config = globalConfig;
-            } else {
-                reject(new FirebirdError(
-                    'No database specified. Configure FIREBIRD_DATABASE environment variable or use --database parameter with the path to your database file.',
-                    ErrorTypes.CONFIG_MISSING
-                ));
-                return;
-            }
+            reject(new FirebirdError(
+                'No database specified. Configure FIREBIRD_DATABASE environment variable with the path to your database file.',
+                ErrorTypes.CONFIG_MISSING
+            ));
+            return;
         }
 
         Firebird.attach(config, (err: Error | null, db: any) => {
