@@ -33,7 +33,16 @@ const batchContent = `
 @echo off
 set FIREBIRD_DATABASE=${databasePath.replace(/\//g, '\\')}
 set FB_DATABASE=${databasePath.replace(/\//g, '\\')}
-node "${path.join(__dirname, 'dist/cli.js')}" --database "${databasePath}"
+set FIREBIRD_HOST=localhost
+set FB_HOST=localhost
+set FIREBIRD_PORT=3050
+set FB_PORT=3050
+set FIREBIRD_USER=SYSDBA
+set FB_USER=SYSDBA
+set FIREBIRD_PASSWORD=masterkey
+set FB_PASSWORD=masterkey
+
+node "${path.join(__dirname, 'dist/cli.js')}" --database "${databasePath}" --host localhost --port 3050 --user SYSDBA --password masterkey
 `;
 
 // Write the batch file
@@ -44,7 +53,6 @@ console.log(`Created temporary batch file: ${batchFilePath}`);
 // Start the MCP Firebird server using the batch file
 const mcpProcess = spawn(batchFilePath, [], {
   stdio: 'inherit',
-  env: env,
   shell: true
 });
 
