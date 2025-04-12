@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.10-alpha.0] - 2024-07-10
+
+### Changed
+- Updated Dockerfile to include new STDIO mode scripts
+- Updated Docker documentation for STDIO mode with MCP Inspector
+
 ## [2.0.9] - 2024-07-10
 
 ### Fixed
