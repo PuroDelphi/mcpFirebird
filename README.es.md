@@ -135,12 +135,7 @@ Añade la siguiente configuración:
 
 ## Ejemplo de Uso
 
-Mira este video para ver MCP Firebird en acción con Claude:
-
-<video src="https://github.com/PuroDelphi/mcpFirebird/raw/alpha/examples/ExampleClaudeV2.mp4" controls="controls" style="max-width: 730px;">
-</video>
-
-[Descargar Video de Ejemplo](https://github.com/PuroDelphi/mcpFirebird/raw/alpha/examples/ExampleClaudeV2.mp4)
+[Ver Video de Ejemplo: MCP Firebird en acción con Claude](https://github.com/PuroDelphi/mcpFirebird/raw/alpha/examples/ExampleClaudeV2.mp4)
 
 ## Recursos y Funcionalidades
 
