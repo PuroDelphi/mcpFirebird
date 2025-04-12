@@ -1139,7 +1139,9 @@ export LOG_LEVEL=debug
 If you find MCP Firebird useful for your work or projects, please consider supporting its development through a donation. Your contributions help maintain and improve this tool.
 
 - **GitHub Sponsors**: [Sponsor @PuroDelphi](https://github.com/sponsors/PuroDelphi)
-- **PayPal**: [Donate via PayPal](https://paypal.me/jhonnysuarez)
+- **PayPal**: [Donate via PayPal](https://www.paypal.com/donate/?hosted_button_id=KBAUBYYDNHQNQ)
+
+<img src="docs/images/paypal-qr.png" alt="PayPal QR Code" width="150"/>
 
 ### Priority Support
 
