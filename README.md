@@ -116,7 +116,7 @@ For more detailed information, check the following documents:
 If you find MCP Firebird useful for your work or projects, please consider supporting its development through a donation. Your contributions help maintain and improve this tool.
 
 - **GitHub Sponsors**: [Sponsor @PuroDelphi](https://github.com/sponsors/PuroDelphi)
-- **PayPal**: [Donate via PayPal](https://paypal.me/jhonnysuarez@gmail.com)
+- **PayPal**: [Donate via PayPal](https://paypal.me/jhonnysuarez)
 
 ### Priority Support
 
