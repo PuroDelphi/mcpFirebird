@@ -23,16 +23,6 @@ MCP Firebird is a server that implements Anthropic's [Model Context Protocol (MC
 - **VSCode Integration**: Works with GitHub Copilot in Visual Studio Code
 - **Security**: Includes SQL query validation and security configuration options
 
-## Quick Installation
-
-### Installing via Smithery
-
-To install MCP Firebird for Claude Desktop automatically via [Smithery](https://smithery.ai/server/@PuroDelphi/mcpFirebird):
-
-```bash
-npx -y @smithery/cli install @PuroDelphi/mcpFirebird --client claude
-```
-
 ### Manual Installation
 ```bash
 # Global installation
@@ -90,9 +80,14 @@ For VSCode and GitHub Copilot integration, see [VSCode Integration](./docs/vscod
 npx mcp-firebird --transport-type sse --sse-port 3003 --database /path/to/database.fdb
 ```
 
-## Example Usage
+## Quick Installation via Smithery
 
-[Watch Example Video: MCP Firebird in action with Claude](https://github.com/PuroDelphi/mcpFirebird/raw/alpha/examples/ExampleClaudeV2.mp4)
+To install MCP Firebird for Claude Desktop automatically via [Smithery](https://smithery.ai/server/@PuroDelphi/mcpFirebird):
+
+```bash
+npx -y @smithery/cli install @PuroDelphi/mcpFirebird --client claude
+```
+
 
 ## Documentation
 
@@ -107,23 +102,6 @@ For more detailed information, check the following documents:
 - [Troubleshooting](./docs/troubleshooting.md)
 - [Use Cases and Examples](./docs/use-cases.md)
 
-## Recent Versions
-
-### Version 2.0.7-alpha.5
-
-- Improved detection of Firebird client tools
-- Updated Dockerfile to use Debian instead of Alpine
-- Fixed issues with backup/restore operations
-- Improved documentation and organization
-- Expanded security documentation with detailed examples
-- Translated documentation to English
-
-### Version 2.0.5
-
-- Added support for SSE transport
-- Improved compatibility with Claude Desktop
-- Added performance analysis tools
-- Fixed database connection issues
 
 ## Support the Project
 
@@ -135,6 +113,7 @@ If you find MCP Firebird useful for your work or projects, please consider suppo
 - **PayPal**: [Donate via PayPal](https://www.paypal.com/donate/?hosted_button_id=KBAUBYYDNHQNQ)
 
 ![image](https://github.com/user-attachments/assets/d04cf0eb-32a8-48a7-9324-c02af5269370)
+
 
 ### Priority Support
 
