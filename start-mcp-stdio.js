@@ -23,10 +23,19 @@ const env = { ...process.env };
 env.FIREBIRD_DATABASE = databasePath;
 env.FB_DATABASE = databasePath;
 
-// Start the MCP Firebird server in STDIO mode
+// Print environment variables for debugging
+console.log('Environment variables before starting MCP Firebird:');
+console.log(`FIREBIRD_DATABASE: ${env.FIREBIRD_DATABASE}`);
+console.log(`FB_DATABASE: ${env.FB_DATABASE}`);
+
+// Start the MCP Firebird server in STDIO mode with explicit environment variables
 const mcpProcess = spawn('node', [
   path.join(__dirname, 'dist/cli.js'),
-  '--database', databasePath
+  '--database', databasePath,
+  '--env', JSON.stringify({
+    FIREBIRD_DATABASE: databasePath,
+    FB_DATABASE: databasePath
+  })
 ], {
   stdio: 'inherit',
   env: env

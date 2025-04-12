@@ -28,6 +28,24 @@ export const dbConfig: ConfigOptions = {
 // Make the configuration globally available
 (global as any).MCP_FIREBIRD_CONFIG = dbConfig;
 
+// Process --env parameter if provided
+if (argv.env && typeof argv.env === 'string') {
+  try {
+    const envVars = JSON.parse(argv.env);
+    console.error('Processing --env parameter:', envVars);
+
+    // Apply environment variables from --env parameter
+    for (const [key, value] of Object.entries(envVars)) {
+      if (typeof value === 'string') {
+        process.env[key] = value;
+        console.error(`Setting environment variable ${key} from --env parameter`);
+      }
+    }
+  } catch (error) {
+    console.error('Error parsing --env parameter:', error);
+  }
+}
+
 // Also set environment variables for backward compatibility
 if (argv.database) {
   process.env.FIREBIRD_DATABASE = argv.database;
@@ -59,6 +77,11 @@ if (argv.role) {
   process.env.FB_ROLE = argv.role;
   console.error(`Setting FIREBIRD_ROLE to ${argv.role}`);
 }
+
+// Debug: Log final environment variables
+console.error('Final environment variables:');
+console.error(`FIREBIRD_DATABASE: ${process.env.FIREBIRD_DATABASE}`);
+console.error(`FB_DATABASE: ${process.env.FB_DATABASE}`);
 
 // Load environment variables from .env file (will not override existing env vars)
 import dotenv from 'dotenv';
