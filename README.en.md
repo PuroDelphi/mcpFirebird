@@ -100,6 +100,15 @@ Add the following configuration:
   After saving the file, you need to restart Claude Desktop completely.
 </Note>
 
+## Example Usage
+
+Watch this video to see MCP Firebird in action with Claude:
+
+<video src="https://github.com/PuroDelphi/mcpFirebird/raw/alpha/examples/ExampleClaudeV2.mp4" controls="controls" style="max-width: 730px;">
+</video>
+
+[Download Example Video](https://github.com/PuroDelphi/mcpFirebird/raw/alpha/examples/ExampleClaudeV2.mp4)
+
 ## Resources and Features
 
 The MCP Firebird server offers:
