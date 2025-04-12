@@ -9,8 +9,8 @@ const __dirname = path.dirname(__filename);
 
 console.log('Starting MCP Inspector...');
 
-// Start the MCP Inspector with a different port
-const inspectorProcess = spawn('npx', ['@modelcontextprotocol/inspector', '--proxy-port', '6278'], {
+// Start the MCP Inspector
+const inspectorProcess = spawn('npx', ['@modelcontextprotocol/inspector'], {
   stdio: 'inherit',
   shell: true
 });
