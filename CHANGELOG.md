@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.11-alpha.4] - 2024-07-27
+
+### Fixed
+- Fixed issue with field descriptions not being properly retrieved from Firebird BLOB fields
+- Improved SQL queries for retrieving field descriptions using CAST to VARCHAR
+
 ## [2.0.11-alpha.3] - 2024-07-27
 
 ### Added

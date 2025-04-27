@@ -310,12 +310,15 @@ export const getFieldDescriptions = async (tableName: string, config = DEFAULT_C
         }
 
         const sql = `
-            SELECT TRIM(f.RDB$FIELD_NAME) AS FIELD_NAME,
-                   TRIM(f.RDB$DESCRIPTION) AS DESCRIPTION
-            FROM RDB$RELATION_FIELDS f
-            JOIN RDB$RELATIONS r ON f.RDB$RELATION_NAME = r.RDB$RELATION_NAME
-            WHERE f.RDB$RELATION_NAME = ?
-            ORDER BY f.RDB$FIELD_POSITION
+            SELECT
+                TRIM(RF.RDB$FIELD_NAME) AS FIELD_NAME,
+                CAST(RF.RDB$DESCRIPTION AS VARCHAR(500)) AS DESCRIPTION
+            FROM
+                RDB$RELATION_FIELDS RF
+            WHERE
+                RF.RDB$RELATION_NAME = ?
+            ORDER BY
+                RF.RDB$FIELD_POSITION
         `;
 
         const fields = await executeQuery(sql, [tableName], config);
@@ -401,7 +404,7 @@ export const describeTable = async (tableName: string, config = DEFAULT_CONFIG):
                     ) THEN 1
                     ELSE 0
                 END as PRIMARY_KEY,
-                TRIM(rf.RDB$DESCRIPTION) as DESCRIPTION
+                CAST(rf.RDB$DESCRIPTION AS VARCHAR(500)) as DESCRIPTION
             FROM RDB$RELATION_FIELDS rf
             JOIN RDB$FIELDS f ON rf.RDB$FIELD_SOURCE = f.RDB$FIELD_NAME
             WHERE rf.RDB$RELATION_NAME = ?
