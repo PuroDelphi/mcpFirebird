@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.11-alpha.3] - 2024-07-27
+
+### Added
+- Added `describe-batch-tables` tool for retrieving schema information of multiple tables in parallel
+- Improved performance for database schema analysis operations
+
+## [2.0.11-alpha.2] - 2024-07-27
+
+### Added
+- Added `execute-batch-queries` tool for executing multiple SQL queries in parallel
+- Improved performance for batch database operations
+
 ## [2.0.11-alpha.1] - 2024-07-27
 
 ### Added
