@@ -9,6 +9,7 @@ import express from 'express';
 import cors from 'cors';
 import { createLogger } from '../utils/logger.js';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { TransportError, ErrorTypes } from '../utils/errors.js';
 
@@ -184,12 +185,12 @@ class SessionManager {
 
 /**
  * Create and start an SSE server
- * @param server - The MCP server instance
- * @param port - The port to listen on
+ * @param server - The MCP server instance (either Server or McpServer)
+ * @param port - The port to listen on (default: 3003)
  * @returns The Express app and cleanup function
  */
 export async function startSseServer(
-    server: Server<any, any, any>,
+    server: Server<any, any, any> | McpServer,
     port: number = 3003
 ): Promise<{ app: express.Application, cleanup: () => Promise<void> }> {
     const app = express();
@@ -227,17 +228,22 @@ export async function startSseServer(
                 proxyClientId
             });
 
-            // Create a new SSE transport
-            const transport = new SSEServerTransport('/message', res);
-
-            // Create a new session with proxy information if applicable
-            sessionManager.createSession(sessionId, transport, { isProxy, proxyClientId });
-
-            // Set headers for SSE (moved here to ensure they are set before any write)
+            // Set headers for SSE (must be set before creating the transport)
             res.setHeader('Content-Type', 'text/event-stream');
             res.setHeader('Cache-Control', 'no-cache, no-transform');
             res.setHeader('Connection', 'keep-alive');
             res.flushHeaders();
+
+            // Create a new SSE transport with enhanced options
+            const transport = new SSEServerTransport('/message', res, {
+                // Add additional options for better compatibility
+                keepAlive: true,
+                keepAliveInterval: 30000, // 30 seconds
+                sessionId: sessionId
+            });
+
+            // Create a new session with proxy information if applicable
+            sessionManager.createSession(sessionId, transport, { isProxy, proxyClientId });
 
             // Connect the transport to the server
             await server.connect(transport);
@@ -255,34 +261,63 @@ export async function startSseServer(
                 sessionManager.removeSession(sessionId);
             });
 
-            // Keep the connection alive with a comment every 30 seconds
+            // Note: We're using the built-in keepAlive functionality of SSEServerTransport
+            // but we'll keep a reference to check if the connection is still alive
             const keepAliveInterval = setInterval(() => {
                 if (res.writableEnded) {
                     clearInterval(keepAliveInterval);
                     return;
                 }
-                res.write(': keepalive\n\n');
+                // We don't need to send keepalive manually anymore
+                // Just check if the connection is still alive
+                if (!sessionManager.getSession(sessionId)) {
+                    clearInterval(keepAliveInterval);
+                }
             }, 30000);
 
             // Set up cleanup on server close
-            server.onclose = async () => {
-                logger.info('Server closing, cleaning up all SSE sessions');
+            // Handle both Server and McpServer instances
+            if ('onclose' in server) {
+                // Legacy Server class
+                server.onclose = async () => {
+                    logger.info('Server closing, cleaning up all SSE sessions');
 
-                // Get all session IDs first to avoid modifying the collection while iterating
-                const sessionIds = [...sessionManager.getAllSessions().map(session => session.id)];
+                    // Get all session IDs first to avoid modifying the collection while iterating
+                    const sessionIds = [...sessionManager.getAllSessions().map(session => session.id)];
 
-                // Stop the cleanup interval first
-                sessionManager.stopCleanupInterval();
+                    // Stop the cleanup interval first
+                    sessionManager.stopCleanupInterval();
 
-                // Close all active sessions
-                for (const sessionId of sessionIds) {
-                    try {
-                        sessionManager.removeSession(sessionId);
-                    } catch (error) {
-                        // Silently ignore errors during cleanup
+                    // Close all active sessions
+                    for (const sessionId of sessionIds) {
+                        try {
+                            sessionManager.removeSession(sessionId);
+                        } catch (error) {
+                            // Silently ignore errors during cleanup
+                        }
                     }
-                }
-            };
+                };
+            } else {
+                // Modern McpServer class
+                server.on('close', async () => {
+                    logger.info('McpServer closing, cleaning up all SSE sessions');
+
+                    // Get all session IDs first to avoid modifying the collection while iterating
+                    const sessionIds = [...sessionManager.getAllSessions().map(session => session.id)];
+
+                    // Stop the cleanup interval first
+                    sessionManager.stopCleanupInterval();
+
+                    // Close all active sessions
+                    for (const sessionId of sessionIds) {
+                        try {
+                            sessionManager.removeSession(sessionId);
+                        } catch (error) {
+                            // Silently ignore errors during cleanup
+                        }
+                    }
+                });
+            }
         } catch (error: any) {
             const errorMessage = `Error establishing SSE connection: ${error.message}`;
             logger.error(errorMessage, { error });
