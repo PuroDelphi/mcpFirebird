@@ -81,16 +81,16 @@ export const getDefaultConfig = (): ConfigOptions => {
     console.error(`FB_ROLE: ${process.env.FB_ROLE || 'not set'}`);
 
     // Check for global configuration first (set by CLI)
-    const globalConfig = (global as any).MCP_FIREBIRD_CONFIG;
+    const globalConfigFromEnv = (global as any).MCP_FIREBIRD_CONFIG;
 
     const config = {
-        host: globalConfig?.host || process.env.FIREBIRD_HOST || process.env.FB_HOST || '127.0.0.1', // Use 127.0.0.1 instead of 'localhost'
-        port: parseInt(String(globalConfig?.port || process.env.FIREBIRD_PORT || process.env.FB_PORT || '3050'), 10),
-        database: normalizeDatabasePath(globalConfig?.database || process.env.FIREBIRD_DATABASE || process.env.FB_DATABASE),
-        user: globalConfig?.user || process.env.FIREBIRD_USER || process.env.FB_USER || 'SYSDBA',
-        password: globalConfig?.password || process.env.FIREBIRD_PASSWORD || process.env.FB_PASSWORD || 'masterkey',
-        role: globalConfig?.role || process.env.FIREBIRD_ROLE || process.env.FB_ROLE || undefined,
-        pageSize: globalConfig?.pageSize || 4096
+        host: globalConfigFromEnv?.host || process.env.FIREBIRD_HOST || process.env.FB_HOST || '127.0.0.1', // Use 127.0.0.1 instead of 'localhost'
+        port: parseInt(String(globalConfigFromEnv?.port || process.env.FIREBIRD_PORT || process.env.FB_PORT || '3050'), 10),
+        database: normalizeDatabasePath(globalConfigFromEnv?.database || process.env.FIREBIRD_DATABASE || process.env.FB_DATABASE),
+        user: globalConfigFromEnv?.user || process.env.FIREBIRD_USER || process.env.FB_USER || 'SYSDBA',
+        password: globalConfigFromEnv?.password || process.env.FIREBIRD_PASSWORD || process.env.FB_PASSWORD || 'masterkey',
+        role: globalConfigFromEnv?.role || process.env.FIREBIRD_ROLE || process.env.FB_ROLE || undefined,
+        pageSize: globalConfigFromEnv?.pageSize || 4096
     };
 
     // Debug: Log the final configuration (without password)

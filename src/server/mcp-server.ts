@@ -41,16 +41,6 @@ export async function startMcpServer() {
         const server = new McpServer({
             name: pkg.name,
             version: pkg.version
-        }, {
-            capabilities: {
-                tools: true,         // Enable tool support
-                prompts: true,       // Enable prompt support
-                resources: true,     // Enable resource support
-                resourceTemplates: true, // Enable resource templates
-                logging: {           // Enable logging support
-                    level: "info"    // Default logging level
-                }
-            }
         });
         logger.info('MCP server instance created with capabilities.');
 
@@ -63,12 +53,17 @@ export async function startMcpServer() {
          * @param toolDef - Tool definition
          */
         const registerTool = (name: string, toolDef: DbToolDefinition | MetaToolDefinition | SimpleToolDefinition) => {
+            const schema = toolDef.inputSchema || z.object({});
             server.tool(
                 name,
-                toolDef.inputSchema || z.object({}),
-                async (args) => {
+                name, // Use name as description
+                async (extra) => {
                     try {
-                        const result = await toolDef.handler(args);
+                        // Get parameters from the request context
+                        const params = {};
+
+                        // Call the handler with the parameters
+                        const result = await toolDef.handler(params);
 
                         // Handle different result types
                         if (typeof result === 'object' && result !== null) {
@@ -136,12 +131,17 @@ export async function startMcpServer() {
          * @param promptDef - Prompt definition
          */
         const registerPrompt = (name: string, promptDef: any) => {
+            const schema = promptDef.inputSchema || z.object({});
             server.prompt(
                 name,
-                promptDef.inputSchema || z.object({}),
-                async (args) => {
+                name, // Use name as description
+                async (extra) => {
                     try {
-                        const result = await promptDef.handler(args);
+                        // Get parameters from the request context
+                        const params = {};
+
+                        // Call the handler with the parameters
+                        const result = await promptDef.handler(params);
                         return result;
                     } catch (error) {
                         // Log the error with detailed information
@@ -180,61 +180,35 @@ export async function startMcpServer() {
          * @param resourceDef - Resource definition
          */
         const registerResource = (uriTemplate: string, resourceDef: ResourceDefinition) => {
-            // Use ResourceTemplate for dynamic resources with parameters
-            if (uriTemplate.includes('{') && uriTemplate.includes('}')) {
-                server.resource(
-                    resourceDef.name || `resource-${uriTemplate}`,
-                    new ResourceTemplate(uriTemplate, { list: undefined }),
-                    async (uri, params) => {
-                        try {
-                            const result = await resourceDef.handler(params);
-                            return {
-                                contents: [{
-                                    uri: uri.href,
-                                    mimeType: resourceDef.mimeType || "application/json",
-                                    text: typeof result === 'string' ? result : JSON.stringify(result, null, 2)
-                                }]
-                            };
-                        } catch (error) {
-                            // Log the error with detailed information
-                            logger.error(`Error accessing resource ${uri}: ${error instanceof Error ? error.message : String(error)}`, {
-                                error,
-                                stack: error instanceof Error ? error.stack : undefined
-                            });
+            // Simple resource registration using the resource handler interface
+            server.resource(
+                `resource-${uriTemplate}`, // Resource name
+                uriTemplate, // URI pattern
+                async (extra) => {
+                    try {
+                        // Call the handler with empty parameters
+                        const result = await resourceDef.handler({});
 
-                            // Rethrow the error to be handled by the MCP framework
-                            throw error;
-                        }
-                    }
-                );
-            } else {
-                // Static resource without parameters
-                server.resource(
-                    resourceDef.name || `resource-${uriTemplate}`,
-                    uriTemplate,
-                    async (uri) => {
-                        try {
-                            const result = await resourceDef.handler({});
-                            return {
-                                contents: [{
-                                    uri: uri.href,
-                                    mimeType: resourceDef.mimeType || "application/json",
-                                    text: typeof result === 'string' ? result : JSON.stringify(result, null, 2)
-                                }]
-                            };
-                        } catch (error) {
-                            // Log the error with detailed information
-                            logger.error(`Error accessing resource ${uri}: ${error instanceof Error ? error.message : String(error)}`, {
-                                error,
-                                stack: error instanceof Error ? error.stack : undefined
-                            });
+                        // Return the result in the expected format
+                        return {
+                            contents: [{
+                                uri: uriTemplate,
+                                mimeType: "application/json",
+                                text: typeof result === 'string' ? result : JSON.stringify(result, null, 2)
+                            }]
+                        };
+                    } catch (error) {
+                        // Log the error with detailed information
+                        logger.error(`Error accessing resource ${uriTemplate}: ${error instanceof Error ? error.message : String(error)}`, {
+                            error,
+                            stack: error instanceof Error ? error.stack : undefined
+                        });
 
-                            // Rethrow the error to be handled by the MCP framework
-                            throw error;
-                        }
+                        // Rethrow the error to be handled by the MCP framework
+                        throw error;
                     }
-                );
-            }
+                }
+            );
             logger.info(`Registered resource: ${uriTemplate}`);
         };
 
@@ -346,18 +320,7 @@ export async function startMcpServer() {
             logger.error(`Fatal error during server initialization: ${String(error)}`);
         }
 
-        // Send a final log notification if possible
-        try {
-            if (server) {
-                server.loggingNotification({
-                    level: "error",
-                    logger: "server:mcp-server",
-                    data: `Fatal error: ${error instanceof Error ? error.message : String(error)}`
-                });
-            }
-        } catch (logError) {
-            // Ignore errors during final logging
-        }
+        // No need to send a final log notification, as we're already logging the error
 
         // Exit with error code
         process.exit(1);

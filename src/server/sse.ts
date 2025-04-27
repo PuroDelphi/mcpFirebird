@@ -234,13 +234,8 @@ export async function startSseServer(
             res.setHeader('Connection', 'keep-alive');
             res.flushHeaders();
 
-            // Create a new SSE transport with enhanced options
-            const transport = new SSEServerTransport('/message', res, {
-                // Add additional options for better compatibility
-                keepAlive: true,
-                keepAliveInterval: 30000, // 30 seconds
-                sessionId: sessionId
-            });
+            // Create a new SSE transport
+            const transport = new SSEServerTransport('/message', res);
 
             // Create a new session with proxy information if applicable
             sessionManager.createSession(sessionId, transport, { isProxy, proxyClientId });
@@ -297,9 +292,9 @@ export async function startSseServer(
                         }
                     }
                 };
-            } else {
-                // Modern McpServer class
-                server.on('close', async () => {
+            } else if ('onclose' in server) {
+                // Modern McpServer class might also have onclose
+                server.onclose = async () => {
                     logger.info('McpServer closing, cleaning up all SSE sessions');
 
                     // Get all session IDs first to avoid modifying the collection while iterating
@@ -316,7 +311,7 @@ export async function startSseServer(
                             // Silently ignore errors during cleanup
                         }
                     }
-                });
+                };
             }
         } catch (error: any) {
             const errorMessage = `Error establishing SSE connection: ${error.message}`;
