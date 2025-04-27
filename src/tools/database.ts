@@ -8,7 +8,8 @@ import {
     analyzeQueryPerformance,
     getExecutionPlan,
     analyzeMissingIndexes,
-    executeBatchQueries
+    executeBatchQueries,
+    describeBatchTables
 } from '../db/index.js';
 
 import {
@@ -94,6 +95,11 @@ export const ExecuteBatchQueriesArgsSchema = z.object({
         })
     ).min(1).max(20).describe("Array of query objects, each containing SQL and optional parameters"),
     maxConcurrent: z.number().int().min(1).max(10).optional().default(5).describe("Maximum number of concurrent queries (default: 5)")
+});
+
+export const DescribeBatchTablesArgsSchema = z.object({
+    tableNames: z.array(z.string().min(1)).min(1).max(20).describe("Array of table names to describe"),
+    maxConcurrent: z.number().int().min(1).max(10).optional().default(5).describe("Maximum number of concurrent operations (default: 5)")
 });
 
 /**
@@ -475,6 +481,40 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
             } catch (error) {
                 const errorResponse = wrapError(error);
                 logger.error(`Error executing batch queries: ${errorResponse.error} [${errorResponse.errorType || 'UNKNOWN'}]`);
+
+                return {
+                    content: [{
+                        type: "text",
+                        text: formatForClaude(errorResponse)
+                    }]
+                };
+            }
+        }
+    });
+
+    // Add describe-batch-tables tool
+    tools.set("describe-batch-tables", {
+        name: "describe-batch-tables",
+        description: "Gets the detailed schema of multiple tables in parallel for improved performance.",
+        inputSchema: DescribeBatchTablesArgsSchema,
+        handler: async (args: z.infer<typeof DescribeBatchTablesArgsSchema>) => {
+            const { tableNames, maxConcurrent = 5 } = args;
+            logger.info(`Describing batch of ${tableNames.length} tables with max concurrency ${maxConcurrent}`);
+
+            try {
+                const results = await describeBatchTables(tableNames, undefined, maxConcurrent);
+
+                logger.info(`Batch description completed: ${results.filter(r => r.schema !== null).length} succeeded, ${results.filter(r => r.schema === null).length} failed`);
+
+                return {
+                    content: [{
+                        type: "text",
+                        text: formatForClaude(results)
+                    }]
+                };
+            } catch (error) {
+                const errorResponse = wrapError(error);
+                logger.error(`Error describing batch tables: ${errorResponse.error} [${errorResponse.errorType || 'UNKNOWN'}]`);
 
                 return {
                     content: [{

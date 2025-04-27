@@ -969,5 +969,100 @@ export const executeBatchQueries = async (
     return results;
 };
 
+/**
+ * Obtiene la estructura detallada de múltiples tablas en paralelo
+ * @param {string[]} tableNames - Array de nombres de tablas
+ * @param {ConfigOptions} config - Configuración de conexión a la base de datos (opcional)
+ * @param {number} maxConcurrent - Número máximo de consultas concurrentes (por defecto: 5)
+ * @returns {Promise<Array<{tableName: string, schema: ColumnInfo[] | null, error?: string, errorType?: string}>>} Array de resultados con la estructura de cada tabla
+ * @throws {FirebirdError} Si hay un error de validación o configuración
+ */
+export const describeBatchTables = async (
+    tableNames: string[],
+    config = DEFAULT_CONFIG,
+    maxConcurrent: number = 5
+): Promise<Array<{tableName: string, schema: ColumnInfo[] | null, error?: string, errorType?: string}>> => {
+    // Try to load config from global variable first
+    const globalConfig = getGlobalConfig();
+    if (globalConfig && globalConfig.database) {
+        logger.info(`Using global configuration for describeBatchTables: ${globalConfig.database}`);
+        config = globalConfig;
+    }
+
+    // Validate input
+    if (!Array.isArray(tableNames) || tableNames.length === 0) {
+        throw new FirebirdError(
+            'Invalid tableNames array: must be a non-empty array of table names',
+            'VALIDATION_ERROR'
+        );
+    }
+
+    // Limit the number of tables to prevent abuse
+    const MAX_TABLES = 20;
+    if (tableNames.length > MAX_TABLES) {
+        throw new FirebirdError(
+            `Too many tables: maximum allowed is ${MAX_TABLES}`,
+            'VALIDATION_ERROR'
+        );
+    }
+
+    // Validate each table name
+    tableNames.forEach((tableName, index) => {
+        if (!tableName || typeof tableName !== 'string') {
+            throw new FirebirdError(
+                `Invalid table name at index ${index}`,
+                'VALIDATION_ERROR'
+            );
+        }
+
+        if (!validateSql(tableName)) {
+            throw new FirebirdError(
+                `Potentially unsafe table name at index ${index}: ${tableName}`,
+                'SECURITY_ERROR'
+            );
+        }
+    });
+
+    logger.info(`Describing batch of ${tableNames.length} tables`);
+
+    // Execute queries in batches to limit concurrency
+    const results: Array<{tableName: string, schema: ColumnInfo[] | null, error?: string, errorType?: string}> = [];
+
+    // Process tables in batches of maxConcurrent
+    for (let i = 0; i < tableNames.length; i += maxConcurrent) {
+        const batch = tableNames.slice(i, i + maxConcurrent);
+
+        // Execute batch in parallel
+        const batchPromises = batch.map(async (tableName, batchIndex) => {
+            const tableIndex = i + batchIndex;
+            try {
+                logger.debug(`Describing table ${tableIndex + 1}/${tableNames.length}: ${tableName}`);
+                const schema = await describeTable(tableName, config);
+                return { tableName, schema };
+            } catch (error: any) {
+                logger.error(`Error describing table ${tableIndex + 1}: ${error.message || error}`);
+
+                // Format error response
+                const errorType = error instanceof FirebirdError ? error.type : 'TABLE_DESCRIBE_ERROR';
+                const errorMessage = error instanceof Error ? error.message : String(error);
+
+                return {
+                    tableName,
+                    schema: null,
+                    error: errorMessage,
+                    errorType
+                };
+            }
+        });
+
+        // Wait for all queries in this batch to complete
+        const batchResults = await Promise.all(batchPromises);
+        results.push(...batchResults);
+    }
+
+    logger.info(`Batch description completed: ${results.filter(r => r.schema !== null).length} succeeded, ${results.filter(r => r.schema === null).length} failed`);
+    return results;
+};
+
 // Nota: En lugar de reexportar las funciones, vamos a crear un archivo separado
 // que exporte versiones wrapped de estas funciones para evitar conflictos de exportación.
