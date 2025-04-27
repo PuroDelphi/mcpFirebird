@@ -27,7 +27,8 @@ export {
     FieldInfo,
     ColumnInfo,
     QueryPerformanceResult,
-    ExecutionPlanResult
+    ExecutionPlanResult,
+    executeBatchQueries
 } from './queries.js';
 
 // Exportar funciones de gestión de base de datos

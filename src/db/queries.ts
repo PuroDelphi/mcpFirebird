@@ -867,5 +867,107 @@ function extractColumnsFromCondition(condition: string): string[] {
     return columns;
 }
 
+/**
+ * Executes multiple SQL queries in parallel
+ * @param {Array<{sql: string, params?: any[]}>} queries - Array of query objects, each containing SQL and optional parameters
+ * @param {ConfigOptions} config - Database connection configuration (optional)
+ * @param {number} maxConcurrent - Maximum number of concurrent queries (default: 5)
+ * @returns {Promise<Array<{success: boolean, data?: any[], error?: string, errorType?: string}>>} Results of the query executions
+ */
+export const executeBatchQueries = async (
+    queries: Array<{sql: string, params?: any[]}>,
+    config = DEFAULT_CONFIG,
+    maxConcurrent: number = 5
+): Promise<Array<{success: boolean, data?: any[], error?: string, errorType?: string}>> => {
+    // Try to load config from global variable first
+    const globalConfig = getGlobalConfig();
+    if (globalConfig && globalConfig.database) {
+        logger.info(`Using global configuration for executeBatchQueries: ${globalConfig.database}`);
+        config = globalConfig;
+    }
+
+    // Validate input
+    if (!Array.isArray(queries) || queries.length === 0) {
+        throw new FirebirdError(
+            'Invalid queries array: must be a non-empty array of query objects',
+            'VALIDATION_ERROR'
+        );
+    }
+
+    // Limit the number of queries to prevent abuse
+    const MAX_QUERIES = 20;
+    if (queries.length > MAX_QUERIES) {
+        throw new FirebirdError(
+            `Too many queries: maximum allowed is ${MAX_QUERIES}`,
+            'VALIDATION_ERROR'
+        );
+    }
+
+    // Validate each query
+    queries.forEach((query, index) => {
+        if (!query.sql || typeof query.sql !== 'string') {
+            throw new FirebirdError(
+                `Invalid SQL in query at index ${index}`,
+                'VALIDATION_ERROR'
+            );
+        }
+
+        // Validate SQL for security
+        if (!validateSql(query.sql)) {
+            throw new FirebirdError(
+                `Potentially unsafe SQL query at index ${index}: ${query.sql.substring(0, 100)}${query.sql.length > 100 ? '...' : ''}`,
+                'SECURITY_ERROR'
+            );
+        }
+
+        // Ensure params is an array if provided
+        if (query.params !== undefined && !Array.isArray(query.params)) {
+            throw new FirebirdError(
+                `Invalid params in query at index ${index}: must be an array`,
+                'VALIDATION_ERROR'
+            );
+        }
+    });
+
+    logger.info(`Executing batch of ${queries.length} queries`);
+
+    // Execute queries in batches to limit concurrency
+    const results: Array<{success: boolean, data?: any[], error?: string, errorType?: string}> = [];
+
+    // Process queries in batches of maxConcurrent
+    for (let i = 0; i < queries.length; i += maxConcurrent) {
+        const batch = queries.slice(i, i + maxConcurrent);
+
+        // Execute batch in parallel
+        const batchPromises = batch.map(async (query, batchIndex) => {
+            const queryIndex = i + batchIndex;
+            try {
+                logger.debug(`Executing query ${queryIndex + 1}/${queries.length}: ${query.sql.substring(0, 100)}${query.sql.length > 100 ? '...' : ''}`);
+                const data = await executeQuery(query.sql, query.params || [], config);
+                return { success: true, data };
+            } catch (error: any) {
+                logger.error(`Error executing query ${queryIndex + 1}: ${error.message || error}`);
+
+                // Format error response
+                const errorType = error instanceof FirebirdError ? error.type : 'QUERY_EXECUTION_ERROR';
+                const errorMessage = error instanceof Error ? error.message : String(error);
+
+                return {
+                    success: false,
+                    error: errorMessage,
+                    errorType
+                };
+            }
+        });
+
+        // Wait for all queries in this batch to complete
+        const batchResults = await Promise.all(batchPromises);
+        results.push(...batchResults);
+    }
+
+    logger.info(`Batch execution completed: ${results.filter(r => r.success).length} succeeded, ${results.filter(r => !r.success).length} failed`);
+    return results;
+};
+
 // Nota: En lugar de reexportar las funciones, vamos a crear un archivo separado
 // que exporte versiones wrapped de estas funciones para evitar conflictos de exportación.

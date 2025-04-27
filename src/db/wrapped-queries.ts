@@ -1,6 +1,6 @@
 /**
  * Wrapped database queries module
- * 
+ *
  * Este módulo proporciona versiones wrapped de las funciones de consulta
  * que garantizan que siempre se use la configuración correcta.
  */
@@ -13,7 +13,8 @@ import {
     getFieldDescriptions,
     analyzeQueryPerformance,
     getExecutionPlan,
-    analyzeMissingIndexes
+    analyzeMissingIndexes,
+    executeBatchQueries
 } from './queries.js';
 import { createLogger } from '../utils/logger.js';
 
@@ -27,6 +28,7 @@ const wrappedGetFieldDescriptions = withCorrectConfig(getFieldDescriptions, 1);
 const wrappedAnalyzeQueryPerformance = withCorrectConfig(analyzeQueryPerformance, 3);
 const wrappedGetExecutionPlan = withCorrectConfig(getExecutionPlan, 2);
 const wrappedAnalyzeMissingIndexes = withCorrectConfig(analyzeMissingIndexes, 1);
+const wrappedExecuteBatchQueries = withCorrectConfig(executeBatchQueries, 1); // config es el segundo parámetro (índice 1)
 
 // Exportar las versiones wrapped de las funciones
 export {
@@ -36,5 +38,6 @@ export {
     wrappedGetFieldDescriptions as getFieldDescriptions,
     wrappedAnalyzeQueryPerformance as analyzeQueryPerformance,
     wrappedGetExecutionPlan as getExecutionPlan,
-    wrappedAnalyzeMissingIndexes as analyzeMissingIndexes
+    wrappedAnalyzeMissingIndexes as analyzeMissingIndexes,
+    wrappedExecuteBatchQueries as executeBatchQueries
 };

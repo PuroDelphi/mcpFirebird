@@ -7,7 +7,8 @@ import {
     getFieldDescriptions,
     analyzeQueryPerformance,
     getExecutionPlan,
-    analyzeMissingIndexes
+    analyzeMissingIndexes,
+    executeBatchQueries
 } from '../db/index.js';
 
 import {
@@ -83,6 +84,16 @@ export const DescribeTableArgsSchema = z.object({
 
 export const GetFieldDescriptionsArgsSchema = z.object({
     tableName: z.string().min(1).describe("Name of the table to get field descriptions for")
+});
+
+export const ExecuteBatchQueriesArgsSchema = z.object({
+    queries: z.array(
+        z.object({
+            sql: z.string().min(1).describe("SQL query to execute"),
+            params: z.array(z.string().or(z.number()).or(z.boolean()).or(z.null())).optional().describe("Parameters for parameterized queries")
+        })
+    ).min(1).max(20).describe("Array of query objects, each containing SQL and optional parameters"),
+    maxConcurrent: z.number().int().min(1).max(10).optional().default(5).describe("Maximum number of concurrent queries (default: 5)")
 });
 
 /**
@@ -420,6 +431,50 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
             } catch (error) {
                 const errorResponse = wrapError(error);
                 logger.error(`Error validating database: ${errorResponse.error} [${errorResponse.errorType || 'UNKNOWN'}]`);
+
+                return {
+                    content: [{
+                        type: "text",
+                        text: formatForClaude(errorResponse)
+                    }]
+                };
+            }
+        }
+    });
+
+    // Add execute-batch-queries tool
+    tools.set("execute-batch-queries", {
+        name: "execute-batch-queries",
+        description: "Executes multiple SQL queries in parallel for improved performance.",
+        inputSchema: ExecuteBatchQueriesArgsSchema,
+        handler: async (args: z.infer<typeof ExecuteBatchQueriesArgsSchema>) => {
+            const { queries, maxConcurrent = 5 } = args;
+            logger.info(`Executing batch of ${queries.length} queries with max concurrency ${maxConcurrent}`);
+
+            try {
+                // Validate each query for security
+                queries.forEach((query, index) => {
+                    if (!validateSql(query.sql)) {
+                        throw new FirebirdError(
+                            `Potentially unsafe SQL query at index ${index}: ${query.sql.substring(0, 100)}${query.sql.length > 100 ? '...' : ''}`,
+                            'SECURITY_ERROR'
+                        );
+                    }
+                });
+
+                const results = await executeBatchQueries(queries, undefined, maxConcurrent);
+
+                logger.info(`Batch execution completed: ${results.filter(r => r.success).length} succeeded, ${results.filter(r => !r.success).length} failed`);
+
+                return {
+                    content: [{
+                        type: "text",
+                        text: formatForClaude(results)
+                    }]
+                };
+            } catch (error) {
+                const errorResponse = wrapError(error);
+                logger.error(`Error executing batch queries: ${errorResponse.error} [${errorResponse.errorType || 'UNKNOWN'}]`);
 
                 return {
                     content: [{
