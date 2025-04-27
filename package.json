@@ -13,6 +13,7 @@
     "test": "jest",
     "lint": "eslint src/",
     "dev": "nodemon -e ts --watch src/ --exec \"npm run build && npm run start\"",
+    "sse": "nodemon -e ts --watch src/ --exec \"node dist/index.js\"",
     "inspector": "npm run build && node run-inspector.cjs",
     "inspector-sse": "npm run build && npx @modelcontextprotocol/inspector http://localhost:3003"
   },
