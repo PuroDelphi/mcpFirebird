@@ -4,9 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [2.0.11-alpha.0] - 2024-07-27
 
-### In Development
-- Working on fixing hardcoded localhost values in connection handling
-- Improving environment variable handling for Smithery integration
+### Fixed
+- Fixed hardcoded localhost values in connection handling by replacing with 127.0.0.1
+- Improved Smithery integration by passing parameters directly as command line arguments
+- Enhanced error messages for connection issues with more specific troubleshooting guidance
+- Added support for firebirdHost, firebirdPort, etc. parameters in addition to host, port, etc.
+- Updated smithery.yaml with better example configuration
 
 ## [2.0.10] - 2024-07-27
 
