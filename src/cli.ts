@@ -17,14 +17,22 @@ console.error('Raw process.argv:', JSON.stringify(process.argv));
 // Default database path for testing
 const DEFAULT_DATABASE_PATH = 'F:/Proyectos/SAI/EMPLOYEE.FDB';
 
+// Check for firebirdHost and firebirdPort in argv (for Smithery compatibility)
+const hostParam = argv.host || argv.firebirdHost;
+const portParam = argv.port || argv.firebirdPort;
+const databaseParam = argv.database || argv.firebirdDatabase;
+const userParam = argv.user || argv.firebirdUser;
+const passwordParam = argv.password || argv.firebirdPassword;
+const roleParam = argv.role || argv.firebirdRole;
+
 // Create database configuration object directly from command line arguments
 export const dbConfig: ConfigOptions = {
-  host: argv.host || 'localhost',
-  port: argv.port ? parseInt(argv.port, 10) : 3050,
-  database: argv.database ? normalizeDatabasePath(argv.database) : normalizeDatabasePath(DEFAULT_DATABASE_PATH),
-  user: argv.user || 'SYSDBA',
-  password: argv.password || 'masterkey',
-  role: argv.role,
+  host: hostParam || '127.0.0.1', // Use 127.0.0.1 instead of 'localhost'
+  port: portParam ? parseInt(String(portParam), 10) : 3050,
+  database: databaseParam ? normalizeDatabasePath(databaseParam) : normalizeDatabasePath(DEFAULT_DATABASE_PATH),
+  user: userParam || 'SYSDBA',
+  password: passwordParam || 'masterkey',
+  role: roleParam,
   pageSize: 4096
 };
 
@@ -57,35 +65,35 @@ if (argv.env && typeof argv.env === 'string') {
 }
 
 // Also set environment variables for backward compatibility
-if (argv.database) {
-  process.env.FIREBIRD_DATABASE = argv.database;
-  process.env.FB_DATABASE = argv.database;
-  console.error(`Setting FIREBIRD_DATABASE to ${argv.database}`);
+if (databaseParam) {
+  process.env.FIREBIRD_DATABASE = databaseParam;
+  process.env.FB_DATABASE = databaseParam;
+  console.error(`Setting FIREBIRD_DATABASE to ${databaseParam}`);
 }
-if (argv.user) {
-  process.env.FIREBIRD_USER = argv.user;
-  process.env.FB_USER = argv.user;
-  console.error(`Setting FIREBIRD_USER to ${argv.user}`);
+if (userParam) {
+  process.env.FIREBIRD_USER = userParam;
+  process.env.FB_USER = userParam;
+  console.error(`Setting FIREBIRD_USER to ${userParam}`);
 }
-if (argv.password) {
-  process.env.FIREBIRD_PASSWORD = argv.password;
-  process.env.FB_PASSWORD = argv.password;
+if (passwordParam) {
+  process.env.FIREBIRD_PASSWORD = passwordParam;
+  process.env.FB_PASSWORD = passwordParam;
   console.error('Setting FIREBIRD_PASSWORD (value hidden)');
 }
-if (argv.host) {
-  process.env.FIREBIRD_HOST = argv.host;
-  process.env.FB_HOST = argv.host;
-  console.error(`Setting FIREBIRD_HOST to ${argv.host}`);
+if (hostParam) {
+  process.env.FIREBIRD_HOST = hostParam;
+  process.env.FB_HOST = hostParam;
+  console.error(`Setting FIREBIRD_HOST to ${hostParam}`);
 }
-if (argv.port) {
-  process.env.FIREBIRD_PORT = argv.port;
-  process.env.FB_PORT = argv.port;
-  console.error(`Setting FIREBIRD_PORT to ${argv.port}`);
+if (portParam) {
+  process.env.FIREBIRD_PORT = String(portParam);
+  process.env.FB_PORT = String(portParam);
+  console.error(`Setting FIREBIRD_PORT to ${portParam}`);
 }
-if (argv.role) {
-  process.env.FIREBIRD_ROLE = argv.role;
-  process.env.FB_ROLE = argv.role;
-  console.error(`Setting FIREBIRD_ROLE to ${argv.role}`);
+if (roleParam) {
+  process.env.FIREBIRD_ROLE = roleParam;
+  process.env.FB_ROLE = roleParam;
+  console.error(`Setting FIREBIRD_ROLE to ${roleParam}`);
 }
 
 // Debug: Log final environment variables

@@ -310,12 +310,15 @@ export const getFieldDescriptions = async (tableName: string, config = DEFAULT_C
         }
 
         const sql = `
-            SELECT TRIM(f.RDB$FIELD_NAME) AS FIELD_NAME,
-                   TRIM(f.RDB$DESCRIPTION) AS DESCRIPTION
-            FROM RDB$RELATION_FIELDS f
-            JOIN RDB$RELATIONS r ON f.RDB$RELATION_NAME = r.RDB$RELATION_NAME
-            WHERE f.RDB$RELATION_NAME = ?
-            ORDER BY f.RDB$FIELD_POSITION
+            SELECT
+                TRIM(RF.RDB$FIELD_NAME) AS FIELD_NAME,
+                CAST(RF.RDB$DESCRIPTION AS VARCHAR(500)) AS DESCRIPTION
+            FROM
+                RDB$RELATION_FIELDS RF
+            WHERE
+                RF.RDB$RELATION_NAME = ?
+            ORDER BY
+                RF.RDB$FIELD_POSITION
         `;
 
         const fields = await executeQuery(sql, [tableName], config);
@@ -401,7 +404,7 @@ export const describeTable = async (tableName: string, config = DEFAULT_CONFIG):
                     ) THEN 1
                     ELSE 0
                 END as PRIMARY_KEY,
-                TRIM(rf.RDB$DESCRIPTION) as DESCRIPTION
+                CAST(rf.RDB$DESCRIPTION AS VARCHAR(500)) as DESCRIPTION
             FROM RDB$RELATION_FIELDS rf
             JOIN RDB$FIELDS f ON rf.RDB$FIELD_SOURCE = f.RDB$FIELD_NAME
             WHERE rf.RDB$RELATION_NAME = ?
@@ -866,6 +869,203 @@ function extractColumnsFromCondition(condition: string): string[] {
 
     return columns;
 }
+
+/**
+ * Executes multiple SQL queries in parallel
+ * @param {Array<{sql: string, params?: any[]}>} queries - Array of query objects, each containing SQL and optional parameters
+ * @param {ConfigOptions} config - Database connection configuration (optional)
+ * @param {number} maxConcurrent - Maximum number of concurrent queries (default: 5)
+ * @returns {Promise<Array<{success: boolean, data?: any[], error?: string, errorType?: string}>>} Results of the query executions
+ */
+export const executeBatchQueries = async (
+    queries: Array<{sql: string, params?: any[]}>,
+    config = DEFAULT_CONFIG,
+    maxConcurrent: number = 5
+): Promise<Array<{success: boolean, data?: any[], error?: string, errorType?: string}>> => {
+    // Try to load config from global variable first
+    const globalConfig = getGlobalConfig();
+    if (globalConfig && globalConfig.database) {
+        logger.info(`Using global configuration for executeBatchQueries: ${globalConfig.database}`);
+        config = globalConfig;
+    }
+
+    // Validate input
+    if (!Array.isArray(queries) || queries.length === 0) {
+        throw new FirebirdError(
+            'Invalid queries array: must be a non-empty array of query objects',
+            'VALIDATION_ERROR'
+        );
+    }
+
+    // Limit the number of queries to prevent abuse
+    const MAX_QUERIES = 20;
+    if (queries.length > MAX_QUERIES) {
+        throw new FirebirdError(
+            `Too many queries: maximum allowed is ${MAX_QUERIES}`,
+            'VALIDATION_ERROR'
+        );
+    }
+
+    // Validate each query
+    queries.forEach((query, index) => {
+        if (!query.sql || typeof query.sql !== 'string') {
+            throw new FirebirdError(
+                `Invalid SQL in query at index ${index}`,
+                'VALIDATION_ERROR'
+            );
+        }
+
+        // Validate SQL for security
+        if (!validateSql(query.sql)) {
+            throw new FirebirdError(
+                `Potentially unsafe SQL query at index ${index}: ${query.sql.substring(0, 100)}${query.sql.length > 100 ? '...' : ''}`,
+                'SECURITY_ERROR'
+            );
+        }
+
+        // Ensure params is an array if provided
+        if (query.params !== undefined && !Array.isArray(query.params)) {
+            throw new FirebirdError(
+                `Invalid params in query at index ${index}: must be an array`,
+                'VALIDATION_ERROR'
+            );
+        }
+    });
+
+    logger.info(`Executing batch of ${queries.length} queries`);
+
+    // Execute queries in batches to limit concurrency
+    const results: Array<{success: boolean, data?: any[], error?: string, errorType?: string}> = [];
+
+    // Process queries in batches of maxConcurrent
+    for (let i = 0; i < queries.length; i += maxConcurrent) {
+        const batch = queries.slice(i, i + maxConcurrent);
+
+        // Execute batch in parallel
+        const batchPromises = batch.map(async (query, batchIndex) => {
+            const queryIndex = i + batchIndex;
+            try {
+                logger.debug(`Executing query ${queryIndex + 1}/${queries.length}: ${query.sql.substring(0, 100)}${query.sql.length > 100 ? '...' : ''}`);
+                const data = await executeQuery(query.sql, query.params || [], config);
+                return { success: true, data };
+            } catch (error: any) {
+                logger.error(`Error executing query ${queryIndex + 1}: ${error.message || error}`);
+
+                // Format error response
+                const errorType = error instanceof FirebirdError ? error.type : 'QUERY_EXECUTION_ERROR';
+                const errorMessage = error instanceof Error ? error.message : String(error);
+
+                return {
+                    success: false,
+                    error: errorMessage,
+                    errorType
+                };
+            }
+        });
+
+        // Wait for all queries in this batch to complete
+        const batchResults = await Promise.all(batchPromises);
+        results.push(...batchResults);
+    }
+
+    logger.info(`Batch execution completed: ${results.filter(r => r.success).length} succeeded, ${results.filter(r => !r.success).length} failed`);
+    return results;
+};
+
+/**
+ * Obtiene la estructura detallada de múltiples tablas en paralelo
+ * @param {string[]} tableNames - Array de nombres de tablas
+ * @param {ConfigOptions} config - Configuración de conexión a la base de datos (opcional)
+ * @param {number} maxConcurrent - Número máximo de consultas concurrentes (por defecto: 5)
+ * @returns {Promise<Array<{tableName: string, schema: ColumnInfo[] | null, error?: string, errorType?: string}>>} Array de resultados con la estructura de cada tabla
+ * @throws {FirebirdError} Si hay un error de validación o configuración
+ */
+export const describeBatchTables = async (
+    tableNames: string[],
+    config = DEFAULT_CONFIG,
+    maxConcurrent: number = 5
+): Promise<Array<{tableName: string, schema: ColumnInfo[] | null, error?: string, errorType?: string}>> => {
+    // Try to load config from global variable first
+    const globalConfig = getGlobalConfig();
+    if (globalConfig && globalConfig.database) {
+        logger.info(`Using global configuration for describeBatchTables: ${globalConfig.database}`);
+        config = globalConfig;
+    }
+
+    // Validate input
+    if (!Array.isArray(tableNames) || tableNames.length === 0) {
+        throw new FirebirdError(
+            'Invalid tableNames array: must be a non-empty array of table names',
+            'VALIDATION_ERROR'
+        );
+    }
+
+    // Limit the number of tables to prevent abuse
+    const MAX_TABLES = 20;
+    if (tableNames.length > MAX_TABLES) {
+        throw new FirebirdError(
+            `Too many tables: maximum allowed is ${MAX_TABLES}`,
+            'VALIDATION_ERROR'
+        );
+    }
+
+    // Validate each table name
+    tableNames.forEach((tableName, index) => {
+        if (!tableName || typeof tableName !== 'string') {
+            throw new FirebirdError(
+                `Invalid table name at index ${index}`,
+                'VALIDATION_ERROR'
+            );
+        }
+
+        if (!validateSql(tableName)) {
+            throw new FirebirdError(
+                `Potentially unsafe table name at index ${index}: ${tableName}`,
+                'SECURITY_ERROR'
+            );
+        }
+    });
+
+    logger.info(`Describing batch of ${tableNames.length} tables`);
+
+    // Execute queries in batches to limit concurrency
+    const results: Array<{tableName: string, schema: ColumnInfo[] | null, error?: string, errorType?: string}> = [];
+
+    // Process tables in batches of maxConcurrent
+    for (let i = 0; i < tableNames.length; i += maxConcurrent) {
+        const batch = tableNames.slice(i, i + maxConcurrent);
+
+        // Execute batch in parallel
+        const batchPromises = batch.map(async (tableName, batchIndex) => {
+            const tableIndex = i + batchIndex;
+            try {
+                logger.debug(`Describing table ${tableIndex + 1}/${tableNames.length}: ${tableName}`);
+                const schema = await describeTable(tableName, config);
+                return { tableName, schema };
+            } catch (error: any) {
+                logger.error(`Error describing table ${tableIndex + 1}: ${error.message || error}`);
+
+                // Format error response
+                const errorType = error instanceof FirebirdError ? error.type : 'TABLE_DESCRIBE_ERROR';
+                const errorMessage = error instanceof Error ? error.message : String(error);
+
+                return {
+                    tableName,
+                    schema: null,
+                    error: errorMessage,
+                    errorType
+                };
+            }
+        });
+
+        // Wait for all queries in this batch to complete
+        const batchResults = await Promise.all(batchPromises);
+        results.push(...batchResults);
+    }
+
+    logger.info(`Batch description completed: ${results.filter(r => r.schema !== null).length} succeeded, ${results.filter(r => r.schema === null).length} failed`);
+    return results;
+};
 
 // Nota: En lugar de reexportar las funciones, vamos a crear un archivo separado
 // que exporte versiones wrapped de estas funciones para evitar conflictos de exportación.

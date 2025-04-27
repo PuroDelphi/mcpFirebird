@@ -13,6 +13,7 @@ import './utils/stdout-guard.js';
 // Import core dependencies
 import { createLogger } from './utils/logger.js';
 import { main } from './server/index.js';
+import { startServer as startMcpServer } from './server/index-mcp.js';
 import { FirebirdError, MCPError } from './utils/errors.js';
 import pkg from '../package.json' with { type: 'json' };
 import * as os from 'os';
@@ -163,8 +164,22 @@ if (process.env.MCP_LOG_FILE) {
     logger.info(`Log file: ${process.env.MCP_LOG_FILE}`);
 }
 
-// Start the server
-main().catch(error => {
-    // Use our centralized error handling
-    handleFatalError(error);
-});
+// Determine which server implementation to use
+// Use the modern McpServer implementation by default, but allow fallback to the legacy implementation
+const useMcpServer = process.env.USE_LEGACY_SERVER !== 'true';
+
+if (useMcpServer) {
+    logger.info('Using modern McpServer implementation...');
+    // Start the server with the modern McpServer implementation
+    startMcpServer().catch(error => {
+        // Use our centralized error handling
+        handleFatalError(error);
+    });
+} else {
+    logger.info('Using legacy Server implementation...');
+    // Start the server with the legacy Server implementation
+    main().catch(error => {
+        // Use our centralized error handling
+        handleFatalError(error);
+    });
+}

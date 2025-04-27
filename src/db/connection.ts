@@ -80,14 +80,17 @@ export const getDefaultConfig = (): ConfigOptions => {
     console.error(`FIREBIRD_ROLE: ${process.env.FIREBIRD_ROLE || 'not set'}`);
     console.error(`FB_ROLE: ${process.env.FB_ROLE || 'not set'}`);
 
+    // Check for global configuration first (set by CLI)
+    const globalConfigFromEnv = (global as any).MCP_FIREBIRD_CONFIG;
+
     const config = {
-        host: process.env.FIREBIRD_HOST || process.env.FB_HOST || 'localhost', // FB_HOST is deprecated
-        port: parseInt(process.env.FIREBIRD_PORT || process.env.FB_PORT || '3050', 10), // FB_PORT is deprecated
-        database: normalizeDatabasePath(process.env.FIREBIRD_DATABASE || process.env.FB_DATABASE), // FB_DATABASE is deprecated
-        user: process.env.FIREBIRD_USER || process.env.FB_USER || 'SYSDBA', // FB_USER is deprecated
-        password: process.env.FIREBIRD_PASSWORD || process.env.FB_PASSWORD || 'masterkey', // FB_PASSWORD is deprecated
-        role: process.env.FIREBIRD_ROLE || process.env.FB_ROLE || undefined, // FB_ROLE is deprecated
-        pageSize: 4096
+        host: globalConfigFromEnv?.host || process.env.FIREBIRD_HOST || process.env.FB_HOST || '127.0.0.1', // Use 127.0.0.1 instead of 'localhost'
+        port: parseInt(String(globalConfigFromEnv?.port || process.env.FIREBIRD_PORT || process.env.FB_PORT || '3050'), 10),
+        database: normalizeDatabasePath(globalConfigFromEnv?.database || process.env.FIREBIRD_DATABASE || process.env.FB_DATABASE),
+        user: globalConfigFromEnv?.user || process.env.FIREBIRD_USER || process.env.FB_USER || 'SYSDBA',
+        password: globalConfigFromEnv?.password || process.env.FIREBIRD_PASSWORD || process.env.FB_PASSWORD || 'masterkey',
+        role: globalConfigFromEnv?.role || process.env.FIREBIRD_ROLE || process.env.FB_ROLE || undefined,
+        pageSize: globalConfigFromEnv?.pageSize || 4096
     };
 
     // Debug: Log the final configuration (without password)
@@ -105,7 +108,7 @@ export const getDefaultConfig = (): ConfigOptions => {
 
 // For backward compatibility
 export const DEFAULT_CONFIG: ConfigOptions = {
-    host: 'localhost',
+    host: '127.0.0.1', // Use 127.0.0.1 instead of 'localhost'
     port: 3050,
     database: '',
     user: 'SYSDBA',
@@ -135,6 +138,15 @@ export const connectToDatabase = (config = getDefaultConfig()): Promise<Firebird
             console.error(`Using default database path: ${config.database}`);
         }
 
+        // Log connection attempt with full details
+        console.error('Attempting to connect with the following configuration:');
+        console.error(`- Host: ${config.host}`);
+        console.error(`- Port: ${config.port}`);
+        console.error(`- Database: ${config.database}`);
+        console.error(`- User: ${config.user}`);
+        // Don't log password
+        console.error(`- Role: ${config.role || 'Not specified'}`);
+
         Firebird.attach(config, (err: Error | null, db: any) => {
             if (err) {
                 // Categorize the error for better handling
@@ -146,13 +158,19 @@ export const connectToDatabase = (config = getDefaultConfig()): Promise<Firebird
                     errorMsg = 'Firebird service is not available. Verify that the Firebird server is running.';
                 } else if (err.message.includes('ECONNREFUSED')) {
                     errorType = ErrorTypes.DATABASE_CONNECTION;
-                    errorMsg = `Connection refused at ${config.host}:${config.port}. Verify that the Firebird server is running and accessible.`;
+                    errorMsg = `Connection refused at ${config.host}:${config.port}. Verify that the Firebird server is running and accessible at this address.`;
                 } else if (err.message.includes('ENOENT')) {
                     errorType = ErrorTypes.DATABASE_CONNECTION;
                     errorMsg = `Database not found: ${config.database}. Verify the path and permissions.`;
                 } else if (err.message.includes('password') || err.message.includes('user')) {
                     errorType = ErrorTypes.SECURITY_AUTHENTICATION;
                     errorMsg = 'Authentication error. Verify username and password.';
+                } else if (err.message.includes('ETIMEDOUT')) {
+                    errorType = ErrorTypes.DATABASE_CONNECTION;
+                    errorMsg = `Connection timed out at ${config.host}:${config.port}. Verify that the Firebird server is accessible and not blocked by a firewall.`;
+                } else if (err.message.includes('EHOSTUNREACH')) {
+                    errorType = ErrorTypes.DATABASE_CONNECTION;
+                    errorMsg = `Host unreachable at ${config.host}:${config.port}. Verify network connectivity and that the host exists.`;
                 }
 
                 logger.error(errorMsg, { originalError: err });

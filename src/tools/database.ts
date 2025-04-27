@@ -7,7 +7,9 @@ import {
     getFieldDescriptions,
     analyzeQueryPerformance,
     getExecutionPlan,
-    analyzeMissingIndexes
+    analyzeMissingIndexes,
+    executeBatchQueries,
+    describeBatchTables
 } from '../db/index.js';
 
 import {
@@ -83,6 +85,21 @@ export const DescribeTableArgsSchema = z.object({
 
 export const GetFieldDescriptionsArgsSchema = z.object({
     tableName: z.string().min(1).describe("Name of the table to get field descriptions for")
+});
+
+export const ExecuteBatchQueriesArgsSchema = z.object({
+    queries: z.array(
+        z.object({
+            sql: z.string().min(1).describe("SQL query to execute"),
+            params: z.array(z.string().or(z.number()).or(z.boolean()).or(z.null())).optional().describe("Parameters for parameterized queries")
+        })
+    ).min(1).max(20).describe("Array of query objects, each containing SQL and optional parameters"),
+    maxConcurrent: z.number().int().min(1).max(10).optional().default(5).describe("Maximum number of concurrent queries (default: 5)")
+});
+
+export const DescribeBatchTablesArgsSchema = z.object({
+    tableNames: z.array(z.string().min(1)).min(1).max(20).describe("Array of table names to describe"),
+    maxConcurrent: z.number().int().min(1).max(10).optional().default(5).describe("Maximum number of concurrent operations (default: 5)")
 });
 
 /**
@@ -420,6 +437,84 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
             } catch (error) {
                 const errorResponse = wrapError(error);
                 logger.error(`Error validating database: ${errorResponse.error} [${errorResponse.errorType || 'UNKNOWN'}]`);
+
+                return {
+                    content: [{
+                        type: "text",
+                        text: formatForClaude(errorResponse)
+                    }]
+                };
+            }
+        }
+    });
+
+    // Add execute-batch-queries tool
+    tools.set("execute-batch-queries", {
+        name: "execute-batch-queries",
+        description: "Executes multiple SQL queries in parallel for improved performance.",
+        inputSchema: ExecuteBatchQueriesArgsSchema,
+        handler: async (args: z.infer<typeof ExecuteBatchQueriesArgsSchema>) => {
+            const { queries, maxConcurrent = 5 } = args;
+            logger.info(`Executing batch of ${queries.length} queries with max concurrency ${maxConcurrent}`);
+
+            try {
+                // Validate each query for security
+                queries.forEach((query, index) => {
+                    if (!validateSql(query.sql)) {
+                        throw new FirebirdError(
+                            `Potentially unsafe SQL query at index ${index}: ${query.sql.substring(0, 100)}${query.sql.length > 100 ? '...' : ''}`,
+                            'SECURITY_ERROR'
+                        );
+                    }
+                });
+
+                const results = await executeBatchQueries(queries, undefined, maxConcurrent);
+
+                logger.info(`Batch execution completed: ${results.filter(r => r.success).length} succeeded, ${results.filter(r => !r.success).length} failed`);
+
+                return {
+                    content: [{
+                        type: "text",
+                        text: formatForClaude(results)
+                    }]
+                };
+            } catch (error) {
+                const errorResponse = wrapError(error);
+                logger.error(`Error executing batch queries: ${errorResponse.error} [${errorResponse.errorType || 'UNKNOWN'}]`);
+
+                return {
+                    content: [{
+                        type: "text",
+                        text: formatForClaude(errorResponse)
+                    }]
+                };
+            }
+        }
+    });
+
+    // Add describe-batch-tables tool
+    tools.set("describe-batch-tables", {
+        name: "describe-batch-tables",
+        description: "Gets the detailed schema of multiple tables in parallel for improved performance.",
+        inputSchema: DescribeBatchTablesArgsSchema,
+        handler: async (args: z.infer<typeof DescribeBatchTablesArgsSchema>) => {
+            const { tableNames, maxConcurrent = 5 } = args;
+            logger.info(`Describing batch of ${tableNames.length} tables with max concurrency ${maxConcurrent}`);
+
+            try {
+                const results = await describeBatchTables(tableNames, undefined, maxConcurrent);
+
+                logger.info(`Batch description completed: ${results.filter(r => r.schema !== null).length} succeeded, ${results.filter(r => r.schema === null).length} failed`);
+
+                return {
+                    content: [{
+                        type: "text",
+                        text: formatForClaude(results)
+                    }]
+                };
+            } catch (error) {
+                const errorResponse = wrapError(error);
+                logger.error(`Error describing batch tables: ${errorResponse.error} [${errorResponse.errorType || 'UNKNOWN'}]`);
 
                 return {
                     content: [{

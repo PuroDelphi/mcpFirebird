@@ -43,9 +43,43 @@ Gets the stored descriptions for fields of a specific table (if they exist).
 }
 ```
 
+### 5. execute-batch-queries
+
+Executes multiple SQL queries in parallel for improved performance.
+
+```json
+{
+  "queries": [
+    {
+      "sql": "SELECT * FROM EMPLOYEES WHERE DEPARTMENT_ID = ?",
+      "params": [10]
+    },
+    {
+      "sql": "SELECT * FROM DEPARTMENTS WHERE LOCATION_ID = ?",
+      "params": [1700]
+    },
+    {
+      "sql": "SELECT COUNT(*) FROM JOB_HISTORY"
+    }
+  ],
+  "maxConcurrent": 3  // Maximum number of concurrent queries (default: 5, max: 10)
+}
+```
+
+### 6. describe-batch-tables
+
+Gets the detailed schema of multiple tables in parallel for improved performance.
+
+```json
+{
+  "tableNames": ["EMPLOYEES", "DEPARTMENTS", "JOB_HISTORY"],
+  "maxConcurrent": 3  // Maximum number of concurrent operations (default: 5, max: 10)
+}
+```
+
 ## Analysis Tools
 
-### 5. analyze-query-performance
+### 7. analyze-query-performance
 
 Analyzes the performance of a SQL query by executing it multiple times and measuring execution time.
 
@@ -57,7 +91,7 @@ Analyzes the performance of a SQL query by executing it multiple times and measu
 }
 ```
 
-### 6. get-execution-plan
+### 8. get-execution-plan
 
 Gets the execution plan for a SQL query to understand how the database will execute it.
 
@@ -67,7 +101,7 @@ Gets the execution plan for a SQL query to understand how the database will exec
 }
 ```
 
-### 7. analyze-missing-indexes
+### 9. analyze-missing-indexes
 
 Analyzes a SQL query to identify missing indexes that could improve performance.
 
@@ -79,7 +113,7 @@ Analyzes a SQL query to identify missing indexes that could improve performance.
 
 ## Database Management Tools
 
-### 8. backup-database
+### 10. backup-database
 
 Creates a backup of the Firebird database.
 
@@ -95,7 +129,7 @@ Creates a backup of the Firebird database.
 }
 ```
 
-### 9. restore-database
+### 11. restore-database
 
 Restores a Firebird database from a backup.
 
@@ -111,7 +145,7 @@ Restores a Firebird database from a backup.
 }
 ```
 
-### 10. validate-database
+### 12. validate-database
 
 Validates the integrity of the Firebird database.
 
@@ -128,7 +162,7 @@ Validates the integrity of the Firebird database.
 
 ## Utility Tools
 
-### 11. ping
+### 13. ping
 
 Tests connectivity to the MCP Firebird server.
 
@@ -136,7 +170,7 @@ Tests connectivity to the MCP Firebird server.
 {}
 ```
 
-### 12. echo
+### 14. echo
 
 Echoes back the input message.
 
@@ -146,7 +180,7 @@ Echoes back the input message.
 }
 ```
 
-### 13. get-methods
+### 15. get-methods
 
 Returns a description of all available MCP tools.
 
@@ -154,7 +188,7 @@ Returns a description of all available MCP tools.
 {}
 ```
 
-### 14. describe-method
+### 16. describe-method
 
 Returns a description of a specific MCP tool.
 

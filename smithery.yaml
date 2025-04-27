@@ -42,8 +42,27 @@ startCommand:
   commandFunction:
     # A JS function that produces the CLI command based on the given config to start the MCP on stdio.
     |-
-    (config) => { 
-      // Set environment variables based on config
+    (config) => {
+      // Build command line arguments to pass directly to the CLI
+      const args = ['dist/cli.js'];
+
+      // Add all configuration parameters as command line arguments
+      if (config.firebirdHost) args.push('--host', config.firebirdHost);
+      if (config.firebirdPort) args.push('--port', String(config.firebirdPort));
+      if (config.firebirdDatabase) args.push('--database', config.firebirdDatabase);
+      if (config.firebirdUser) args.push('--user', config.firebirdUser);
+      if (config.firebirdPassword) args.push('--password', config.firebirdPassword);
+
+      // Set transport type if specified
+      if (config.transportType === 'sse') {
+        args.push('--transport-type', 'sse');
+        if (config.ssePort) args.push('--sse-port', String(config.ssePort));
+      }
+
+      // Set log level if specified
+      if (config.logLevel) args.push('--log-level', config.logLevel);
+
+      // Also set environment variables as a fallback
       const env = Object.assign({}, process.env, {
         FIREBIRD_HOST: config.firebirdHost,
         FIREBIRD_PORT: String(config.firebirdPort),
@@ -53,20 +72,22 @@ startCommand:
         TRANSPORT_TYPE: config.transportType,
         LOG_LEVEL: config.logLevel
       });
+
       // If transport is sse, add SSE_PORT
       if(config.transportType === 'sse') {
         env.SSE_PORT = String(config.ssePort);
       }
+
       return {
         command: 'node',
-        args: ['dist/index.js'],
+        args,
         env
       };
     }
   exampleConfig:
-    firebirdHost: localhost
+    firebirdHost: 192.168.1.5
     firebirdPort: 3050
-    firebirdDatabase: /firebird/data/database.fdb
+    firebirdDatabase: F:\\Proyectos\\SAI\\EMPLOYEE.FDB
     firebirdUser: SYSDBA
     firebirdPassword: masterkey
     transportType: stdio
