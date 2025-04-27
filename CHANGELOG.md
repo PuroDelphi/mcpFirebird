@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.11-alpha.0] - 2024-07-27
+
+### In Development
+- Working on fixing hardcoded localhost values in connection handling
+- Improving environment variable handling for Smithery integration
+
+## [2.0.10] - 2024-07-27
+
+### Added
+- Added new `sse` script for easier development with Server-Sent Events
+- Added example video showing MCP Firebird in action with Claude
+- Added information about Asistentes Autónomos as another way to support the project
+
+### Changed
+- Updated Dockerfile to include new STDIO mode scripts
+- Updated Docker documentation for STDIO mode with MCP Inspector
+- Improved parameter typing in database.ts for better code quality
+- Updated README files with more comprehensive examples and documentation
+
 ## [2.0.10-alpha.0] - 2024-07-10
 
 ### Changed
