@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.11-alpha.1] - 2024-07-27
+
+### Added
+- Added implementation of modern McpServer as default server
+- Added backward compatibility with legacy Server implementation
+
 ## [2.0.11-alpha.0] - 2024-07-27
 
 ### Added
