@@ -107,7 +107,7 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
         description: "Executes a SQL query in the Firebird database. Uses FIRST/ROWS for pagination.",
         inputSchema: ExecuteQueryArgsSchema,
         handler: async (args: z.infer<typeof ExecuteQueryArgsSchema>) => {
-            const { sql, params = [] } = args;
+            const { sql, params = [] }: { sql: string; params?: (string | number | boolean | null)[] } = args;
             logger.info(`Executing query: ${sql.substring(0, 100)}${sql.length > 100 ? '...' : ''}`);
 
             try {
