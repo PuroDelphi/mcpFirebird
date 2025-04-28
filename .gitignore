@@ -155,3 +155,6 @@ temp/
 
 # Archivos de bloqueo adicionales
 .lock
+
+# Carpeta de documentación local
+/documentacion/
