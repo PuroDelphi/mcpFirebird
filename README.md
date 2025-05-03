@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/purodelphi-mcpfirebird-badge.png)](https://mseep.ai/app/purodelphi-mcpfirebird)
+
 # MCP Firebird
 
 [![smithery badge](https://smithery.ai/badge/@PuroDelphi/mcpFirebird)](https://smithery.ai/server/@PuroDelphi/mcpFirebird)
