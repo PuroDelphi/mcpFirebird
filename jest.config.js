@@ -1,4 +1,4 @@
-module.exports = {
+export default {
   preset: 'ts-jest',
   testEnvironment: 'node',
   setupFilesAfterEnv: ['<rootDir>/src/__tests__/setup/jest.setup.ts'],
@@ -10,4 +10,4 @@ module.exports = {
     '!src/**/*.test.ts',
     '!src/__tests__/**/*'
   ]
-}; 
+};

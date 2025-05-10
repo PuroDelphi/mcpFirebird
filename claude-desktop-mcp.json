@@ -1,0 +1,21 @@
+{
+  "mcpServers": {
+    "mcp-firebird": {
+      "command": "npx",
+      "args": [
+        "mcp-firebird",
+        "--database",
+        "F:\\\\Proyectos\\\\SAI\\\\EMPLOYEE.FDB",
+        "--host",
+        "localhost",
+        "--port",
+        "3050",
+        "--user",
+        "SYSDBA",
+        "--password",
+        "masterkey"
+      ],
+      "type": "stdio"
+    }
+  }
+}

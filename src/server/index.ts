@@ -4,7 +4,7 @@
  */
 
 import { z } from 'zod';
-import UrlPattern from 'url-pattern';
+
 import { zodToJsonSchema } from 'zod-to-json-schema';
 
 // --- Global Error Handlers ---
@@ -32,17 +32,9 @@ process.on('unhandledRejection', (reason, promise) => {
 // ------------------------------------
 
 // --- SDK Imports ---
-import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { startSseServer } from "./sse.js";
+import { createSseRouter } from "./sse.js";
 import {
-    CallToolRequestSchema,
-    ListToolsRequestSchema,
-    ListPromptsRequestSchema,
-    GetPromptRequestSchema,
-    ListResourcesRequestSchema,
-    ReadResourceRequestSchema,
-    ListResourceTemplatesRequestSchema,
     ToolSchema
 } from "@modelcontextprotocol/sdk/types.js";
 
@@ -91,182 +83,132 @@ export async function main() {
             `Loaded: ${allTools.size} tools, ${allPrompts.size} prompts, ${allResources.size} resources.`
         );
 
-        // 2. Create MCP server instance
+        // 2. Create MCP server instance (McpServer)
         logger.info('Creating MCP server instance...');
-        const server = new Server(
-            {
-                name: pkg.name,
-                version: pkg.version
-            },
-            {
-                capabilities: {
-                    tools: { list: true, execute: true },
-                    prompts: { list: true, get: true, call: true },
-                    resources: { list: true, read: true },
-                    resourceTemplates: { list: true }
-                }
-            }
-        );
+        const { McpServer } = await import("@modelcontextprotocol/sdk/server/mcp.js");
+        const server = new McpServer({
+            name: pkg.name,
+            version: pkg.version
+        });
         logger.info('MCP server instance created.');
 
-        // 3. Configure request handlers
-        logger.info('Configuring request handlers...');
+        // 3. Registro de tools, prompts y resources (McpServer moderno)
+        logger.info('Registrando tools, prompts y resources en MCP...');
 
-        // Handler for listing tools
-        server.setRequestHandler(ListToolsRequestSchema, async () => {
-            logger.info('Received ListTools request');
-            const tools = Array.from(allTools.entries()).map(([name, tool]) => ({
+        // Tools
+        for (const [name, tool] of allTools.entries()) {
+            server.tool(
                 name,
-                description: tool.description,
-                inputSchema: tool.inputSchema ? zodToJsonSchema(tool.inputSchema) : undefined
-            }));
-            return { tools };
-        });
-
-        // Handler for executing tools
-        server.setRequestHandler(CallToolRequestSchema, async (request) => {
-            const { name, arguments: args } = request.params;
-            logger.info(`Received CallTool request: ${name}`);
-
-            const tool = allTools.get(name);
-            if (!tool) {
-                return {
-                    content: [{ type: "text", text: `Error: Unknown tool: ${name}` }],
-                    isError: true
-                };
-            }
-
-            try {
-                const result = await tool.handler(args);
-
-                // Si el resultado es un objeto con success: false, lo devolvemos como JSON sin secuencias de escape
-                if (typeof result === 'object' && result !== null && 'success' in result && result.success === false) {
-                    return {
-                        content: [{ type: "text", text: JSON.stringify(result) }],
-                        isError: true
-                    };
-                }
-
-                // Para otros resultados, devolvemos como texto plano
-                return {
-                    content: [{ type: "text", text: JSON.stringify(result) }]
-                };
-            } catch (error) {
-                logger.error(`Error executing tool ${name}: ${error instanceof Error ? error.message : String(error)}`, { error });
-                const message = error instanceof Error ? error.message : 'Unknown error';
-                return {
-                    content: [{ type: "text", text: `Error executing tool ${name}: ${message}` }],
-                    isError: true
-                };
-            }
-        });
-
-        // Handler for listing prompts
-        server.setRequestHandler(ListPromptsRequestSchema, async () => {
-            logger.info('Received ListPrompts request');
-            const prompts = Array.from(allPrompts.entries()).map(([name, prompt]) => ({
-                name,
-                description: prompt.description
-            }));
-            return { prompts };
-        });
-
-        // Handler for getting or executing a prompt
-        server.setRequestHandler(GetPromptRequestSchema, async (request) => {
-            const { name, arguments: args } = request.params;
-            logger.info(`Received GetPrompt request: ${name}`);
-
-            const promptDef = allPrompts.get(name as string);
-            if (!promptDef) {
-                throw new Error(`Unknown prompt: ${name}`);
-            }
-
-            // If there are no arguments, just return the prompt definition
-            if (!args) {
-                return {
-                    prompt: {
-                        name: name,
-                        description: promptDef.description,
-                        inputSchema: promptDef.inputSchema ? zodToJsonSchema(promptDef.inputSchema) : undefined
-                    }
-                };
-            }
-
-            // If there are arguments, execute the prompt
-            try {
-                // Execute the prompt handler with the provided arguments
-                const result = await promptDef.handler(args);
-
-                // Make sure the result has the correct format
-                if (!result || !result.messages || !Array.isArray(result.messages)) {
-                    logger.error(`The prompt handler for ${name} did not return a valid format`);
-                    throw new Error(`Internal error: invalid response format`);
-                }
-
-                return result;
-            } catch (error) {
-                logger.error(`Error executing prompt ${name}: ${error instanceof Error ? error.message : String(error)}`, { error });
-                throw error;
-            }
-        });
-
-        // Handler for listing resources
-        server.setRequestHandler(ListResourcesRequestSchema, async () => {
-            logger.info('Received ListResources request');
-            const resources = Array.from(allResources.keys()).map(uriTemplate => ({
-                uri: uriTemplate,
-                name: `Resource: ${uriTemplate}`,
-                mimeType: "application/json"
-            }));
-            return { resources };
-        });
-
-        // Handler for reading a specific resource
-        server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
-            const { uri } = request.params;
-            logger.info(`Received ReadResource request: ${uri}`);
-
-            let matchedResourceDef: ResourceDefinition | undefined;
-            let uriParams: Record<string, string> = {};
-
-            for (const [uriTemplate, definition] of allResources.entries()) {
-                const pattern = new UrlPattern(uriTemplate);
-                const match = pattern.match(uri);
-                if (match) {
-                    matchedResourceDef = definition;
-                    uriParams = match;
-                    break;
-                }
-            }
-
-            if (!matchedResourceDef) {
-                throw new Error(`Unknown resource or URI pattern does not match: ${uri}`);
-            }
-
-            try {
-                const result = await matchedResourceDef.handler(uriParams);
-
-                return {
-                    contents: [
-                        {
-                            uri: request.params.uri,
-                            mimeType: "application/json",
-                            text: JSON.stringify(result, null, 2)
+                tool.description,
+                (tool.inputSchema && tool.inputSchema instanceof z.ZodObject ? tool.inputSchema.shape : {}), 
+                async (args: any, extra: any): Promise<{ content: any[], isError?: boolean }> => {
+                    try {
+                        const result = await tool.handler(args);
+                        if (typeof result === 'object' && result !== null && 'content' in result) {
+                            return result;
                         }
-                    ]
-                };
-            } catch (error) {
-                logger.error(`Error accessing resource ${uri}: ${error instanceof Error ? error.message : String(error)}`, { error });
-                throw error;
-            }
-        });
+                        return { content: [{ type: 'text', text: JSON.stringify(result) }] };
+                        return {
+                            content: [{ type: "text", text: JSON.stringify(result) }]
+                        };
+                    } catch (error) {
+                        logger.error(`Error executing tool ${name}: ${error instanceof Error ? error.message : String(error)}`, { error });
+                        const message = error instanceof Error ? error.message : 'Unknown error';
+                        return {
+                            content: [{ type: "text", text: `Error executing tool ${name}: ${message}` }],
+                            isError: true
+                        };
+                    }
+                }
+            );
+            logger.info(`Registered tool: ${name}`);
+        }
 
-        // Handler for listing resource templates
-        server.setRequestHandler(ListResourceTemplatesRequestSchema, async () => {
-            logger.info('Received ListResourceTemplates request');
-            // For now, return an empty list as we don't have any templates defined
-            return { resourceTemplates: [] };
-        });
+        // Prompts
+        for (const [name, promptDef] of allPrompts.entries()) {
+            server.prompt(
+                name,
+                promptDef.description,
+                (promptDef.inputSchema && promptDef.inputSchema instanceof z.ZodObject ? promptDef.inputSchema.shape : {}), 
+                async (extra: any) => {
+                    const args = extra.inputs;
+                    try {
+                        let result;
+                        if (!args) {
+                            // SDK espera siempre 'messages', aunque sea vacío o informativo
+                            result = {
+                                messages: [
+                                    {
+                                        role: 'assistant',
+                                        content: { type: 'text', text: `Prompt '${name}' metadata: ${promptDef.description}` }
+                                    }
+                                ]
+                            };
+                        } else {
+                            result = await promptDef.handler(args);
+                        }
+                        if (!result || !result.messages || !Array.isArray(result.messages)) {
+                            logger.error(`The prompt handler for ${name} did not return a valid format`);
+                            return {
+                                messages: [
+                                    {
+                                        role: 'assistant',
+                                        content: { type: 'text', text: `Internal error: invalid response format` }
+                                    }
+                                ]
+                            };
+                        }
+                        // Ajusta los roles y el tipo de content
+                        const safeMessages = result.messages.map((msg: any) => ({
+                            role: (msg.role === 'user' || msg.role === 'assistant') ? msg.role : 'assistant',
+                            content: (msg.content && typeof msg.content === 'object' && msg.content.type === 'text')
+                                ? msg.content
+                                : { type: 'text', text: String(msg.content) }
+                        }));
+                        return { messages: safeMessages };
+                    } catch (error) {
+                        logger.error(`Error executing prompt ${name}: ${error instanceof Error ? error.message : String(error)}`, { error });
+                        return {
+                            messages: [
+                                {
+                                    role: 'assistant',
+                                    content: { type: 'text', text: `Error executing prompt: ${error instanceof Error ? error.message : String(error)}` }
+                                }
+                            ]
+                        };
+                    }
+                }
+            );
+            logger.info(`Registered prompt: ${name}`);
+        }
+
+        // Resources
+        for (const [uriTemplate, resourceDef] of allResources.entries()) {
+            server.resource(
+                `resource-${uriTemplate}`,
+                uriTemplate,
+                async (uriParams: any) => {
+                    try {
+                        const result = await resourceDef.handler(uriParams || {});
+                        return {
+                            contents: [
+                                {
+                                    uri: uriTemplate,
+                                    mimeType: "application/json",
+                                    text: JSON.stringify(result, null, 2)
+                                }
+                            ]
+                        };
+                    } catch (error) {
+                        logger.error(`Error accessing resource ${uriTemplate}: ${error instanceof Error ? error.message : String(error)}`, { error });
+                        throw error;
+                    }
+                }
+            );
+            logger.info(`Registered resource: ${uriTemplate}`);
+        }
+
+        // No resource templates registrados (SDK MCP moderno no expone resourceTemplate)
 
         // 4. Start the server with the appropriate transport
         const transportType = process.env.TRANSPORT_TYPE?.toLowerCase() || 'stdio';
@@ -294,21 +236,27 @@ export async function main() {
 
         // Start the server with the appropriate transport
         if (transportType === 'sse') {
-            // Start SSE server
+            // Nuevo: Express + Router SSE
             const ssePort = parseInt(process.env.SSE_PORT || '3003', 10);
             if (isNaN(ssePort)) {
                 throw new ConfigError(`Invalid SSE port: ${process.env.SSE_PORT}`);
             }
-
-            logger.info(`Starting SSE server on port ${ssePort}...`);
-
-            const { cleanup: sseCleanup } = await startSseServer(server, ssePort);
-            setupSignalHandlers(sseCleanup);
-
+            logger.info(`Starting Express SSE server on port ${ssePort}...`);
+            const expressApp = require('express')();
+            expressApp.use(require('cors')());
+            expressApp.use(require('express').json());
+            expressApp.use(createSseRouter(server));
+            const serverInstance = expressApp.listen(ssePort, () => {
+                logger.info(`SSE server listening on port ${ssePort}...`);
+            });
+            // Limpieza elegante
+            const cleanup = async () => {
+                logger.info('Cleaning up Express SSE server...');
+                await new Promise<void>(resolve => serverInstance.close(() => resolve()));
+            };
+            setupSignalHandlers(cleanup);
             logger.info('MCP Firebird server with SSE transport ready to receive requests.');
-            logger.info(`SSE server listening on port ${ssePort}...`);
-
-            // Keep the process alive indefinitely
+            // Mantener proceso vivo
             await new Promise<void>(() => {});
         } else if (transportType === 'stdio') {
             // Use stdio transport
