@@ -1,10 +1,12 @@
 // Herramientas para metadatos e información del sistema
 import { createLogger } from '../utils/logger.js';
-import { stringifyCompact, formatForClaude } from '../utils/jsonHelper.js';
+import { formatForClaude } from '../utils/jsonHelper.js';
 import { z, ZodTypeAny } from 'zod';
 
 // Definición local de ToolDefinition basada en el uso
 export interface ToolDefinition {
+    name?: string;
+    title?: string;
     inputSchema: ZodTypeAny;
     description: string;
     handler: (...args: any[]) => Promise<any>; // Ajustar según sea necesario
@@ -17,160 +19,201 @@ const logger = createLogger('tools:metadata');
  * @param databaseTools - Mapa de herramientas de base de datos ya configuradas.
  * @returns Map<string, ToolDefinition> - Mapa con las herramientas de metadatos.
  */
-export const setupMetadataTools = (
-    databaseTools: Map<string, ToolDefinition>
-): Map<string, ToolDefinition> => {
+export function setupMetadataTools(databaseTools: Map<string, any>): Map<string, ToolDefinition> {
+    const tools = new Map<string, ToolDefinition>();
 
-    const metadataTools = new Map<string, ToolDefinition>();
-
-    // Combinar todas las herramientas para que las herramientas de metadatos puedan describirlas
-    const allTools = new Map([...databaseTools, ...metadataTools]);
-
-    // --- get-methods ---
-    // !! Esta definición debe ocurrir *después* de inicializar allTools !!
-    metadataTools.set("get-methods", {
-        inputSchema: z.object({}), // No args
-        description: "Returns a description of all available MCP tools (methods)",
+    // Herramienta para obtener información del servidor
+    tools.set('get-server-info', {
+        title: 'Get Server Information',
+        description: 'Obtiene información sobre el servidor MCP Firebird y las herramientas disponibles',
+        inputSchema: z.object({}),
         handler: async () => {
-            logger.info("Obteniendo descripción de herramientas disponibles");
-
             try {
-                // Crear descripciones dinámicamente desde allTools
-                const toolDescriptions = Array.from(allTools.values()).map(toolDef => {
-                    // Extraer parámetros de Zod schema si existe
-                    let parameters: any[] = [];
-                    if (toolDef.inputSchema && toolDef.inputSchema instanceof z.ZodObject) {
-                        parameters = Object.entries(toolDef.inputSchema.shape).map(([name, zodType]) => ({
-                            name,
-                            // Intentar obtener una descripción o tipo básico de Zod
-                            type: ((zodType as z.ZodTypeAny)._def as any)?.typeName?.replace('Zod', '').toLowerCase() || 'unknown',
-                            description: (zodType as z.ZodTypeAny).description || 'No description provided'
-                        }));
+                const serverInfo = {
+                    name: 'MCP Firebird Server',
+                    version: process.env.npm_package_version || '2.2.0-alpha.1',
+                    description: 'Servidor MCP para bases de datos Firebird',
+                    capabilities: {
+                        tools: Array.from(databaseTools.keys()),
+                        totalTools: databaseTools.size,
+                        features: [
+                            'SQL query execution',
+                            'Database schema inspection',
+                            'Performance analysis',
+                            'Backup and restore',
+                            'Database validation'
+                        ]
+                    },
+                    runtime: {
+                        nodeVersion: process.version,
+                        platform: process.platform,
+                        uptime: process.uptime(),
+                        memoryUsage: process.memoryUsage()
                     }
-
-                    return {
-                        name: Array.from(allTools.entries()).find(([_, def]) => def === toolDef)?.[0] || 'unknown-tool',
-                        description: toolDef.description,
-                        parameters: parameters,
-                        // Nota: No tenemos una forma estándar de describir el tipo de retorno aquí
-                        // Podríamos añadir una propiedad `returnsDescription` a ToolDefinition si fuera necesario
-                        returns: "See tool documentation for return details."
-                    };
-                });
+                };
 
                 return {
                     content: [{
                         type: 'text',
-                        text: formatForClaude({ tools: toolDescriptions })
+                        text: `Información del servidor MCP Firebird:\n\n${formatForClaude(serverInfo)}`
                     }]
                 };
-            } catch (error: any) {
-                logger.error(`Error en get-methods: ${error.message}`);
+            } catch (error) {
+                logger.error('Error getting server info:', { error });
                 return {
                     content: [{
                         type: 'text',
-                        text: formatForClaude({ error: 'Error al obtener la lista de herramientas.', message: error.message })
-                    }]
+                        text: `Error obteniendo información del servidor: ${error instanceof Error ? error.message : String(error)}`
+                    }],
+                    isError: true
                 };
             }
         }
     });
 
-    // --- describe-method ---
-    // !! Esta definición debe ocurrir *después* de inicializar allTools !!
-    const DescribeMethodArgsSchema = z.object({
-        name: z.string().describe("The name of the tool (method) to describe")
-    });
-    metadataTools.set("describe-method", {
-        inputSchema: DescribeMethodArgsSchema,
-        description: "Returns a description of a specific MCP tool (method)",
-        handler: async (args: z.infer<typeof DescribeMethodArgsSchema>) => {
-            const { name: toolName } = args;
-            logger.info(`Llamada a describe-method para ${toolName}`);
-
+    // Herramienta para listar todas las herramientas disponibles
+    tools.set('list-available-tools', {
+        title: 'List Available Tools',
+        description: 'Lista todas las herramientas disponibles en el servidor MCP',
+        inputSchema: z.object({
+            category: z.string().optional().describe('Filtrar por categoría (database, metadata)')
+        }),
+        handler: async (args: { category?: string }) => {
             try {
-                // Buscar la herramienta en el mapa combinado
-                const toolDef = allTools.get(toolName);
+                const allTools = new Map([...databaseTools, ...tools]);
+                let toolsList = Array.from(allTools.entries());
 
-                if (!toolDef) {
+                if (args.category) {
+                    if (args.category === 'database') {
+                        toolsList = Array.from(databaseTools.entries());
+                    } else if (args.category === 'metadata') {
+                        toolsList = Array.from(tools.entries());
+                    }
+                }
+
+                const toolsInfo = toolsList.map(([name, tool]) => ({
+                    name,
+                    title: tool.title || name,
+                    description: tool.description,
+                    category: databaseTools.has(name) ? 'database' : 'metadata'
+                }));
+
+                return {
+                    content: [{
+                        type: 'text',
+                        text: `Herramientas disponibles${args.category ? ` (categoría: ${args.category})` : ''}:\n\n${formatForClaude(toolsInfo)}`
+                    }]
+                };
+            } catch (error) {
+                logger.error('Error listing tools:', { error });
+                return {
+                    content: [{
+                        type: 'text',
+                        text: `Error listando herramientas: ${error instanceof Error ? error.message : String(error)}`
+                    }],
+                    isError: true
+                };
+            }
+        }
+    });
+
+    // Herramienta para obtener ayuda sobre una herramienta específica
+    tools.set('get-tool-help', {
+        title: 'Get Tool Help',
+        description: 'Obtiene información detallada sobre una herramienta específica',
+        inputSchema: z.object({
+            toolName: z.string().describe('Nombre de la herramienta sobre la que obtener ayuda')
+        }),
+        handler: async (args: { toolName: string }) => {
+            try {
+                const allTools = new Map([...databaseTools, ...tools]);
+                const tool = allTools.get(args.toolName);
+
+                if (!tool) {
                     return {
                         content: [{
                             type: 'text',
-                            text: formatForClaude({
-                                error: `Herramienta (método) '${toolName}' no encontrada.`
-                            })
-                        }]
+                            text: `Herramienta '${args.toolName}' no encontrada. Use 'list-available-tools' para ver las herramientas disponibles.`
+                        }],
+                        isError: true
                     };
                 }
 
-                // Extraer parámetros de Zod schema si existe
-                let parameters: any[] = [];
-                if (toolDef.inputSchema && toolDef.inputSchema instanceof z.ZodObject) {
-                    parameters = Object.entries(toolDef.inputSchema.shape).map(([name, zodType]) => ({
-                        name,
-                        type: ((zodType as z.ZodTypeAny)._def as any)?.typeName?.replace('Zod', '').toLowerCase() || 'unknown',
-                        description: (zodType as z.ZodTypeAny).description || 'No description provided'
-                    }));
-                }
-
-                // Construir la descripción de la herramienta
-                const toolDescription = {
-                    name: toolName,
-                    description: toolDef.description,
-                    parameters: parameters,
-                    returns: "See tool documentation for return details."
+                const helpInfo = {
+                    name: args.toolName,
+                    title: tool.title || args.toolName,
+                    description: tool.description,
+                    category: databaseTools.has(args.toolName) ? 'database' : 'metadata',
+                    inputSchema: tool.inputSchema ? 'Disponible' : 'No definido',
+                    usage: `Para usar esta herramienta, llame a '${args.toolName}' con los parámetros apropiados.`
                 };
 
                 return {
                     content: [{
                         type: 'text',
-                        // Usar la clave 'tool' consistentemente
-                        text: formatForClaude({ tool: toolDescription })
+                        text: `Ayuda para la herramienta: ${args.toolName}\n\n${formatForClaude(helpInfo)}`
                     }]
                 };
-
-            } catch (error: any) {
-                logger.error(`Error en describe-method: ${error.message}`);
+            } catch (error) {
+                logger.error('Error getting tool help:', { error });
                 return {
                     content: [{
                         type: 'text',
-                        text: formatForClaude({
-                            error: 'Error al obtener la descripción de la herramienta (método).',
-                            message: error.message
-                        })
-                    }]
+                        text: `Error obteniendo ayuda: ${error instanceof Error ? error.message : String(error)}`
+                    }],
+                    isError: true
                 };
             }
         }
     });
 
-    // --- ping ---
-    metadataTools.set("ping", {
-        inputSchema: z.object({}), // No args
-        description: "Tests connectivity to the Firebird MCP server",
+    // Herramienta para verificar el estado del sistema
+    tools.set('system-health-check', {
+        title: 'System Health Check',
+        description: 'Verifica el estado de salud del sistema y la conectividad de la base de datos',
+        inputSchema: z.object({}),
         handler: async () => {
-            logger.info("Ping recibido");
-            return {
-                content: [{
-                    type: 'text',
-                    text: formatForClaude({
-                        message: "Firebird MCP server is online",
-                        timestamp: new Date().toISOString()
-                    })
-                }]
-            };
+            try {
+                const healthInfo = {
+                    status: 'healthy',
+                    timestamp: new Date().toISOString(),
+                    uptime: process.uptime(),
+                    memory: {
+                        used: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
+                        total: Math.round(process.memoryUsage().heapTotal / 1024 / 1024),
+                        external: Math.round(process.memoryUsage().external / 1024 / 1024)
+                    },
+                    environment: {
+                        nodeVersion: process.version,
+                        platform: process.platform,
+                        arch: process.arch
+                    },
+                    tools: {
+                        database: databaseTools.size,
+                        metadata: tools.size,
+                        total: databaseTools.size + tools.size
+                    }
+                };
+
+                return {
+                    content: [{
+                        type: 'text',
+                        text: `Estado de salud del sistema:\n\n${formatForClaude(healthInfo)}`
+                    }]
+                };
+            } catch (error) {
+                logger.error('Error in health check:', { error });
+                return {
+                    content: [{
+                        type: 'text',
+                        text: `Error en verificación de salud: ${error instanceof Error ? error.message : String(error)}`
+                    }],
+                    isError: true
+                };
+            }
         }
     });
 
-    // IMPORTANTE: Actualizar allTools DESPUÉS de añadir las herramientas de metadatos
-    // para que las herramientas de metadatos se incluyan a sí mismas en la lista.
-    allTools.set("get-methods", metadataTools.get("get-methods")!); // Añadir get-methods a la lista
-    allTools.set("describe-method", metadataTools.get("describe-method")!); // Añadir describe-method
-    allTools.set("ping", metadataTools.get("ping")!); // Añadir ping
-
-    logger.info(`Herramientas de metadatos configuradas: ${Array.from(metadataTools.keys()).join(', ')}`);
-    logger.info(`Total de herramientas disponibles: ${Array.from(allTools.keys()).join(', ')}`);
-
-    // Devolver solo las herramientas definidas en este módulo
-    return metadataTools;
-};
+    logger.info(`Configured ${tools.size} metadata tools`);
+    return tools;
+}

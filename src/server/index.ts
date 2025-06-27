@@ -5,8 +5,6 @@
 
 import { z } from 'zod';
 
-import { zodToJsonSchema } from 'zod-to-json-schema';
-
 // --- Global Error Handlers ---
 import { createLogger } from '../utils/logger.js';
 import { MCPError } from '../utils/errors.js';
@@ -33,10 +31,8 @@ process.on('unhandledRejection', (reason, promise) => {
 
 // --- SDK Imports ---
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { createSseRouter } from "./sse.js";
-import {
-    ToolSchema
-} from "@modelcontextprotocol/sdk/types.js";
+import { UnifiedMcpServer } from "./unified-server.js";
+// SDK types will be imported as needed
 
 // --- Local Imports ---
 import { type ToolDefinition as DbToolDefinition } from '../tools/database.js';
@@ -48,153 +44,142 @@ import { setupMetadataTools } from '../tools/metadata.js';
 import { setupDatabasePrompts } from '../prompts/database.js';
 import { setupSqlPrompts } from '../prompts/sql.js';
 import { initSecurity } from '../security/index.js';
-import { ConfigError, ErrorTypes } from '../utils/errors.js';
+import { ConfigError } from '../utils/errors.js';
 import pkg from '../../package.json' with { type: 'json' };
 
 /**
- * Main function to start the MCP Firebird server
- * @returns A promise that resolves when the server is started
+ * Factory function to create a configured MCP server instance
+ * @returns A configured McpServer instance
  */
-export async function main() {
-    logger.info(`Starting MCP Firebird Server - Name: ${pkg.name}, Version: ${pkg.version}`);
+function createMcpServerInstance(): any {
+    logger.debug('Creating new MCP server instance...');
 
-    try {
-        // 1. Initialize security module
-        logger.info('Initializing security module...');
-        await initSecurity();
+    // Load tools, prompts and resources
+    const databaseTools = setupDatabaseTools();
+    const metadataTools = setupMetadataTools(databaseTools);
+    const databasePrompts = setupDatabasePrompts();
+    const sqlPrompts = setupSqlPrompts();
+    const allResources: Map<string, ResourceDefinition> = setupDatabaseResources();
+    const allPrompts = new Map<string, PromptDefinition>([...databasePrompts, ...sqlPrompts]);
+    const allTools = new Map<string, DbToolDefinition | MetaToolDefinition>([...databaseTools, ...metadataTools]);
 
-        // 2. Load tools, prompts and resources
-        logger.info('Loading tool, prompt and resource definitions...');
-        const databaseTools = setupDatabaseTools();
-        const metadataTools = setupMetadataTools(databaseTools);
-        const databasePrompts = setupDatabasePrompts();
-        const sqlPrompts = setupSqlPrompts();
-        const allResources: Map<string, ResourceDefinition> = setupDatabaseResources();
-        const allPrompts = new Map<string, PromptDefinition>([...databasePrompts, ...sqlPrompts]);
-        const allTools = new Map<string, DbToolDefinition | MetaToolDefinition>([...databaseTools, ...metadataTools]);
+    // Create MCP server instance
+    const { McpServer } = require("@modelcontextprotocol/sdk/server/mcp.js");
+    const server = new McpServer({
+        name: pkg.name,
+        version: pkg.version
+    });
 
-        // Log loaded prompts
-        logger.info('Loaded prompts:');
-        allPrompts.forEach((prompt, name) => {
-            logger.info(`  - ${name}: ${prompt.description}`);
-        });
+    // Register tools, prompts and resources
+    logger.debug('Registering tools, prompts and resources...');
 
-        logger.info(
-            `Loaded: ${allTools.size} tools, ${allPrompts.size} prompts, ${allResources.size} resources.`
-        );
-
-        // 2. Create MCP server instance (McpServer)
-        logger.info('Creating MCP server instance...');
-        const { McpServer } = await import("@modelcontextprotocol/sdk/server/mcp.js");
-        const server = new McpServer({
-            name: pkg.name,
-            version: pkg.version
-        });
-        logger.info('MCP server instance created.');
-
-        // 3. Registro de tools, prompts y resources (McpServer moderno)
-        logger.info('Registrando tools, prompts y resources en MCP...');
-
-        // Tools
-        for (const [name, tool] of allTools.entries()) {
-            server.tool(
-                name,
-                tool.description,
-                (tool.inputSchema && tool.inputSchema instanceof z.ZodObject ? tool.inputSchema.shape : {}), 
-                async (args: any, extra: any): Promise<{ content: any[], isError?: boolean }> => {
-                    try {
-                        const result = await tool.handler(args);
-                        if (typeof result === 'object' && result !== null && 'content' in result) {
-                            return result;
-                        }
-                        return { content: [{ type: 'text', text: JSON.stringify(result) }] };
-                        return {
-                            content: [{ type: "text", text: JSON.stringify(result) }]
-                        };
-                    } catch (error) {
-                        logger.error(`Error executing tool ${name}: ${error instanceof Error ? error.message : String(error)}`, { error });
-                        const message = error instanceof Error ? error.message : 'Unknown error';
-                        return {
-                            content: [{ type: "text", text: `Error executing tool ${name}: ${message}` }],
-                            isError: true
-                        };
+    // Tools - using registerTool (modern method)
+    for (const [name, tool] of allTools.entries()) {
+        server.registerTool(
+            name,
+            {
+                title: tool.title || name,
+                description: tool.description,
+                inputSchema: tool.inputSchema || z.object({})
+            },
+            async (args: any): Promise<{ content: any[], isError?: boolean }> => {
+                try {
+                    const result = await tool.handler(args);
+                    if (typeof result === 'object' && result !== null && 'content' in result) {
+                        return result;
                     }
+                    return { content: [{ type: 'text', text: JSON.stringify(result) }] };
+                } catch (error) {
+                    logger.error(`Error executing tool ${name}: ${error instanceof Error ? error.message : String(error)}`, { error });
+                    const message = error instanceof Error ? error.message : 'Unknown error';
+                    return {
+                        content: [{ type: "text", text: `Error executing tool ${name}: ${message}` }],
+                        isError: true
+                    };
                 }
-            );
-            logger.info(`Registered tool: ${name}`);
-        }
+            }
+        );
+    }
 
-        // Prompts
-        for (const [name, promptDef] of allPrompts.entries()) {
-            server.prompt(
-                name,
-                promptDef.description,
-                (promptDef.inputSchema && promptDef.inputSchema instanceof z.ZodObject ? promptDef.inputSchema.shape : {}), 
-                async (extra: any) => {
-                    const args = extra.inputs;
-                    try {
-                        let result;
-                        if (!args) {
-                            // SDK espera siempre 'messages', aunque sea vacío o informativo
-                            result = {
-                                messages: [
-                                    {
-                                        role: 'assistant',
-                                        content: { type: 'text', text: `Prompt '${name}' metadata: ${promptDef.description}` }
-                                    }
-                                ]
-                            };
-                        } else {
-                            result = await promptDef.handler(args);
-                        }
-                        if (!result || !result.messages || !Array.isArray(result.messages)) {
-                            logger.error(`The prompt handler for ${name} did not return a valid format`);
-                            return {
-                                messages: [
-                                    {
-                                        role: 'assistant',
-                                        content: { type: 'text', text: `Internal error: invalid response format` }
-                                    }
-                                ]
-                            };
-                        }
-                        // Ajusta los roles y el tipo de content
-                        const safeMessages = result.messages.map((msg: any) => ({
-                            role: (msg.role === 'user' || msg.role === 'assistant') ? msg.role : 'assistant',
-                            content: (msg.content && typeof msg.content === 'object' && msg.content.type === 'text')
-                                ? msg.content
-                                : { type: 'text', text: String(msg.content) }
-                        }));
-                        return { messages: safeMessages };
-                    } catch (error) {
-                        logger.error(`Error executing prompt ${name}: ${error instanceof Error ? error.message : String(error)}`, { error });
+    // Prompts - using registerPrompt (modern method)
+    for (const [name, promptDef] of allPrompts.entries()) {
+        server.registerPrompt(
+            name,
+            {
+                title: promptDef.title || name,
+                description: promptDef.description,
+                argsSchema: promptDef.inputSchema || z.object({})
+            },
+            async (args: any) => {
+                try {
+                    let result;
+                    if (!args || Object.keys(args).length === 0) {
+                        result = {
+                            messages: [
+                                {
+                                    role: 'assistant',
+                                    content: { type: 'text', text: `Prompt '${name}' metadata: ${promptDef.description}` }
+                                }
+                            ]
+                        };
+                    } else {
+                        result = await promptDef.handler(args);
+                    }
+
+                    if (!result || !result.messages || !Array.isArray(result.messages)) {
                         return {
                             messages: [
                                 {
                                     role: 'assistant',
-                                    content: { type: 'text', text: `Error executing prompt: ${error instanceof Error ? error.message : String(error)}` }
+                                    content: { type: 'text', text: `Internal error: invalid response format` }
                                 }
                             ]
                         };
                     }
-                }
-            );
-            logger.info(`Registered prompt: ${name}`);
-        }
 
-        // Resources
-        for (const [uriTemplate, resourceDef] of allResources.entries()) {
-            server.resource(
-                `resource-${uriTemplate}`,
+                    const safeMessages = result.messages.map((msg: any) => ({
+                        role: (msg.role === 'user' || msg.role === 'assistant') ? msg.role : 'assistant',
+                        content: (msg.content && typeof msg.content === 'object' && msg.content.type === 'text')
+                            ? msg.content
+                            : { type: 'text', text: String(msg.content) }
+                    }));
+
+                    return { messages: safeMessages };
+                } catch (error) {
+                    logger.error(`Error executing prompt ${name}: ${error instanceof Error ? error.message : String(error)}`, { error });
+                    return {
+                        messages: [
+                            {
+                                role: 'assistant',
+                                content: { type: 'text', text: `Error executing prompt: ${error instanceof Error ? error.message : String(error)}` }
+                            }
+                        ]
+                    };
+                }
+            }
+        );
+    }
+
+    // Resources - using registerResource (modern method)
+    for (const [uriTemplate, resourceDef] of allResources.entries()) {
+        // For static resources
+        if (!uriTemplate.includes('{')) {
+            server.registerResource(
+                `resource-${uriTemplate.replace(/[^a-zA-Z0-9]/g, '-')}`,
                 uriTemplate,
-                async (uriParams: any) => {
+                {
+                    title: resourceDef.title || `Resource ${uriTemplate}`,
+                    description: resourceDef.description || `Resource at ${uriTemplate}`,
+                    mimeType: resourceDef.mimeType || "application/json"
+                },
+                async (uri: any) => {
                     try {
-                        const result = await resourceDef.handler(uriParams || {});
+                        const result = await resourceDef.handler({});
                         return {
                             contents: [
                                 {
-                                    uri: uriTemplate,
-                                    mimeType: "application/json",
+                                    uri: uri.href,
+                                    mimeType: resourceDef.mimeType || "application/json",
                                     text: JSON.stringify(result, null, 2)
                                 }
                             ]
@@ -205,91 +190,130 @@ export async function main() {
                     }
                 }
             );
-            logger.info(`Registered resource: ${uriTemplate}`);
+        } else {
+            // For dynamic resources with parameters, use ResourceTemplate
+            const { ResourceTemplate } = require("@modelcontextprotocol/sdk/server/mcp.js");
+            server.registerResource(
+                `resource-${uriTemplate.replace(/[^a-zA-Z0-9]/g, '-')}`,
+                new ResourceTemplate(uriTemplate, { list: undefined }),
+                {
+                    title: resourceDef.title || `Dynamic Resource ${uriTemplate}`,
+                    description: resourceDef.description || `Dynamic resource at ${uriTemplate}`
+                },
+                async (uri: any, params: any) => {
+                    try {
+                        const result = await resourceDef.handler(params || {});
+                        return {
+                            contents: [
+                                {
+                                    uri: uri.href,
+                                    mimeType: resourceDef.mimeType || "application/json",
+                                    text: JSON.stringify(result, null, 2)
+                                }
+                            ]
+                        };
+                    } catch (error) {
+                        logger.error(`Error accessing resource ${uriTemplate}: ${error instanceof Error ? error.message : String(error)}`, { error });
+                        throw error;
+                    }
+                }
+            );
         }
+    }
 
-        // No resource templates registrados (SDK MCP moderno no expone resourceTemplate)
+    logger.debug(`Server instance created with ${allTools.size} tools, ${allPrompts.size} prompts, ${allResources.size} resources`);
+    return server;
+}
 
-        // 4. Start the server with the appropriate transport
+/**
+ * Main function to start the MCP Firebird server
+ * @returns A promise that resolves when the server is started
+ */
+export async function main() {
+    logger.info(`Starting MCP Firebird Server - Name: ${pkg.name}, Version: ${pkg.version}`);
+
+    try {
+        // Initialize security module
+        logger.info('Initializing security module...');
+        await initSecurity();
+
+        // Determine transport type
         const transportType = process.env.TRANSPORT_TYPE?.toLowerCase() || 'stdio';
         logger.info(`Configuring ${transportType} transport...`);
 
-        // Set up signal handlers for graceful shutdown
-        let cleanup: (() => Promise<void>) | null = null;
-
-        const setupSignalHandlers = (cleanupFn: () => Promise<void>) => {
-            cleanup = cleanupFn;
-
-            // Handle cleanup on process exit
-            process.on('SIGINT', async () => {
-                logger.info('Received SIGINT signal, cleaning up...');
-                if (cleanup) await cleanup();
-                process.exit(0);
-            });
-
-            process.on('SIGTERM', async () => {
-                logger.info('Received SIGTERM signal, cleaning up...');
-                if (cleanup) await cleanup();
-                process.exit(0);
-            });
-        };
-
-        // Start the server with the appropriate transport
-        if (transportType === 'sse') {
-            // Nuevo: Express + Router SSE
-            const ssePort = parseInt(process.env.SSE_PORT || '3003', 10);
-            if (isNaN(ssePort)) {
-                throw new ConfigError(`Invalid SSE port: ${process.env.SSE_PORT}`);
-            }
-            logger.info(`Starting Express SSE server on port ${ssePort}...`);
-            const expressApp = require('express')();
-            expressApp.use(require('cors')());
-            expressApp.use(require('express').json());
-            expressApp.use(createSseRouter(server));
-            const serverInstance = expressApp.listen(ssePort, () => {
-                logger.info(`SSE server listening on port ${ssePort}...`);
-            });
-            // Limpieza elegante
-            const cleanup = async () => {
-                logger.info('Cleaning up Express SSE server...');
-                await new Promise<void>(resolve => serverInstance.close(() => resolve()));
-            };
-            setupSignalHandlers(cleanup);
-            logger.info('MCP Firebird server with SSE transport ready to receive requests.');
-            // Mantener proceso vivo
-            await new Promise<void>(() => {});
-        } else if (transportType === 'stdio') {
-            // Use stdio transport
-            logger.info('Configuring stdio transport...');
+        if (transportType === 'stdio') {
+            // Use stdio transport with a single server instance
+            logger.info('Starting stdio transport...');
+            const server = createMcpServerInstance();
             const transport = new StdioServerTransport();
-            logger.info('Connecting server to transport...');
 
-            // Connect the server to the transport - following the official example pattern
             await server.connect(transport);
 
-            // Setup cleanup function for SIGINT (Ctrl+C)
+            // Setup cleanup for stdio
+            const cleanup = async () => {
+                logger.info('Closing stdio transport...');
+                await server.close();
+                logger.info('Server closed successfully');
+            };
+
             process.on('SIGINT', async () => {
                 logger.info('Received SIGINT signal, cleaning up...');
-                logger.info('Closing stdio transport...');
-                await server.close();
-                logger.info('Server closed successfully');
+                await cleanup();
                 process.exit(0);
             });
 
-            // Setup cleanup function for SIGTERM
             process.on('SIGTERM', async () => {
                 logger.info('Received SIGTERM signal, cleaning up...');
-                logger.info('Closing stdio transport...');
-                await server.close();
-                logger.info('Server closed successfully');
+                await cleanup();
                 process.exit(0);
             });
 
-            logger.info('MCP Firebird server with stdio transport connected and ready to receive requests.');
-            logger.info('Server waiting for requests...');
+            logger.info('MCP Firebird server with stdio transport ready to receive requests.');
+
+        } else if (transportType === 'sse' || transportType === 'http' || transportType === 'unified') {
+            // Use unified server for HTTP-based transports
+            logger.info('Starting unified server...');
+
+            const port = parseInt(process.env.SSE_PORT || process.env.HTTP_PORT || '3003', 10);
+            if (isNaN(port)) {
+                throw new ConfigError(`Invalid port: ${process.env.SSE_PORT || process.env.HTTP_PORT}`);
+            }
+
+            const unifiedServer = new UnifiedMcpServer(createMcpServerInstance, {
+                port,
+                enableSSE: transportType === 'sse' || transportType === 'unified',
+                enableStreamableHttp: transportType === 'http' || transportType === 'unified',
+                sessionConfig: {
+                    sessionTimeoutMs: parseInt(process.env.SESSION_TIMEOUT_MS || '1800000', 10),
+                    maxSessions: parseInt(process.env.MAX_SESSIONS || '1000', 10)
+                }
+            });
+
+            await unifiedServer.start();
+
+            // Setup cleanup for unified server
+            const cleanup = async () => {
+                logger.info('Stopping unified server...');
+                await unifiedServer.stop();
+            };
+
+            process.on('SIGINT', async () => {
+                logger.info('Received SIGINT signal, cleaning up...');
+                await cleanup();
+                process.exit(0);
+            });
+
+            process.on('SIGTERM', async () => {
+                logger.info('Received SIGTERM signal, cleaning up...');
+                await cleanup();
+                process.exit(0);
+            });
+
+            logger.info('MCP Firebird unified server ready to receive requests.');
+
         } else {
             throw new ConfigError(
-                `Unsupported transport type: ${transportType}. Supported types are 'stdio' and 'sse'.`,
+                `Unsupported transport type: ${transportType}. Supported types are 'stdio', 'sse', 'http', and 'unified'.`,
                 undefined,
                 { transportType }
             );

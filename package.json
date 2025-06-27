@@ -1,6 +1,6 @@
 {
   "name": "mcp-firebird",
-  "version": "2.1.1-alpha.0",
+  "version": "2.2.0-alpha.1",
   "description": "MCP server for Firebird database",
   "main": "dist/index.js",
   "type": "module",
@@ -37,7 +37,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/inspector": "latest",
-    "@modelcontextprotocol/sdk": "^1.8.0",
+    "@modelcontextprotocol/sdk": "^1.13.2",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "eventsource": "^2.0.2",

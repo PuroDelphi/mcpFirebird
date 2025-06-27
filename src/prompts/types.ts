@@ -6,6 +6,7 @@ import { z } from 'zod';
  */
 export interface PromptDefinition {
     name: string;
+    title?: string;
     description: string;
     category?: string; // Categoría opcional para agrupar prompts
     inputSchema: z.ZodTypeAny;

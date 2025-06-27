@@ -107,6 +107,7 @@ export const DescribeBatchTablesArgsSchema = z.object({
  */
 export interface ToolDefinition {
     name: string;
+    title?: string;
     description: string;
     inputSchema: z.ZodObject<any>;
     handler: (args: any) => Promise<{ content: { type: string; text: string }[] }>;
