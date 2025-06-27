@@ -18,19 +18,40 @@ MCP Firebird is a server that implements Anthropic's [Model Context Protocol (MC
 - **Schema Analysis**: Get detailed information about tables, columns, and relationships
 - **Database Management**: Perform backup, restore, and validation operations
 - **Performance Analysis**: Analyze query performance and suggest optimizations
-- **Multiple Transports**: Supports STDIO and SSE (Server-Sent Events) transports
+- **Multiple Transports**: Supports STDIO, SSE (Server-Sent Events), and Streamable HTTP transports
+- **Modern Protocol Support**: Full support for MCP Streamable HTTP (2025-03-26) and legacy SSE
+- **Unified Server**: Automatic protocol detection and backwards compatibility
 - **Claude Integration**: Works seamlessly with Claude Desktop and other MCP clients
 - **VSCode Integration**: Works with GitHub Copilot in Visual Studio Code
+- **Session Management**: Robust session handling with automatic cleanup and configurable timeouts
 - **Security**: Includes SQL query validation and security configuration options
 
 ### Manual Installation
+
+#### Stable Version
 ```bash
-# Global installation
+# Global installation (stable)
 npm install -g mcp-firebird
 
 # Run the server
 npx mcp-firebird --database /path/to/database.fdb
 ```
+
+#### Alpha Version (Latest Features)
+```bash
+# Install alpha version with latest features
+npm install -g mcp-firebird@alpha
+
+# Or use specific alpha version
+npm install -g mcp-firebird@2.2.0-alpha.1
+```
+
+**Alpha Features (v2.2.0-alpha.1):**
+- ✨ Streamable HTTP transport support (MCP 2025-03-26)
+- 🔄 Unified server with automatic protocol detection
+- 📊 Enhanced session management and monitoring
+- 🛠️ Modern MCP SDK integration (v1.13.2)
+- 🔧 Improved error handling and logging
 
 For backup/restore operations, you'll need to install the Firebird client tools. See [Complete Installation](./docs/installation.md) for more details.
 
@@ -73,11 +94,235 @@ For VSCode and GitHub Copilot integration, see [VSCode Integration](./docs/vscod
 
 3. Restart Claude Desktop
 
-### With SSE Transport
+## Transport Configuration
+
+MCP Firebird supports multiple transport protocols to accommodate different client needs and deployment scenarios.
+
+### STDIO Transport (Default)
+
+The STDIO transport is the standard method for Claude Desktop integration:
+
+```json
+{
+  "mcpServers": {
+    "mcp-firebird": {
+      "command": "npx",
+      "args": [
+        "mcp-firebird",
+        "--database", "C:\\path\\to\\database.fdb",
+        "--user", "SYSDBA",
+        "--password", "masterkey"
+      ],
+      "type": "stdio"
+    }
+  }
+}
+```
+
+### SSE Transport (Server-Sent Events)
+
+SSE transport allows the server to run as a web service, useful for web applications and remote access:
+
+#### Basic SSE Configuration
 
 ```bash
-# Start with SSE transport
-npx mcp-firebird --transport-type sse --sse-port 3003 --database /path/to/database.fdb
+# Start SSE server on default port 3003
+npx mcp-firebird --transport-type sse --database /path/to/database.fdb
+
+# Custom port and full configuration
+npx mcp-firebird \
+  --transport-type sse \
+  --sse-port 3003 \
+  --database /path/to/database.fdb \
+  --host localhost \
+  --port 3050 \
+  --user SYSDBA \
+  --password masterkey
+```
+
+#### Environment Variables for SSE
+
+```bash
+# Set environment variables
+export TRANSPORT_TYPE=sse
+export SSE_PORT=3003
+export DB_HOST=localhost
+export DB_PORT=3050
+export DB_DATABASE=/path/to/database.fdb
+export DB_USER=SYSDBA
+export DB_PASSWORD=masterkey
+
+# Start server
+npx mcp-firebird
+```
+
+#### SSE Client Connection
+
+Once the SSE server is running, clients can connect to:
+- **SSE Endpoint**: `http://localhost:3003/sse`
+- **Messages Endpoint**: `http://localhost:3003/messages`
+- **Health Check**: `http://localhost:3003/health`
+
+### Streamable HTTP Transport (Modern)
+
+The latest MCP protocol supporting bidirectional communication:
+
+```bash
+# Start with Streamable HTTP
+npx mcp-firebird --transport-type http --http-port 3003 --database /path/to/database.fdb
+```
+
+### Unified Transport (Recommended)
+
+Supports both SSE and Streamable HTTP protocols simultaneously with automatic detection:
+
+```bash
+# Start unified server (supports both SSE and Streamable HTTP)
+npx mcp-firebird --transport-type unified --http-port 3003 --database /path/to/database.fdb
+```
+
+#### Unified Server Endpoints
+
+- **SSE (Legacy)**: `http://localhost:3003/sse`
+- **Streamable HTTP (Modern)**: `http://localhost:3003/mcp`
+- **Auto-Detection**: `http://localhost:3003/mcp-auto`
+- **Health Check**: `http://localhost:3003/health`
+
+### Configuration Examples
+
+#### Development Setup (SSE)
+```bash
+npx mcp-firebird \
+  --transport-type sse \
+  --sse-port 3003 \
+  --database ./dev-database.fdb \
+  --user SYSDBA \
+  --password masterkey
+```
+
+#### Production Setup (Unified)
+```bash
+npx mcp-firebird \
+  --transport-type unified \
+  --http-port 3003 \
+  --database /var/lib/firebird/production.fdb \
+  --host db-server \
+  --port 3050 \
+  --user APP_USER \
+  --password $DB_PASSWORD
+```
+
+#### Docker with SSE
+```bash
+docker run -d \
+  --name mcp-firebird \
+  -p 3003:3003 \
+  -e TRANSPORT_TYPE=sse \
+  -e SSE_PORT=3003 \
+  -e DB_DATABASE=/data/database.fdb \
+  -v /path/to/database:/data \
+  purodelhi/mcp-firebird:latest
+```
+
+### Advanced SSE Configuration
+
+#### Session Management
+
+Configure session timeouts and limits:
+
+```bash
+# Environment variables for session management
+export SSE_SESSION_TIMEOUT_MS=1800000    # 30 minutes
+export MAX_SESSIONS=1000                 # Maximum concurrent sessions
+export SESSION_CLEANUP_INTERVAL_MS=60000 # Cleanup every minute
+
+npx mcp-firebird --transport-type sse
+```
+
+#### CORS Configuration
+
+For web applications, configure CORS settings:
+
+```bash
+# Allow specific origins
+export CORS_ORIGIN="https://myapp.com,https://localhost:3000"
+export CORS_METHODS="GET,POST,OPTIONS"
+export CORS_HEADERS="Content-Type,mcp-session-id"
+
+npx mcp-firebird --transport-type sse
+```
+
+#### SSL/TLS Support
+
+For production deployments, use a reverse proxy like nginx:
+
+```nginx
+server {
+    listen 443 ssl;
+    server_name mcp-firebird.yourdomain.com;
+
+    ssl_certificate /path/to/cert.pem;
+    ssl_certificate_key /path/to/key.pem;
+
+    location / {
+        proxy_pass http://localhost:3003;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_cache_bypass $http_upgrade;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+### Troubleshooting SSE
+
+#### Common Issues
+
+1. **Connection Refused**
+   ```bash
+   # Check if server is running
+   curl http://localhost:3003/health
+
+   # Check port availability
+   netstat -an | grep 3003
+   ```
+
+2. **Session Timeout**
+   ```bash
+   # Increase session timeout
+   export SSE_SESSION_TIMEOUT_MS=3600000  # 1 hour
+   ```
+
+3. **CORS Errors**
+   ```bash
+   # Allow all origins (development only)
+   export CORS_ORIGIN="*"
+   ```
+
+4. **Memory Issues**
+   ```bash
+   # Reduce max sessions
+   export MAX_SESSIONS=100
+
+   # Enable more frequent cleanup
+   export SESSION_CLEANUP_INTERVAL_MS=30000
+   ```
+
+#### Monitoring and Logging
+
+```bash
+# Enable debug logging
+export LOG_LEVEL=debug
+
+# Monitor server health
+curl http://localhost:3003/health | jq
+
+# Check active sessions
+curl http://localhost:3003/health | jq '.sessions'
 ```
 
 ## Quick Installation via Smithery
@@ -93,14 +338,31 @@ npx -y @smithery/cli install @PuroDelphi/mcpFirebird --client claude
 
 For more detailed information, check the following documents:
 
+### Getting Started
 - [Complete Installation](./docs/installation.md)
 - [Configuration Options](./docs/configuration.md)
 - [Available Tools](./docs/tools.md)
+
+### Transport Protocols
+- [SSE Transport Configuration](./docs/sse-transport.md)
+- [Streamable HTTP Setup](./docs/streamable-http.md)
+- [Transport Comparison](./docs/transport-comparison.md)
+
+### Integration Guides
+- [Claude Desktop Integration](./docs/claude-integration.md)
+- [VSCode Integration](./docs/vscode-integration.md)
 - [Docker Configuration](./docs/docker.md)
 - [Usage from Different Languages](./docs/clients.md)
+
+### Advanced Topics
+- [Session Management](./docs/session-management.md)
 - [Security](./docs/security.md)
+- [Performance Tuning](./docs/performance.md)
 - [Troubleshooting](./docs/troubleshooting.md)
+
+### Examples and Use Cases
 - [Use Cases and Examples](./docs/use-cases.md)
+- [MCP Updates Summary](./docs/mcp-updates-summary.md)
 
 
 ## Support the Project

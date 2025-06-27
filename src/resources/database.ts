@@ -10,7 +10,9 @@ const logger = createLogger('database'); // Provide string argument
  * Interfaz para definir un Recurso MCP.
  */
 export interface ResourceDefinition {
+    title?: string; // Título del recurso
     description: string; // Descripción del recurso
+    mimeType?: string; // Tipo MIME del contenido
     handler: (params: Record<string, string>) => Promise<object>; // Handler recibe parámetros de la URI
 }
 

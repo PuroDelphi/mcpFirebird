@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cliente SSE de Prueba</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        #log {
+            border: 1px solid #ccc;
+            padding: 10px;
+            height: 300px;
+            overflow-y: auto;
+            margin-bottom: 20px;
+            background-color: #f9f9f9;
+        }
+        .success { color: green; }
+        .error { color: red; }
+        .info { color: blue; }
+        button {
+            padding: 8px 16px;
+            margin-right: 10px;
+            cursor: pointer;
+        }
+        input {
+            padding: 8px;
+            width: 300px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Cliente SSE de Prueba para MCP Firebird</h1>
+    
+    <div>
+        <label for="serverUrl">URL del servidor SSE:</label>
+        <input type="text" id="serverUrl" value="http://localhost:3003" />
+        <button id="connectBtn">Conectar</button>
+        <button id="disconnectBtn" disabled>Desconectar</button>
+    </div>
+    
+    <h2>Registro de eventos</h2>
+    <div id="log"></div>
+    
+    <div>
+        <button id="sendEchoBtn" disabled>Enviar Echo</button>
+        <button id="healthCheckBtn">Health Check</button>
+        <button id="clearLogBtn">Limpiar Log</button>
+    </div>
+    
+    <script>
+        // Referencias a elementos del DOM
+        const serverUrlInput = document.getElementById('serverUrl');
+        const connectBtn = document.getElementById('connectBtn');
+        const disconnectBtn = document.getElementById('disconnectBtn');
+        const sendEchoBtn = document.getElementById('sendEchoBtn');
+        const healthCheckBtn = document.getElementById('healthCheckBtn');
+        const clearLogBtn = document.getElementById('clearLogBtn');
+        const logDiv = document.getElementById('log');
+        
+        // Variables globales
+        let eventSource = null;
+        let messageEndpoint = null;
+        
+        // Función para agregar mensajes al log
+        function log(message, type = 'info') {
+            const entry = document.createElement('div');
+            entry.className = type;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logDiv.appendChild(entry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+        
+        // Conectar al servidor SSE
+        connectBtn.addEventListener('click', () => {
+            const serverUrl = serverUrlInput.value.trim();
+            if (!serverUrl) {
+                log('Por favor, ingrese una URL válida', 'error');
+                return;
+            }
+            
+            try {
+                // Cerrar conexión existente si hay alguna
+                if (eventSource) {
+                    eventSource.close();
+                    eventSource = null;
+                }
+                
+                log(`Conectando a ${serverUrl}...`);
+                
+                // Crear nueva conexión SSE
+                eventSource = new EventSource(serverUrl);
+                
+                // Manejar eventos
+                eventSource.onopen = () => {
+                    log('Conexión establecida', 'success');
+                    connectBtn.disabled = true;
+                    disconnectBtn.disabled = false;
+                };
+                
+                eventSource.onerror = (error) => {
+                    log(`Error de conexión: ${JSON.stringify(error)}`, 'error');
+                    connectBtn.disabled = false;
+                    disconnectBtn.disabled = true;
+                    sendEchoBtn.disabled = true;
+                    eventSource.close();
+                    eventSource = null;
+                };
+                
+                // Escuchar evento endpoint
+                eventSource.addEventListener('endpoint', (event) => {
+                    messageEndpoint = event.data;
+                    log(`Endpoint recibido: ${messageEndpoint}`, 'success');
+                    sendEchoBtn.disabled = false;
+                });
+                
+                // Escuchar mensajes genéricos
+                eventSource.onmessage = (event) => {
+                    try {
+                        const data = JSON.parse(event.data);
+                        log(`Mensaje recibido: ${JSON.stringify(data)}`, 'info');
+                    } catch (e) {
+                        log(`Mensaje recibido (texto): ${event.data}`, 'info');
+                    }
+                };
+            } catch (error) {
+                log(`Error al crear conexión: ${error.message}`, 'error');
+            }
+        });
+        
+        // Desconectar del servidor SSE
+        disconnectBtn.addEventListener('click', () => {
+            if (eventSource) {
+                eventSource.close();
+                eventSource = null;
+                messageEndpoint = null;
+                log('Desconectado del servidor', 'info');
+                connectBtn.disabled = false;
+                disconnectBtn.disabled = true;
+                sendEchoBtn.disabled = true;
+            }
+        });
+        
+        // Enviar mensaje de eco
+        sendEchoBtn.addEventListener('click', async () => {
+            if (!messageEndpoint) {
+                log('No hay endpoint disponible para enviar mensajes', 'error');
+                return;
+            }
+            
+            try {
+                const serverUrl = serverUrlInput.value.trim();
+                const endpoint = messageEndpoint.startsWith('http') 
+                    ? messageEndpoint 
+                    : `${serverUrl}${messageEndpoint}`;
+                
+                log(`Enviando mensaje de eco a ${endpoint}...`);
+                
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        jsonrpc: '2.0',
+                        id: Date.now(),
+                        method: 'echo',
+                        params: { text: 'Hola mundo', timestamp: new Date().toISOString() }
+                    })
+                });
+                
+                const data = await response.json();
+                log(`Respuesta recibida: ${JSON.stringify(data)}`, 'success');
+            } catch (error) {
+                log(`Error al enviar mensaje: ${error.message}`, 'error');
+            }
+        });
+        
+        // Verificar estado del servidor
+        healthCheckBtn.addEventListener('click', async () => {
+            try {
+                const serverUrl = serverUrlInput.value.trim();
+                const healthUrl = `${serverUrl}/health`;
+                
+                log(`Verificando estado del servidor en ${healthUrl}...`);
+                
+                const response = await fetch(healthUrl);
+                const data = await response.json();
+                
+                log(`Estado del servidor: ${JSON.stringify(data)}`, 'success');
+            } catch (error) {
+                log(`Error al verificar estado: ${error.message}`, 'error');
+            }
+        });
+        
+        // Limpiar log
+        clearLogBtn.addEventListener('click', () => {
+            logDiv.innerHTML = '';
+        });
+        
+        // Inicializar
+        log('Cliente SSE listo. Haga clic en "Conectar" para iniciar.');
+    </script>
+</body>
+</html>

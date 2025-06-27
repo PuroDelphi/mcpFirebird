@@ -46,6 +46,17 @@ if (!process.env.FIREBIRD_DATABASE && !process.env.FB_DATABASE && !argv.database
 // Make the configuration globally available
 (global as any).MCP_FIREBIRD_CONFIG = dbConfig;
 
+// Set transport type from command line arguments
+if (argv['transport-type']) {
+  process.env.TRANSPORT_TYPE = argv['transport-type'];
+}
+if (argv['sse-port']) {
+  process.env.SSE_PORT = String(argv['sse-port']);
+}
+if (argv['http-port']) {
+  process.env.HTTP_PORT = String(argv['http-port']);
+}
+
 // Process --env parameter if provided
 if (argv.env && typeof argv.env === 'string') {
   try {
@@ -109,8 +120,6 @@ dotenv.config();
 import './utils/stdout-guard.js';
 
 // Import core dependencies
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { createServer } from './server/create-server.js';
 import { createLogger } from './utils/logger.js';
 import pkg from '../package.json' with { type: 'json' };
 
@@ -134,35 +143,10 @@ async function main() {
   logger.info(`- Role: ${dbConfig.role || 'Not specified'}`);
 
   try {
-    // Create the server
-    const { server } = await createServer();
+    // Import and use the main function from server/index.ts which handles multiple transports
+    const { main: serverMain } = await import('./server/index.js');
+    await serverMain();
 
-    // Create the stdio transport
-    const transport = new StdioServerTransport();
-
-    // Connect the server to the transport
-    await server.connect(transport);
-
-    // Setup cleanup function for SIGINT (Ctrl+C)
-    process.on('SIGINT', async () => {
-      logger.info('Received SIGINT signal, cleaning up...');
-      logger.info('Closing stdio transport...');
-      await server.close();
-      logger.info('Server closed successfully');
-      process.exit(0);
-    });
-
-    // Setup cleanup function for SIGTERM
-    process.on('SIGTERM', async () => {
-      logger.info('Received SIGTERM signal, cleaning up...');
-      logger.info('Closing stdio transport...');
-      await server.close();
-      logger.info('Server closed successfully');
-      process.exit(0);
-    });
-
-    logger.info('MCP Firebird server with stdio transport connected and ready to receive requests.');
-    logger.info('Server waiting for requests...');
   } catch (error) {
     logger.error(`Error starting server: ${error instanceof Error ? error.message : String(error)}`);
     process.exit(1);

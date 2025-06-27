@@ -1,0 +1,95 @@
+version: '3.8'
+
+services:
+  # Firebird database server
+  firebird-db:
+    image: jacobalberty/firebird:3.0
+    environment:
+      ISC_PASSWORD: masterkey
+      FIREBIRD_DATABASE: database.fdb
+      FIREBIRD_USER: SYSDBA
+    volumes:
+      - firebird-data:/firebird/data
+    ports:
+      - "3050:3050"
+    networks:
+      - mcp-network
+
+  # MCP Firebird server with STDIO transport (for Claude Desktop)
+  mcp-firebird-stdio:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      FIREBIRD_HOST: firebird-db
+      FIREBIRD_PORT: 3050
+      FIREBIRD_USER: SYSDBA
+      FIREBIRD_PASSWORD: masterkey
+      FIREBIRD_DATABASE: /firebird/data/database.fdb
+      TRANSPORT_TYPE: stdio
+      LOG_LEVEL: debug
+    depends_on:
+      - firebird-db
+    networks:
+      - mcp-network
+    # For use with Claude Desktop, expose STDIO
+    stdin_open: true
+    tty: true
+
+  # MCP Firebird server with SSE transport (for web clients)
+  mcp-firebird-sse:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      FIREBIRD_HOST: firebird-db
+      FIREBIRD_PORT: 3050
+      FIREBIRD_USER: SYSDBA
+      FIREBIRD_PASSWORD: masterkey
+      FIREBIRD_DATABASE: /firebird/data/database.fdb
+      TRANSPORT_TYPE: sse
+      SSE_PORT: 3003
+      LOG_LEVEL: debug
+      # Add timeout configuration
+      SSE_SESSION_TIMEOUT_MS: 1800000
+    ports:
+      - "3003:3003"
+    depends_on:
+      - firebird-db
+    networks:
+      - mcp-network
+    # Use the fixed run-sse-server.js script
+    command: node run-sse-server.js
+    # Add healthcheck to ensure the server is running properly
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # SSE Proxy (optional, for clients that need proxy support)
+  # Commented out by default - uncomment if you need proxy support
+  # mcp-sse-proxy:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile
+  #   environment:
+  #     MCP_SERVER_URL: http://mcp-firebird-sse:3003
+  #     PORT: 3005
+  #     LOG_LEVEL: debug
+  #   ports:
+  #     - "3005:3005"
+  #   depends_on:
+  #     mcp-firebird-sse:
+  #       condition: service_healthy
+  #   networks:
+  #     - mcp-network
+  #   command: node run-sse-proxy.js
+
+networks:
+  mcp-network:
+    driver: bridge
+
+volumes:
+  firebird-data:

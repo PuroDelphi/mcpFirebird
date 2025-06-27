@@ -16,25 +16,7 @@ process.env.TRANSPORT_TYPE = 'sse';
 
 // Get the SSE port from environment variables or use default
 const ssePort = process.env.SSE_PORT || 3003;
-process.env.SSE_PORT = ssePort;
-console.log(`SSE_PORT: ${ssePort}`);
-
-// Fix path format for Windows
-if (process.env.FB_DATABASE) {
-  process.env.FB_DATABASE = path.normalize(process.env.FB_DATABASE);
-  console.log(`FB_DATABASE: ${process.env.FB_DATABASE}`);
-}
-
-if (process.env.FIREBIRD_DATABASE) {
-  process.env.FIREBIRD_DATABASE = path.normalize(process.env.FIREBIRD_DATABASE);
-  console.log(`FIREBIRD_DATABASE: ${process.env.FIREBIRD_DATABASE}`);
-}
-
-// Set the transport type to SSE
-process.env.TRANSPORT_TYPE = 'sse';
-
-// Get the SSE port from environment variables or use default
-process.env.SSE_PORT = process.env.SSE_PORT || '3003';
+process.env.SSE_PORT = ssePort.toString();
 console.log(`SSE_PORT: ${process.env.SSE_PORT}`);
 
 // Fix path format for Windows

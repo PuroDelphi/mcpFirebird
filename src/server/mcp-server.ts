@@ -15,7 +15,7 @@ import { setupSqlPrompts } from '../prompts/sql.js';
 import { setupDatabaseResources, type ResourceDefinition } from '../resources/database.js';
 import { initSecurity } from '../security/index.js';
 import { ConfigError, ErrorTypes, MCPError } from '../utils/errors.js';
-import { startSseServer } from "./sse.js";
+import { createSseRouter } from "./sse.js";
 import pkg from '../../package.json' with { type: 'json' };
 import { z } from 'zod';
 import { type ToolDefinition as DbToolDefinition } from '../tools/database.js';
@@ -223,46 +223,34 @@ export async function startMcpServer() {
 
         logger.info(`Registered ${databaseResources.size} resources in total.`);
 
-        // 4. Start the server with the appropriate transport
+        // Setup cleanup stub and signal handler registration
+        const cleanup = async () => {};
+        function setupSignalHandlers(cleanupFn: () => Promise<void>) {
+            process.on('SIGINT', async () => {
+                logger.info('Received SIGINT signal, cleaning up...');
+                await cleanupFn();
+                process.exit(0);
+            });
+            process.on('SIGTERM', async () => {
+                logger.info('Received SIGTERM signal, cleaning up...');
+                await cleanupFn();
+                process.exit(0);
+            });
+        }
+        // Start the server with the appropriate transport
         const transportType = process.env.TRANSPORT_TYPE?.toLowerCase() || 'stdio';
         logger.info(`Configuring ${transportType} transport...`);
 
-        // Set up signal handlers for graceful shutdown
-        let cleanup: (() => Promise<void>) | null = null;
-
-        const setupSignalHandlers = (cleanupFn: () => Promise<void>) => {
-            cleanup = cleanupFn;
-
-            // Handle cleanup on process exit
-            process.on('SIGINT', async () => {
-                logger.info('Received SIGINT signal, cleaning up...');
-                if (cleanup) await cleanup();
-                process.exit(0);
-            });
-
-            process.on('SIGTERM', async () => {
-                logger.info('Received SIGTERM signal, cleaning up...');
-                if (cleanup) await cleanup();
-                process.exit(0);
-            });
-        };
-
-        // Start the server with the appropriate transport
         if (transportType === 'sse') {
             // Start SSE server
             const ssePort = parseInt(process.env.SSE_PORT || '3003', 10);
             if (isNaN(ssePort)) {
                 throw new ConfigError(`Invalid SSE port: ${process.env.SSE_PORT}`);
             }
-
             logger.info(`Starting SSE server on port ${ssePort}...`);
-
-            const { cleanup: sseCleanup } = await startSseServer(server, ssePort);
-            setupSignalHandlers(sseCleanup);
-
+            setupSignalHandlers(cleanup ?? (async () => {}));
             logger.info('MCP Firebird server with SSE transport ready to receive requests.');
             logger.info(`SSE server listening on port ${ssePort}...`);
-
             // Keep the process alive indefinitely
             await new Promise<void>(() => {});
         } else if (transportType === 'stdio') {
@@ -270,10 +258,8 @@ export async function startMcpServer() {
             logger.info('Configuring stdio transport...');
             const transport = new StdioServerTransport();
             logger.info('Connecting server to transport...');
-
             // Connect the server to the transport
             await server.connect(transport);
-
             // Setup cleanup function for SIGINT (Ctrl+C)
             process.on('SIGINT', async () => {
                 logger.info('Received SIGINT signal, cleaning up...');
@@ -282,7 +268,6 @@ export async function startMcpServer() {
                 logger.info('Server closed successfully');
                 process.exit(0);
             });
-
             // Setup cleanup function for SIGTERM
             process.on('SIGTERM', async () => {
                 logger.info('Received SIGTERM signal, cleaning up...');
@@ -291,7 +276,6 @@ export async function startMcpServer() {
                 logger.info('Server closed successfully');
                 process.exit(0);
             });
-
             logger.info('MCP Firebird server with stdio transport connected and ready to receive requests.');
             logger.info('Server waiting for requests...');
         } else {
@@ -301,14 +285,10 @@ export async function startMcpServer() {
                 { transportType }
             );
         }
-
     } catch (error) {
-        // Enhanced error handling with more detailed logging
-        if (error instanceof MCPError) {
-            logger.error(`Fatal error during server initialization [${error.type}]: ${error.message}`, {
-                type: error.type,
-                context: error.context,
-                originalError: error.originalError,
+        if (error instanceof ConfigError) {
+            logger.error(`Fatal error during server initialization: ${error.message}`, {
+                name: error.name,
                 stack: error.stack
             });
         } else if (error instanceof Error) {
