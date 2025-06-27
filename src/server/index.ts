@@ -31,7 +31,10 @@ process.on('unhandledRejection', (reason, promise) => {
 
 // --- SDK Imports ---
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { UnifiedMcpServer } from "./unified-server.js";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
+import express from "express";
+import crypto from "crypto";
 // SDK types will be imported as needed
 
 // --- Local Imports ---
@@ -59,7 +62,8 @@ async function createMcpServerInstance(): Promise<any> {
     const metadataTools = setupMetadataTools(databaseTools);
     const databasePrompts = setupDatabasePrompts();
     const sqlPrompts = setupSqlPrompts();
-    const allResources: Map<string, ResourceDefinition> = setupDatabaseResources();
+    // Temporarily disable resources due to path-to-regexp compatibility issues
+    const allResources: Map<string, ResourceDefinition> = new Map();
     const allPrompts = new Map<string, PromptDefinition>([...databasePrompts, ...sqlPrompts]);
     const allTools = new Map<string, DbToolDefinition | MetaToolDefinition>([...databaseTools, ...metadataTools]);
 
@@ -214,45 +218,28 @@ export async function main() {
             logger.info('MCP Firebird server with stdio transport ready to receive requests.');
 
         } else if (transportType === 'sse' || transportType === 'http' || transportType === 'unified') {
-            // Use unified server for HTTP-based transports
-            logger.info('Starting unified server...');
+            // Use backwards compatible server for HTTP-based transports
+            logger.info('Starting backwards compatible server with SSE and Streamable HTTP...');
 
             const port = parseInt(process.env.SSE_PORT || process.env.HTTP_PORT || '3003', 10);
             if (isNaN(port)) {
                 throw new ConfigError(`Invalid port: ${process.env.SSE_PORT || process.env.HTTP_PORT}`);
             }
 
-            const unifiedServer = new UnifiedMcpServer(async () => await createMcpServerInstance(), {
-                port,
-                enableSSE: transportType === 'sse' || transportType === 'unified',
-                enableStreamableHttp: transportType === 'http' || transportType === 'unified',
-                sessionConfig: {
-                    sessionTimeoutMs: parseInt(process.env.SESSION_TIMEOUT_MS || '1800000', 10),
-                    maxSessions: parseInt(process.env.MAX_SESSIONS || '1000', 10)
-                }
-            });
+            await startBackwardsCompatibleServer(port);
 
-            await unifiedServer.start();
-
-            // Setup cleanup for unified server
-            const cleanup = async () => {
-                logger.info('Stopping unified server...');
-                await unifiedServer.stop();
-            };
-
+            // Setup cleanup for backwards compatible server
             process.on('SIGINT', async () => {
                 logger.info('Received SIGINT signal, cleaning up...');
-                await cleanup();
                 process.exit(0);
             });
 
             process.on('SIGTERM', async () => {
                 logger.info('Received SIGTERM signal, cleaning up...');
-                await cleanup();
                 process.exit(0);
             });
 
-            logger.info('MCP Firebird unified server ready to receive requests.');
+            logger.info('MCP Firebird backwards compatible server ready to receive requests.');
 
         } else {
             throw new ConfigError(
@@ -280,4 +267,158 @@ export async function main() {
         // Exit with error code
         process.exit(1);
     }
+}
+
+/**
+ * Starts a backwards compatible server that supports both Streamable HTTP and SSE transports
+ * Based on the official MCP TypeScript SDK documentation
+ */
+async function startBackwardsCompatibleServer(port: number): Promise<void> {
+    const app = express();
+    app.use(express.json());
+
+    // Store transports for each session type
+    const transports = {
+        streamable: {} as Record<string, StreamableHTTPServerTransport>,
+        sse: {} as Record<string, SSEServerTransport>
+    };
+
+    // Modern Streamable HTTP endpoint
+    app.all('/mcp', async (req, res) => {
+        try {
+            // Check for existing session ID
+            const sessionId = req.headers['mcp-session-id'] as string | undefined;
+            let transport: StreamableHTTPServerTransport;
+
+            if (sessionId && transports.streamable[sessionId]) {
+                // Reuse existing transport
+                transport = transports.streamable[sessionId];
+            } else if (!sessionId && req.method === 'POST') {
+                // New initialization request
+                transport = new StreamableHTTPServerTransport({
+                    sessionIdGenerator: () => crypto.randomUUID(),
+                });
+
+                // Store the transport by session ID when initialized
+                transport.onclose = () => {
+                    if (transport.sessionId) {
+                        delete transports.streamable[transport.sessionId];
+                        logger.debug(`Cleaned up streamable transport for session: ${transport.sessionId}`);
+                    }
+                };
+
+                // Create and connect server
+                const server = await createMcpServerInstance();
+                await server.connect(transport);
+
+                // Store transport after connection
+                if (transport.sessionId) {
+                    transports.streamable[transport.sessionId] = transport;
+                    logger.debug(`Created streamable transport for session: ${transport.sessionId}`);
+                }
+            } else {
+                // Invalid request
+                res.status(400).json({
+                    jsonrpc: '2.0',
+                    error: {
+                        code: -32000,
+                        message: 'Bad Request: No valid session ID provided',
+                    },
+                    id: null,
+                });
+                return;
+            }
+
+            // Handle the request
+            await transport.handleRequest(req, res, req.body);
+        } catch (error) {
+            logger.error('Error handling Streamable HTTP request:', { error });
+            if (!res.headersSent) {
+                res.status(500).json({
+                    jsonrpc: '2.0',
+                    error: {
+                        code: -32603,
+                        message: 'Internal server error',
+                    },
+                    id: null,
+                });
+            }
+        }
+    });
+
+    // Legacy SSE endpoint for older clients
+    app.get('/sse', async (req, res) => {
+        try {
+            logger.info('Creating SSE transport for legacy client');
+
+            // Create SSE transport for legacy clients
+            const transport = new SSEServerTransport('/messages', res);
+            const sessionId = transport.sessionId || crypto.randomUUID();
+            transports.sse[sessionId] = transport;
+
+            res.on("close", () => {
+                delete transports.sse[sessionId];
+                logger.debug(`Cleaned up SSE transport for session: ${sessionId}`);
+            });
+
+            // Create and connect server
+            const server = await createMcpServerInstance();
+            await server.connect(transport);
+
+            logger.info(`SSE transport connected for session: ${sessionId}`);
+        } catch (error) {
+            logger.error('Error establishing SSE connection:', { error });
+            if (!res.headersSent) {
+                res.status(500).json({
+                    jsonrpc: '2.0',
+                    error: {
+                        code: -32603,
+                        message: 'Internal server error',
+                    },
+                    id: null,
+                });
+            }
+        }
+    });
+
+    // Legacy message endpoint for older clients
+    app.post('/messages', async (req, res) => {
+        try {
+            const sessionId = req.query.sessionId as string;
+            const transport = transports.sse[sessionId];
+            if (transport) {
+                await transport.handlePostMessage(req, res, req.body);
+            } else {
+                res.status(400).json({
+                    jsonrpc: '2.0',
+                    error: {
+                        code: -32000,
+                        message: 'No transport found for sessionId',
+                    },
+                    id: null,
+                });
+            }
+        } catch (error) {
+            logger.error('Error handling SSE message:', { error });
+            if (!res.headersSent) {
+                res.status(500).json({
+                    jsonrpc: '2.0',
+                    error: {
+                        code: -32603,
+                        message: 'Internal server error',
+                    },
+                    id: null,
+                });
+            }
+        }
+    });
+
+    // Start the server
+    app.listen(port, () => {
+        logger.info(`MCP Backwards Compatible Server listening on port ${port}`);
+        logger.info('Endpoints:');
+        logger.info('  - Modern Streamable HTTP: POST/GET/DELETE /mcp');
+        logger.info('  - Legacy SSE: GET /sse');
+        logger.info('  - Legacy Messages: POST /messages');
+    });
 }
