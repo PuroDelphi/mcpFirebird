@@ -51,7 +51,7 @@ import pkg from '../../package.json' with { type: 'json' };
  * Factory function to create a configured MCP server instance
  * @returns A configured McpServer instance
  */
-function createMcpServerInstance(): any {
+async function createMcpServerInstance(): Promise<any> {
     logger.debug('Creating new MCP server instance...');
 
     // Load tools, prompts and resources
@@ -64,7 +64,7 @@ function createMcpServerInstance(): any {
     const allTools = new Map<string, DbToolDefinition | MetaToolDefinition>([...databaseTools, ...metadataTools]);
 
     // Create MCP server instance
-    const { McpServer } = require("@modelcontextprotocol/sdk/server/mcp.js");
+    const { McpServer } = await import("@modelcontextprotocol/sdk/server/mcp.js");
     const server = new McpServer({
         name: pkg.name,
         version: pkg.version
@@ -80,7 +80,7 @@ function createMcpServerInstance(): any {
             {
                 title: tool.title || name,
                 description: tool.description,
-                inputSchema: tool.inputSchema || z.object({})
+                inputSchema: (tool.inputSchema && tool.inputSchema instanceof z.ZodObject) ? tool.inputSchema.shape : {}
             },
             async (args: any): Promise<{ content: any[], isError?: boolean }> => {
                 try {
@@ -108,7 +108,7 @@ function createMcpServerInstance(): any {
             {
                 title: promptDef.title || name,
                 description: promptDef.description,
-                argsSchema: promptDef.inputSchema || z.object({})
+                argsSchema: (promptDef.inputSchema && promptDef.inputSchema instanceof z.ZodObject) ? promptDef.inputSchema.shape : {}
             },
             async (args: any) => {
                 try {
@@ -160,66 +160,9 @@ function createMcpServerInstance(): any {
         );
     }
 
-    // Resources - using registerResource (modern method)
-    for (const [uriTemplate, resourceDef] of allResources.entries()) {
-        // For static resources
-        if (!uriTemplate.includes('{')) {
-            server.registerResource(
-                `resource-${uriTemplate.replace(/[^a-zA-Z0-9]/g, '-')}`,
-                uriTemplate,
-                {
-                    title: resourceDef.title || `Resource ${uriTemplate}`,
-                    description: resourceDef.description || `Resource at ${uriTemplate}`,
-                    mimeType: resourceDef.mimeType || "application/json"
-                },
-                async (uri: any) => {
-                    try {
-                        const result = await resourceDef.handler({});
-                        return {
-                            contents: [
-                                {
-                                    uri: uri.href,
-                                    mimeType: resourceDef.mimeType || "application/json",
-                                    text: JSON.stringify(result, null, 2)
-                                }
-                            ]
-                        };
-                    } catch (error) {
-                        logger.error(`Error accessing resource ${uriTemplate}: ${error instanceof Error ? error.message : String(error)}`, { error });
-                        throw error;
-                    }
-                }
-            );
-        } else {
-            // For dynamic resources with parameters, use ResourceTemplate
-            const { ResourceTemplate } = require("@modelcontextprotocol/sdk/server/mcp.js");
-            server.registerResource(
-                `resource-${uriTemplate.replace(/[^a-zA-Z0-9]/g, '-')}`,
-                new ResourceTemplate(uriTemplate, { list: undefined }),
-                {
-                    title: resourceDef.title || `Dynamic Resource ${uriTemplate}`,
-                    description: resourceDef.description || `Dynamic resource at ${uriTemplate}`
-                },
-                async (uri: any, params: any) => {
-                    try {
-                        const result = await resourceDef.handler(params || {});
-                        return {
-                            contents: [
-                                {
-                                    uri: uri.href,
-                                    mimeType: resourceDef.mimeType || "application/json",
-                                    text: JSON.stringify(result, null, 2)
-                                }
-                            ]
-                        };
-                    } catch (error) {
-                        logger.error(`Error accessing resource ${uriTemplate}: ${error instanceof Error ? error.message : String(error)}`, { error });
-                        throw error;
-                    }
-                }
-            );
-        }
-    }
+    // Resources - temporarily disabled due to path-to-regexp compatibility issues
+    logger.info(`Skipping ${allResources.size} resources - Resource registration temporarily disabled in alpha version`);
+    // TODO: Re-enable resources once path-to-regexp issues are resolved
 
     logger.debug(`Server instance created with ${allTools.size} tools, ${allPrompts.size} prompts, ${allResources.size} resources`);
     return server;
@@ -244,7 +187,7 @@ export async function main() {
         if (transportType === 'stdio') {
             // Use stdio transport with a single server instance
             logger.info('Starting stdio transport...');
-            const server = createMcpServerInstance();
+            const server = await createMcpServerInstance();
             const transport = new StdioServerTransport();
 
             await server.connect(transport);
@@ -279,7 +222,7 @@ export async function main() {
                 throw new ConfigError(`Invalid port: ${process.env.SSE_PORT || process.env.HTTP_PORT}`);
             }
 
-            const unifiedServer = new UnifiedMcpServer(createMcpServerInstance, {
+            const unifiedServer = new UnifiedMcpServer(async () => await createMcpServerInstance(), {
                 port,
                 enableSSE: transportType === 'sse' || transportType === 'unified',
                 enableStreamableHttp: transportType === 'http' || transportType === 'unified',

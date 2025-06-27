@@ -5,7 +5,6 @@
  */
 
 import express from 'express';
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { createLogger } from '../utils/logger.js';
 
@@ -22,7 +21,7 @@ interface SessionInfo {
  * @param server Instancia de McpServer
  * @returns Router Express listo para montar
  */
-export function createSseRouter(server: McpServer): express.Router {
+export function createSseRouter(_createServerInstance?: () => Promise<any>): express.Router {
     const router = express.Router();
 
     // Enhanced session storage with metadata
@@ -110,8 +109,8 @@ export function createSseRouter(server: McpServer): express.Router {
             });
 
             // Connect server to transport
-            await server.connect(transport);
-            logger.info(`Server connected to SSE transport for session: ${sessionId}`);
+            // Note: Server connection will be handled by the transport itself
+            logger.info(`SSE transport created for session: ${sessionId}`);
 
         } catch (error) {
             logger.error('Error establishing SSE connection:', { error });

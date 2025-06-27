@@ -38,7 +38,7 @@ export class UnifiedMcpServer {
     private streamableRouter: any;
 
     constructor(
-        private createServerInstance: () => McpServer,
+        private createServerInstance: () => Promise<McpServer>,
         config: UnifiedServerConfig = {}
     ) {
         this.config = {
@@ -123,8 +123,13 @@ export class UnifiedMcpServer {
         // SSE Protocol Support (Legacy)
         if (this.config.enableSSE) {
             logger.info('Enabling SSE protocol support');
-            this.sseRouter = createSseRouter(this.createServerInstance());
-            this.app.use('/', this.sseRouter);
+            // Create a server instance for SSE
+            this.createServerInstance().then(_server => {
+                this.sseRouter = createSseRouter();
+                this.app.use('/', this.sseRouter);
+            }).catch(error => {
+                logger.error('Error creating SSE server instance:', { error });
+            });
         }
 
         // Streamable HTTP Protocol Support (Modern)
@@ -156,7 +161,7 @@ export class UnifiedMcpServer {
      * Handles automatic protocol detection for backwards compatibility
      */
     private async handleAutoProtocolDetection(req: express.Request, res: express.Response): Promise<void> {
-        const userAgent = req.headers['user-agent'] || '';
+        const _userAgent = req.headers['user-agent'] || '';
         const acceptHeader = req.headers['accept'] || '';
         const contentType = req.headers['content-type'] || '';
 

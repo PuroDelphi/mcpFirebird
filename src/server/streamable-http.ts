@@ -25,7 +25,7 @@ interface SessionInfo {
  * @param createServerInstance Function to create a new McpServer instance
  * @returns Express router configured for Streamable HTTP
  */
-export function createStreamableHttpRouter(createServerInstance: () => McpServer): express.Router {
+export function createStreamableHttpRouter(createServerInstance: () => Promise<McpServer>): express.Router {
     const router = express.Router();
 
     // Session storage for stateful mode
@@ -317,11 +317,11 @@ export function createStreamableHttpRouter(createServerInstance: () => McpServer
 async function handleStatelessRequest(
     req: express.Request,
     res: express.Response,
-    createServerInstance: () => McpServer
+    createServerInstance: () => Promise<McpServer>
 ) {
     logger.debug('Handling request in stateless mode');
 
-    const server = createServerInstance();
+    const server = await createServerInstance();
     const transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: undefined, // Disable session management
     });
@@ -352,7 +352,7 @@ async function handleStatelessRequest(
 async function handleStatefulRequest(
     req: express.Request,
     res: express.Response,
-    createServerInstance: () => McpServer,
+    createServerInstance: () => Promise<McpServer>,
     activeSessions: Record<string, SessionInfo>
 ) {
     const sessionId = req.headers['mcp-session-id'] as string | undefined;
@@ -367,7 +367,7 @@ async function handleStatefulRequest(
         // New initialization request
         logger.debug('Creating new session for initialize request');
 
-        const server = createServerInstance();
+        const server = await createServerInstance();
         const transport = new StreamableHTTPServerTransport({
             sessionIdGenerator: () => randomUUID(),
             onsessioninitialized: (newSessionId) => {
