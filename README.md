@@ -1,4 +1,4 @@
-[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/purodelphi-mcpfirebird-badge.png)](https://mseep.ai/app/purodelphi-mcpfirebird)
+[![Verified on MseeP](https://mseep.ai/badge.svg)](https://mseep.ai/app/1cb2bb07-00f4-4579-b535-1b9de9b451e9)
 
 # MCP Firebird
 
