@@ -34,6 +34,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import express from "express";
+import cors from "cors";
 import crypto from "crypto";
 // SDK types will be imported as needed
 
@@ -275,6 +276,15 @@ export async function main() {
  */
 async function startBackwardsCompatibleServer(port: number): Promise<void> {
     const app = express();
+
+    // Configure CORS to allow web clients
+    app.use(cors({
+        origin: '*',
+        methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
+        allowedHeaders: ['Content-Type', 'mcp-session-id', 'Cache-Control', 'Accept'],
+        credentials: false
+    }));
+
     app.use(express.json());
 
     // Store transports for each session type
