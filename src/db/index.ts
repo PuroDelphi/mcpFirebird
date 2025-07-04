@@ -10,26 +10,30 @@ export * from './wrapped-queries.js';
 
 // Exportar otras funciones y tipos
 export {
-    ConfigOptions,
     DEFAULT_CONFIG,
     getGlobalConfig,
     connectToDatabase,
     queryDatabase
 } from './connection.js';
 
+export type { ConfigOptions } from './connection.js';
+
 export {
     getDatabases,
     getViews,
     getProcedures,
     DATABASE_DIR,
+    executeBatchQueries,
+    describeBatchTables
+} from './queries.js';
+
+export type {
     DatabaseInfo,
     TableInfo,
     FieldInfo,
     ColumnInfo,
     QueryPerformanceResult,
-    ExecutionPlanResult,
-    executeBatchQueries,
-    describeBatchTables
+    ExecutionPlanResult
 } from './queries.js';
 
 // Exportar funciones de gestión de base de datos
