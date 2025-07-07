@@ -45,15 +45,18 @@ npx mcp-firebird --database /path/to/database.fdb
 npm install -g mcp-firebird@alpha
 
 # Or use specific alpha version
-npm install -g mcp-firebird@2.2.0-alpha.1
+npm install -g mcp-firebird@2.3.0-alpha.1
 ```
 
-**Alpha Features (v2.2.0-alpha.1):**
+**Alpha Features (v2.3.0-alpha.1):**
+- 🐛 **FIXED**: SSE JSON parsing bug - resolves "Invalid message: [object Object]" errors
 - ✨ Streamable HTTP transport support (MCP 2025-03-26)
 - 🔄 Unified server with automatic protocol detection
 - 📊 Enhanced session management and monitoring
 - 🛠️ Modern MCP SDK integration (v1.13.2)
 - 🔧 Improved error handling and logging
+- 🧪 Comprehensive test suite with 9+ tests for SSE functionality
+- 📚 Enhanced documentation with troubleshooting guides
 
 For backup/restore operations, you'll need to install the Firebird client tools. See [Complete Installation](./docs/installation.md) for more details.
 
@@ -314,6 +317,20 @@ server {
    export SESSION_CLEANUP_INTERVAL_MS=30000
    ```
 
+5. **JSON Parsing Issues (Fixed in v2.3.0-alpha.1+)**
+   ```bash
+   # If experiencing "Invalid message: [object Object]" errors,
+   # upgrade to the latest alpha version:
+   npm install mcp-firebird@alpha
+
+   # Or use the latest alpha directly:
+   npx mcp-firebird@alpha --transport-type sse
+   ```
+
+   **Note**: Versions prior to 2.3.0-alpha.1 had a bug where POST requests to `/messages`
+   endpoint failed to parse JSON body correctly. This has been fixed with improved
+   middleware handling for both `application/json` and `text/plain` content types.
+
 #### Monitoring and Logging
 
 ```bash
@@ -361,6 +378,7 @@ For more detailed information, check the following documents:
 - [Security](./docs/security.md)
 - [Performance Tuning](./docs/performance.md)
 - [Troubleshooting](./docs/troubleshooting.md)
+- [SSE JSON Parsing Fix](./docs/sse-json-parsing-fix.md) - Details about the v2.3.0-alpha.1 bug fix
 
 ### Examples and Use Cases
 - [Use Cases and Examples](./docs/use-cases.md)
