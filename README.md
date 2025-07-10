@@ -37,7 +37,19 @@ npm install -g mcp-firebird
 
 # Run the server
 npx mcp-firebird --database /path/to/database.fdb
+
+# Or use specific stable version
+npm install -g mcp-firebird@2.2.3
 ```
+
+**Stable Features (v2.2.3):**
+- 🐛 **FIXED**: SSE JSON parsing bug - resolves "Invalid message: [object Object]" errors
+- ✨ Streamable HTTP transport support (MCP 2025-03-26)
+- 🔄 Unified server with automatic protocol detection
+- 📊 Enhanced session management and monitoring
+- 🛠️ Modern MCP SDK integration (v1.13.2)
+- 🔧 Improved error handling and logging
+- 🧪 Comprehensive test suite with 9+ tests for SSE functionality
 
 #### Alpha Version (Latest Features)
 ```bash
