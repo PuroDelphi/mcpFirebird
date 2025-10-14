@@ -30,13 +30,40 @@ export interface ConfigOptions {
     lowercase_keys?: boolean;
     role?: string;
     pageSize?: number;
+    /**
+     * Wire encryption setting for Firebird 3.0+
+     * - 'Disabled': No wire encryption (compatible with all versions)
+     * - 'Enabled': Wire encryption enabled if supported
+     * - 'Required': Wire encryption required
+     * Default: 'Disabled' for maximum compatibility
+     */
+    wireCrypt?: 'Disabled' | 'Enabled' | 'Required';
 }
 
 import * as path from 'path';
 
-// Normalize database path for Windows
+/**
+ * Normalize database path - preserve remote and Unix paths
+ * Only normalizes local Windows paths to avoid breaking remote connections
+ * and Unix/Linux absolute paths
+ *
+ * @param dbPath - Database path to normalize
+ * @returns Normalized database path
+ */
 export function normalizeDatabasePath(dbPath: string | undefined): string {
     if (!dbPath) return '';
+
+    // Don't normalize if:
+    // 1. Starts with / (Unix/Linux absolute path)
+    // 2. Contains :/ (remote connection string like 'hostname:/path/to/db.fdb')
+    // 3. Running on non-Windows platform
+    if (dbPath.startsWith('/') ||
+        dbPath.includes(':/') ||
+        process.platform !== 'win32') {
+        return dbPath;
+    }
+
+    // Only normalize local Windows paths
     return path.normalize(dbPath);
 }
 
@@ -79,9 +106,23 @@ export const getDefaultConfig = (): ConfigOptions => {
     // Don't log passwords
     console.error(`FIREBIRD_ROLE: ${process.env.FIREBIRD_ROLE || 'not set'}`);
     console.error(`FB_ROLE: ${process.env.FB_ROLE || 'not set'}`);
+    console.error(`FIREBIRD_WIRECRYPT: ${process.env.FIREBIRD_WIRECRYPT || 'not set'}`);
+    console.error(`FB_WIRECRYPT: ${process.env.FB_WIRECRYPT || 'not set'}`);
 
     // Check for global configuration first (set by CLI)
     const globalConfigFromEnv = (global as any).MCP_FIREBIRD_CONFIG;
+
+    // Get WireCrypt setting with proper validation
+    const wireCryptValue = globalConfigFromEnv?.wireCrypt ||
+                          process.env.FIREBIRD_WIRECRYPT ||
+                          process.env.FB_WIRECRYPT ||
+                          'Disabled';
+
+    // Validate WireCrypt value
+    const validWireCryptValues: Array<'Disabled' | 'Enabled' | 'Required'> = ['Disabled', 'Enabled', 'Required'];
+    const wireCrypt = validWireCryptValues.includes(wireCryptValue as any)
+        ? (wireCryptValue as 'Disabled' | 'Enabled' | 'Required')
+        : 'Disabled';
 
     const config = {
         host: globalConfigFromEnv?.host || process.env.FIREBIRD_HOST || process.env.FB_HOST || '127.0.0.1', // Use 127.0.0.1 instead of 'localhost'
@@ -90,7 +131,8 @@ export const getDefaultConfig = (): ConfigOptions => {
         user: globalConfigFromEnv?.user || process.env.FIREBIRD_USER || process.env.FB_USER || 'SYSDBA',
         password: globalConfigFromEnv?.password || process.env.FIREBIRD_PASSWORD || process.env.FB_PASSWORD || 'masterkey',
         role: globalConfigFromEnv?.role || process.env.FIREBIRD_ROLE || process.env.FB_ROLE || undefined,
-        pageSize: globalConfigFromEnv?.pageSize || 4096
+        pageSize: globalConfigFromEnv?.pageSize || 4096,
+        wireCrypt: wireCrypt
     };
 
     // Debug: Log the final configuration (without password)
@@ -102,6 +144,7 @@ export const getDefaultConfig = (): ConfigOptions => {
     // Don't log password
     console.error(`role: ${config.role || 'not set'}`);
     console.error(`pageSize: ${config.pageSize}`);
+    console.error(`wireCrypt: ${config.wireCrypt}`);
 
     return config;
 };

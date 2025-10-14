@@ -285,9 +285,37 @@ server {
 }
 ```
 
-### Troubleshooting SSE
+### Troubleshooting
 
-#### Common Issues
+#### Firebird Connection Issues
+
+1. **Wire Encryption Incompatibility (Firebird 3.0+)**
+
+   **Error**: `Incompatible wire encryption levels requested on client and server`
+
+   **Solution**: Disable wire encryption using the `--wire-crypt` parameter:
+   ```bash
+   npx mcp-firebird@alpha --wire-crypt Disabled --database /path/to/db.fdb
+   ```
+
+   Or set environment variable:
+   ```bash
+   export FIREBIRD_WIRECRYPT=Disabled
+   npx mcp-firebird@alpha
+   ```
+
+   See [Wire Encryption Fix Documentation](./docs/wire-encryption-fix.md) for more details.
+
+2. **Database Path Issues on Linux/Unix**
+
+   **Problem**: Remote connection strings or Unix paths not working
+
+   **Solution**: This is fixed in v2.4.0-alpha.0+. The following paths now work correctly:
+   - Remote: `server:/path/to/database.fdb`
+   - Unix absolute: `/var/lib/firebird/database.fdb`
+   - IP-based: `192.168.1.100:/data/db.fdb`
+
+#### SSE Connection Issues
 
 1. **Connection Refused**
    ```bash
@@ -380,6 +408,7 @@ For more detailed information, check the following documents:
 - [Security](./docs/security.md)
 - [Performance Tuning](./docs/performance.md)
 - [Troubleshooting](./docs/troubleshooting.md)
+- [Wire Encryption Fix](./docs/wire-encryption-fix.md) - Firebird 3.0+ compatibility and Linux path fix
 - [SSE JSON Parsing Fix](./docs/sse-json-parsing-fix.md) - Details about the v2.3.0-alpha.1 bug fix
 
 ### Examples and Use Cases
