@@ -310,10 +310,21 @@ server {
 
    **Problem**: Remote connection strings or Unix paths not working
 
-   **Solution**: This is fixed in v2.4.0-alpha.0+. The following paths now work correctly:
+   **Solution**: This is fixed in v2.4.0-alpha.1+. The following paths now work correctly:
    - Remote: `server:/path/to/database.fdb`
    - Unix absolute: `/var/lib/firebird/database.fdb`
    - IP-based: `192.168.1.100:/data/db.fdb`
+
+3. **I/O Error with Mixed-Case Paths on Windows**
+
+   **Error**: `I/O error during CreateFile (open) operation`
+
+   **Problem**: Database path with mixed case (e.g., `C:\MyData\database.fdb`) causes errors
+
+   **Workarounds**:
+   - Use all-uppercase paths: `C:\MYDATA\DATABASE.FDB`
+   - Use forward slashes: `C:/MyData/database.fdb`
+   - See [Wire Encryption Fix Documentation](./docs/wire-encryption-fix.md#error-io-error-in-windows-with-mixed-case-paths) for more details
 
 #### SSE Connection Issues
 

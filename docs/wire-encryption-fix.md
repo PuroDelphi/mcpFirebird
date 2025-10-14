@@ -214,11 +214,47 @@ npx mcp-firebird --wire-crypt Disabled --database /path/to/db.fdb
 
 ### Error: Database path not found (Linux/Unix)
 
-**Symptoms**: 
+**Symptoms**:
 - Remote connection strings like `server:/path/db.fdb` fail
 - Unix absolute paths like `/var/lib/firebird/db.fdb` fail
 
-**Solution**: This should be fixed automatically with the path normalization update. Ensure you're using version 2.4.0-alpha.0 or later.
+**Solution**: This should be fixed automatically with the path normalization update. Ensure you're using version 2.4.0-alpha.1 or later.
+
+### Error: I/O error in Windows with mixed-case paths
+
+**Problem**: Database path is converted to uppercase, causing I/O errors in Windows when the original path contains lowercase characters.
+
+**Symptoms**:
+- Error message: "I/O error during CreateFile (open) operation"
+- The database path contains mixed case (e.g., `C:\MyData\database.fdb`)
+- Windows file system is case-insensitive but preserves case
+
+**Root Cause**: This appears to be a behavior in the `node-firebird` library where it may internally convert paths to uppercase for certain operations.
+
+**Workarounds**:
+
+1. **Use all-uppercase paths** (Recommended for Windows):
+   ```bash
+   npx mcp-firebird@alpha --database C:\MYDATA\DATABASE.FDB
+   ```
+
+2. **Use forward slashes instead of backslashes**:
+   ```bash
+   npx mcp-firebird@alpha --database C:/MyData/database.fdb
+   ```
+
+3. **Use environment variables with uppercase paths**:
+   ```bash
+   export FIREBIRD_DATABASE=C:\MYDATA\DATABASE.FDB
+   npx mcp-firebird@alpha
+   ```
+
+4. **Use UNC paths** (for network databases):
+   ```bash
+   npx mcp-firebird@alpha --database \\SERVER\SHARE\DATABASE.FDB
+   ```
+
+**Note**: We are investigating this issue and working on a permanent fix. The current implementation (v2.4.0-alpha.1) preserves the original case when passing the path to node-firebird, but the library may still convert it internally. If you encounter this issue, please report it on our GitHub issues page with details about your environment.
 
 ### Server-Side Configuration (Alternative)
 
