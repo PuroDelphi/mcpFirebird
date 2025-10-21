@@ -24,6 +24,13 @@ const databaseParam = argv.database || argv.firebirdDatabase;
 const userParam = argv.user || argv.firebirdUser;
 const passwordParam = argv.password || argv.firebirdPassword;
 const roleParam = argv.role || argv.firebirdRole;
+const wireCryptParam = argv.wireCrypt || argv['wire-crypt'] || argv.firebirdWireCrypt;
+
+// Validate WireCrypt parameter
+const validWireCryptValues: Array<'Disabled' | 'Enabled' | 'Required'> = ['Disabled', 'Enabled', 'Required'];
+const wireCrypt = wireCryptParam && validWireCryptValues.includes(wireCryptParam as any)
+  ? (wireCryptParam as 'Disabled' | 'Enabled' | 'Required')
+  : 'Disabled';
 
 // Create database configuration object directly from command line arguments
 export const dbConfig: ConfigOptions = {
@@ -33,7 +40,8 @@ export const dbConfig: ConfigOptions = {
   user: userParam || 'SYSDBA',
   password: passwordParam || 'masterkey',
   role: roleParam,
-  pageSize: 4096
+  pageSize: 4096,
+  wireCrypt: wireCrypt
 };
 
 // Set environment variables for the default database if not provided
@@ -106,6 +114,11 @@ if (roleParam) {
   process.env.FB_ROLE = roleParam;
   console.error(`Setting FIREBIRD_ROLE to ${roleParam}`);
 }
+if (wireCryptParam) {
+  process.env.FIREBIRD_WIRECRYPT = wireCrypt;
+  process.env.FB_WIRECRYPT = wireCrypt;
+  console.error(`Setting FIREBIRD_WIRECRYPT to ${wireCrypt}`);
+}
 
 // Debug: Log final environment variables
 console.error('Final environment variables:');
@@ -141,6 +154,7 @@ async function main() {
   logger.info(`- User: ${dbConfig.user}`);
   // Don't log the password
   logger.info(`- Role: ${dbConfig.role || 'Not specified'}`);
+  logger.info(`- WireCrypt: ${dbConfig.wireCrypt}`);
 
   try {
     // Import and use the main function from server/index.ts which handles multiple transports

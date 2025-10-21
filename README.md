@@ -57,18 +57,20 @@ npm install -g mcp-firebird@2.2.3
 npm install -g mcp-firebird@alpha
 
 # Or use specific alpha version
-npm install -g mcp-firebird@2.3.0-alpha.1
+npm install -g mcp-firebird@2.4.0-alpha.0
 ```
 
-**Alpha Features (v2.3.0-alpha.1):**
-- 🐛 **FIXED**: SSE JSON parsing bug - resolves "Invalid message: [object Object]" errors
-- ✨ Streamable HTTP transport support (MCP 2025-03-26)
+**Alpha Features (v2.4.0-alpha.0):**
+- � **NEW**: Ready for next development cycle
+- ✨ All stable features from v2.2.3 included
 - 🔄 Unified server with automatic protocol detection
 - 📊 Enhanced session management and monitoring
 - 🛠️ Modern MCP SDK integration (v1.13.2)
 - 🔧 Improved error handling and logging
 - 🧪 Comprehensive test suite with 9+ tests for SSE functionality
 - 📚 Enhanced documentation with troubleshooting guides
+
+**Note**: The SSE JSON parsing bug fix is now available in stable v2.2.3
 
 For backup/restore operations, you'll need to install the Firebird client tools. See [Complete Installation](./docs/installation.md) for more details.
 
@@ -295,9 +297,60 @@ server {
 }
 ```
 
-### Troubleshooting SSE
+### Troubleshooting
 
-#### Common Issues
+#### Firebird Connection Issues
+
+1. **Wire Encryption Incompatibility (Firebird 3.0+)** ⚠️ **CRITICAL**
+
+   **Error**: `Incompatible wire encryption levels requested on client and server`
+
+   **IMPORTANT**: The `node-firebird` library does NOT support Firebird 3.0+ wire encryption. The `--wire-crypt` parameter does NOT work.
+
+   **ONLY Solution**: You MUST disable wire encryption on the Firebird server:
+
+   For Firebird 3.0, add to `firebird.conf`:
+   ```conf
+   WireCrypt = Disabled
+   AuthServer = Srp, Legacy_Auth
+   ```
+
+   For Firebird 4.0+, add to `firebird.conf`:
+   ```conf
+   WireCrypt = Disabled
+   AuthServer = Srp256, Srp, Legacy_Auth
+   ```
+
+   For Firebird 5.0 Docker:
+   ```yaml
+   environment:
+     FIREBIRD_CONF_WireCrypt: Disabled
+     FIREBIRD_CONF_AuthServer: Srp256, Srp
+   ```
+
+   **If you cannot change server configuration**, see [Wire Encryption Limitation](./docs/wire-encryption-limitation.md) for alternatives.
+
+2. **Database Path Issues on Linux/Unix**
+
+   **Problem**: Remote connection strings or Unix paths not working
+
+   **Solution**: This is fixed in v2.4.0-alpha.1+. The following paths now work correctly:
+   - Remote: `server:/path/to/database.fdb`
+   - Unix absolute: `/var/lib/firebird/database.fdb`
+   - IP-based: `192.168.1.100:/data/db.fdb`
+
+3. **I/O Error with Mixed-Case Paths on Windows**
+
+   **Error**: `I/O error during CreateFile (open) operation`
+
+   **Problem**: Database path with mixed case (e.g., `C:\MyData\database.fdb`) causes errors
+
+   **Workarounds**:
+   - Use all-uppercase paths: `C:\MYDATA\DATABASE.FDB`
+   - Use forward slashes: `C:/MyData/database.fdb`
+   - See [Wire Encryption Fix Documentation](./docs/wire-encryption-fix.md#error-io-error-in-windows-with-mixed-case-paths) for more details
+
+#### SSE Connection Issues
 
 1. **Connection Refused**
    ```bash
@@ -390,6 +443,7 @@ For more detailed information, check the following documents:
 - [Security](./docs/security.md)
 - [Performance Tuning](./docs/performance.md)
 - [Troubleshooting](./docs/troubleshooting.md)
+- [Wire Encryption Fix](./docs/wire-encryption-fix.md) - Firebird 3.0+ compatibility and Linux path fix
 - [SSE JSON Parsing Fix](./docs/sse-json-parsing-fix.md) - Details about the v2.3.0-alpha.1 bug fix
 
 ### Examples and Use Cases
