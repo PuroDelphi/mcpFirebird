@@ -45,10 +45,20 @@ function createDpbWithWireCrypt(options: any): Buffer {
     // Add wire encryption configuration using isc_dpb_config
     if (options.config) {
         const configStr = options.config;
+        logger.info('Adding config to DPB', {
+            config: configStr,
+            length: configStr.length,
+            dpbConstant: DPB_CONSTANTS.config
+        });
         ret += `${code(DPB_CONSTANTS.config)}${code(configStr.length)}${configStr}`;
     }
 
-    return Buffer.from(ret);
+    const buffer = Buffer.from(ret);
+    logger.info('DPB buffer created', {
+        totalLength: buffer.length,
+        hex: buffer.toString('hex').substring(0, 100)
+    });
+    return buffer;
 }
 
 /**
