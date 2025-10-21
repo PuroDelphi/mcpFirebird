@@ -10,6 +10,48 @@ import type { ConfigOptions, FirebirdDatabase } from './connection.js';
 const logger = createLogger('db:driver-factory');
 
 /**
+ * DPB (Database Parameter Buffer) constants for Firebird
+ */
+const DPB_CONSTANTS = {
+    version1: 1,
+    lc_ctype: 48,
+    user_name: 28,
+    password: 29,
+    sql_role_name: 60,
+    config: 87  // isc_dpb_config - for passing configuration strings like WireCrypt
+};
+
+/**
+ * Create DPB buffer with wire encryption support
+ * This extends the standard createDpb from node-firebird-driver to support wire encryption
+ */
+function createDpbWithWireCrypt(options: any): Buffer {
+    const code = (c: number) => String.fromCharCode(c);
+    const charSet = 'utf8';
+    let ret = `${code(DPB_CONSTANTS.version1)}${code(DPB_CONSTANTS.lc_ctype)}${code(charSet.length)}${charSet}`;
+
+    if (options.username) {
+        ret += `${code(DPB_CONSTANTS.user_name)}${code(options.username.length)}${options.username}`;
+    }
+
+    if (options.password) {
+        ret += `${code(DPB_CONSTANTS.password)}${code(options.password.length)}${options.password}`;
+    }
+
+    if (options.role) {
+        ret += `${code(DPB_CONSTANTS.sql_role_name)}${code(options.role.length)}${options.role}`;
+    }
+
+    // Add wire encryption configuration using isc_dpb_config
+    if (options.config) {
+        const configStr = options.config;
+        ret += `${code(DPB_CONSTANTS.config)}${code(configStr.length)}${configStr}`;
+    }
+
+    return Buffer.from(ret);
+}
+
+/**
  * Driver types available
  */
 export enum DriverType {
@@ -175,34 +217,42 @@ class NativeDriver implements IFirebirdDriver {
                 logger.info(`Using remote connection string: ${connectionString}`);
             }
             
-            // Build connection options
-            const connectionOptions: any = {
+            // Build connection options for DPB
+            const dpbOptions: any = {
                 username: config.user,
                 password: config.password
             };
 
             // Add optional parameters
             if (config.role) {
-                connectionOptions.role = config.role;
+                dpbOptions.role = config.role;
             }
 
-            // Add port if not default
-            if (config.port && config.port !== 3050) {
-                connectionOptions.port = config.port;
-            }
-
-            // Add wire encryption configuration using DPB (Database Parameter Buffer)
+            // Add wire encryption configuration
             if (config.wireCrypt) {
-                // The native driver uses DPB parameters
                 // WireCrypt values: Disabled, Enabled, Required
-                connectionOptions.config = `WireCrypt=${config.wireCrypt}`;
-                logger.info(`Wire encryption configured in DPB: WireCrypt=${config.wireCrypt}`);
+                dpbOptions.config = `WireCrypt=${config.wireCrypt}`;
+                logger.info(`Wire encryption configured: WireCrypt=${config.wireCrypt}`);
             }
 
-            logger.info('Connection options:', connectionOptions);
+            // Create DPB buffer with wire encryption support
+            const dpb = createDpbWithWireCrypt(dpbOptions);
 
-            // Connect using native driver
-            this.attachment = await this.client.connect(connectionString, connectionOptions);
+            logger.info('Connecting with DPB buffer', { dpbLength: dpb.length });
+
+            // Connect using native driver with DPB buffer
+            // We need to use the low-level API to pass the DPB buffer directly
+            const status = this.client.master.getStatusSync();
+            try {
+                this.attachment = await this.client.dispatcher.attachDatabaseAsync(
+                    status,
+                    connectionString,
+                    dpb.length,
+                    dpb
+                );
+            } finally {
+                status.disposeSync();
+            }
             
             logger.info('Conexión exitosa con node-firebird-driver-native');
             
