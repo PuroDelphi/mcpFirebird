@@ -43,28 +43,91 @@ npx mcp-firebird@alpha --use-native-driver \
   --password=masterkey
 ```
 
+### ⚠️ IMPORTANT: Wire Encryption Configuration
+
+**Wire encryption CANNOT be configured from the client side.** According to Firebird documentation, `WireCrypt` is a **server-side parameter** that must be configured in the server's `firebird.conf` file.
+
+The `--wire-crypt` parameter in MCP Firebird **does NOT work** and will be ignored with a warning message.
+
+**To use wire encryption:**
+1. Configure `WireCrypt` in the **server's** `firebird.conf`:
+   ```conf
+   WireCrypt = Required  # or Enabled
+   ```
+2. Restart the Firebird server
+3. Use the native driver (which supports the wire encryption protocol)
+
 ### Requirements for Native Driver
 
 1. **Install build tools** (one-time setup):
-   - **Windows**: Visual Studio Build Tools
-   - **Linux**: `build-essential`, `python3`
-   - **macOS**: Xcode Command Line Tools
+
+   **Windows:**
+   - Download Visual Studio Build Tools from: https://visualstudio.microsoft.com/downloads/
+   - Select "Build Tools for Visual Studio 2022"
+   - During installation, check "Desktop development with C++"
+   - Size: ~7 GB, Time: ~30 minutes
+
+   **Linux (Ubuntu/Debian):**
+   ```bash
+   sudo apt-get update
+   sudo apt-get install -y build-essential python3 firebird-dev
+   ```
+
+   **Linux (CentOS/RHEL/Fedora):**
+   ```bash
+   sudo yum groupinstall "Development Tools"
+   sudo yum install python3 firebird-devel
+   ```
+
+   **macOS:**
+   ```bash
+   xcode-select --install
+   brew install firebird
+   ```
 
 2. **Install Firebird client library**:
-   - **Windows**: Download and install Firebird client
-   - **Linux**: `sudo apt-get install firebird-dev` (Ubuntu/Debian)
-   - **macOS**: `brew install firebird`
+
+   **Windows:**
+   - Download from: https://firebirdsql.org/en/firebird-5-0/
+   - Run installer and select "Client installation only"
+   - Verify: `dir "C:\Program Files\Firebird\Firebird_5_0\fbclient.dll"`
+
+   **Linux (Ubuntu/Debian):**
+   ```bash
+   sudo apt-get install firebird3.0-client
+   # or for Firebird 4.0+
+   sudo apt-get install firebird4.0-client
+   ```
+
+   **Linux (CentOS/RHEL):**
+   ```bash
+   sudo yum install firebird-classic
+   ```
+
+   **macOS:**
+   ```bash
+   brew install firebird
+   ```
 
 3. **Install the native driver**:
    ```bash
    npm install -g node-firebird-driver-native
    ```
 
+   **Expected output:**
+   ```
+   > node-firebird-native-api@3.1.2 install
+   > node-gyp rebuild
+
+     CXX(target) Release/obj.target/addon/src/...
+     SOLINK_MODULE(target) Release/addon.node
+   ```
+
 For detailed installation instructions, see [Advanced Installation Guide](./advanced-installation.md).
 
 ### Benefits of Native Driver
 
-- ✅ **Full wire encryption support** (Disabled, Enabled, Required)
+- ✅ **Wire encryption support** (when configured on server)
 - ✅ **Better performance** (uses native fbclient library)
 - ✅ **All Firebird features** supported
 - ❌ **More complex installation** (requires compilation)

@@ -226,25 +226,45 @@ npx mcp-firebird@alpha --use-native-driver ...
 
 ### Wire Encryption
 
-The native driver supports all wire encryption modes:
+⚠️ **IMPORTANT**: Wire encryption **CANNOT** be configured from the client side.
 
-```bash
-# Disabled (no encryption)
-npx mcp-firebird@alpha --use-native-driver --wire-crypt=Disabled
+According to Firebird documentation, `WireCrypt` is a **server-side parameter** that must be configured in the server's `firebird.conf` file.
 
-# Enabled (use encryption if available)
-npx mcp-firebird@alpha --use-native-driver --wire-crypt=Enabled
+**The `--wire-crypt` parameter does NOT work** and will be ignored with a warning.
 
-# Required (fail if encryption not available)
-npx mcp-firebird@alpha --use-native-driver --wire-crypt=Required
-```
+**To enable wire encryption:**
+
+1. **Configure on the Firebird server** (`firebird.conf`):
+   ```conf
+   # Disabled (no encryption)
+   WireCrypt = Disabled
+
+   # Enabled (use encryption if client supports it)
+   WireCrypt = Enabled
+
+   # Required (reject connections without encryption)
+   WireCrypt = Required
+   ```
+
+2. **Restart the Firebird server**
+
+3. **Use the native driver** (which supports the wire encryption protocol):
+   ```bash
+   npx mcp-firebird@alpha --use-native-driver \
+     --database=/path/to/database.fdb \
+     --host=localhost \
+     --user=SYSDBA \
+     --password=masterkey
+   ```
+
+**Reference**: [Firebird 3.0 Release Notes - WireCrypt](https://firebirdsql.org/file/documentation/release_notes/html/en/3_0/rlsnotes30.html#conf-wirecrypt)
 
 ### Best Practices
 
 1. **Always use wire encryption in production**:
-   ```bash
-   --use-native-driver --wire-crypt=Required
-   ```
+   - Configure `WireCrypt = Required` in server's `firebird.conf`
+   - Use `--use-native-driver` flag
+   - Verify encryption is active in Firebird logs
 
 2. **Use strong passwords**:
    - Minimum 12 characters

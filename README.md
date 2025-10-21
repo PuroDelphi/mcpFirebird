@@ -46,10 +46,25 @@ npx mcp-firebird@alpha --database=/path/to/database.fdb
 
 ### Advanced (With Wire Encryption Support)
 
+⚠️ **IMPORTANT**: Wire encryption must be configured on the **Firebird server** (`firebird.conf`), not on the client.
+
+**Server Configuration** (required first):
+```conf
+# In firebird.conf on the server
+WireCrypt = Required  # or Enabled
+```
+
+**Client Installation**:
 ```bash
-# Requires: Visual Studio Build Tools (Windows) or build-essential (Linux)
+# Step 1: Install build tools
+# Windows: Visual Studio Build Tools (https://visualstudio.microsoft.com/downloads/)
+# Linux: sudo apt-get install build-essential python3 firebird-dev
+# macOS: xcode-select --install && brew install firebird
+
+# Step 2: Install native driver
 npm install -g node-firebird-driver-native
 
+# Step 3: Use native driver
 npx mcp-firebird@alpha --use-native-driver \
   --database=/path/to/database.fdb \
   --host=localhost \
@@ -58,6 +73,7 @@ npx mcp-firebird@alpha --use-native-driver \
 ```
 
 **📚 For detailed installation instructions, see:**
+- [Native Driver Installation Guide](./docs/native-driver-installation.md) - **Step-by-step for Windows/Linux/macOS**
 - [Wire Encryption Guide](./docs/wire-encryption-limitation.md)
 - [Advanced Installation Guide](./docs/advanced-installation.md)
 
