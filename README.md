@@ -289,22 +289,34 @@ server {
 
 #### Firebird Connection Issues
 
-1. **Wire Encryption Incompatibility (Firebird 3.0+)**
+1. **Wire Encryption Incompatibility (Firebird 3.0+)** ⚠️ **CRITICAL**
 
    **Error**: `Incompatible wire encryption levels requested on client and server`
 
-   **Solution**: Disable wire encryption using the `--wire-crypt` parameter:
-   ```bash
-   npx mcp-firebird@alpha --wire-crypt Disabled --database /path/to/db.fdb
+   **IMPORTANT**: The `node-firebird` library does NOT support Firebird 3.0+ wire encryption. The `--wire-crypt` parameter does NOT work.
+
+   **ONLY Solution**: You MUST disable wire encryption on the Firebird server:
+
+   For Firebird 3.0, add to `firebird.conf`:
+   ```conf
+   WireCrypt = Disabled
+   AuthServer = Srp, Legacy_Auth
    ```
 
-   Or set environment variable:
-   ```bash
-   export FIREBIRD_WIRECRYPT=Disabled
-   npx mcp-firebird@alpha
+   For Firebird 4.0+, add to `firebird.conf`:
+   ```conf
+   WireCrypt = Disabled
+   AuthServer = Srp256, Srp, Legacy_Auth
    ```
 
-   See [Wire Encryption Fix Documentation](./docs/wire-encryption-fix.md) for more details.
+   For Firebird 5.0 Docker:
+   ```yaml
+   environment:
+     FIREBIRD_CONF_WireCrypt: Disabled
+     FIREBIRD_CONF_AuthServer: Srp256, Srp
+   ```
+
+   **If you cannot change server configuration**, see [Wire Encryption Limitation](./docs/wire-encryption-limitation.md) for alternatives.
 
 2. **Database Path Issues on Linux/Unix**
 
