@@ -155,17 +155,36 @@ class NativeDriver implements IFirebirdDriver {
                 wireCrypt: config.wireCrypt || 'Enabled'
             });
             
-            // Build connection string
-            const connectionString = config.host 
-                ? `${config.host}/${config.port}:${config.database}`
-                : config.database;
+            // Build connection string for native driver
+            // For local connections (localhost/127.0.0.1), use direct path
+            // For remote connections, use host:path format
+            let connectionString: string;
+            if (config.host === 'localhost' || config.host === '127.0.0.1') {
+                // Local connection - use direct path
+                connectionString = config.database;
+            } else {
+                // Remote connection - use host:path format
+                connectionString = `${config.host}:${config.database}`;
+            }
             
-            // Connect using native driver
-            this.attachment = await this.client.connect(connectionString, {
+            // Build connection options
+            const connectionOptions: any = {
                 username: config.user,
-                password: config.password,
-                role: config.role
-            });
+                password: config.password
+            };
+
+            // Add optional parameters
+            if (config.role) {
+                connectionOptions.role = config.role;
+            }
+
+            // Add port if not default
+            if (config.port && config.port !== 3050) {
+                connectionOptions.port = config.port;
+            }
+
+            // Connect using native driver
+            this.attachment = await this.client.connect(connectionString, connectionOptions);
             
             logger.info('Conexión exitosa con node-firebird-driver-native');
             
