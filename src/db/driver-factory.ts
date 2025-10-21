@@ -154,17 +154,25 @@ class NativeDriver implements IFirebirdDriver {
                 user: config.user,
                 wireCrypt: config.wireCrypt || 'Enabled'
             });
-            
+
             // Build connection string for native driver
             // For local connections (localhost/127.0.0.1), use direct path
-            // For remote connections, use host:path format
+            // For remote connections, use host:path or host/port:path format
             let connectionString: string;
-            if (config.host === 'localhost' || config.host === '127.0.0.1') {
+            const isLocalConnection = config.host === 'localhost' || config.host === '127.0.0.1';
+
+            if (isLocalConnection) {
                 // Local connection - use direct path
                 connectionString = config.database;
+                logger.info(`Using local connection string: ${connectionString}`);
             } else {
-                // Remote connection - use host:path format
-                connectionString = `${config.host}:${config.database}`;
+                // Remote connection - use host/port:path format if port is specified
+                if (config.port && config.port !== 3050) {
+                    connectionString = `${config.host}/${config.port}:${config.database}`;
+                } else {
+                    connectionString = `${config.host}:${config.database}`;
+                }
+                logger.info(`Using remote connection string: ${connectionString}`);
             }
             
             // Build connection options
@@ -182,6 +190,17 @@ class NativeDriver implements IFirebirdDriver {
             if (config.port && config.port !== 3050) {
                 connectionOptions.port = config.port;
             }
+
+            // Add wire encryption configuration
+            if (config.wireCrypt) {
+                // Map our wireCrypt values to the native driver's expected format
+                // The native driver expects: 'Disabled', 'Enabled', or 'Required'
+                connectionOptions.config = connectionOptions.config || '';
+                connectionOptions.config += `WireCrypt=${config.wireCrypt};`;
+                logger.info(`Wire encryption configured: ${config.wireCrypt}`);
+            }
+
+            logger.info('Connection options:', connectionOptions);
 
             // Connect using native driver
             this.attachment = await this.client.connect(connectionString, connectionOptions);
