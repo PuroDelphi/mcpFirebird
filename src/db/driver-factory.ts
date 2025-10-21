@@ -6,8 +6,12 @@
 import { createLogger } from '../utils/logger.js';
 import { FirebirdError, ErrorTypes } from '../utils/errors.js';
 import type { ConfigOptions, FirebirdDatabase } from './connection.js';
+import { createRequire } from 'module';
 
 const logger = createLogger('db:driver-factory');
+
+// Create require function for ES modules to load CommonJS modules
+const require = createRequire(import.meta.url);
 
 
 /**
@@ -126,30 +130,43 @@ class NativeDriver implements IFirebirdDriver {
     
     async initialize(): Promise<void> {
         if (!this.client) {
+            let nativeModule;
+            let loadMethod = 'unknown';
+
             try {
                 // Try to load the native driver using require (works with global modules)
-                // We use require instead of import because it can find globally installed modules
-                let nativeModule;
-
+                // We use createRequire from 'module' to enable require() in ES modules
                 try {
-                    // First try: direct require (works if installed locally or globally accessible)
+                    logger.info('Attempting to load native driver via require...');
                     nativeModule = require('node-firebird-driver-native');
-                    logger.info('Native driver loaded via require (local or global)');
+                    loadMethod = 'require';
+                    logger.info('✅ Native driver loaded via require (local or global)');
                 } catch (requireError) {
+                    const reqErrMsg = requireError instanceof Error ? requireError.message : String(requireError);
+                    logger.warn('Failed to load via require, trying dynamic import...', { error: reqErrMsg });
+
                     // Second try: dynamic import (for ESM compatibility)
                     const importModule = new Function('moduleName', 'return import(moduleName)');
                     nativeModule = await importModule('node-firebird-driver-native');
-                    logger.info('Native driver loaded via dynamic import');
+                    loadMethod = 'dynamic import';
+                    logger.info('✅ Native driver loaded via dynamic import');
                 }
 
+                logger.info('Creating native client...', { loadMethod });
                 this.client = nativeModule.createNativeClient(nativeModule.getDefaultLibraryFilename());
-                logger.info('Cliente nativo de Firebird inicializado correctamente');
+                logger.info('✅ Cliente nativo de Firebird inicializado correctamente', { loadMethod });
             } catch (error) {
                 const errorMessage = error instanceof Error ? error.message : String(error);
-                logger.error('Failed to load native driver', { error: errorMessage });
+                const errorStack = error instanceof Error ? error.stack : undefined;
+                logger.error('❌ Failed to load native driver', {
+                    error: errorMessage,
+                    stack: errorStack,
+                    loadMethod
+                });
                 throw new FirebirdError(
                     'node-firebird-driver-native no está instalado o no se pudo cargar. ' +
-                    'Instálalo globalmente con: npm install -g node-firebird-driver-native',
+                    'Instálalo globalmente con: npm install -g node-firebird-driver-native\n' +
+                    `Error: ${errorMessage}`,
                     ErrorTypes.DATABASE_CONNECTION,
                     { originalError: error }
                 );
