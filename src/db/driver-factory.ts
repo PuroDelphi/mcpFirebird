@@ -9,57 +9,6 @@ import type { ConfigOptions, FirebirdDatabase } from './connection.js';
 
 const logger = createLogger('db:driver-factory');
 
-/**
- * DPB (Database Parameter Buffer) constants for Firebird
- */
-const DPB_CONSTANTS = {
-    version1: 1,
-    lc_ctype: 48,
-    user_name: 28,
-    password: 29,
-    sql_role_name: 60,
-    config: 87  // isc_dpb_config - for passing configuration strings like WireCrypt
-};
-
-/**
- * Create DPB buffer with wire encryption support
- * This extends the standard createDpb from node-firebird-driver to support wire encryption
- */
-function createDpbWithWireCrypt(options: any): Buffer {
-    const code = (c: number) => String.fromCharCode(c);
-    const charSet = 'utf8';
-    let ret = `${code(DPB_CONSTANTS.version1)}${code(DPB_CONSTANTS.lc_ctype)}${code(charSet.length)}${charSet}`;
-
-    if (options.username) {
-        ret += `${code(DPB_CONSTANTS.user_name)}${code(options.username.length)}${options.username}`;
-    }
-
-    if (options.password) {
-        ret += `${code(DPB_CONSTANTS.password)}${code(options.password.length)}${options.password}`;
-    }
-
-    if (options.role) {
-        ret += `${code(DPB_CONSTANTS.sql_role_name)}${code(options.role.length)}${options.role}`;
-    }
-
-    // Add wire encryption configuration using isc_dpb_config
-    if (options.config) {
-        const configStr = options.config;
-        logger.info('Adding config to DPB', {
-            config: configStr,
-            length: configStr.length,
-            dpbConstant: DPB_CONSTANTS.config
-        });
-        ret += `${code(DPB_CONSTANTS.config)}${code(configStr.length)}${configStr}`;
-    }
-
-    const buffer = Buffer.from(ret);
-    logger.info('DPB buffer created', {
-        totalLength: buffer.length,
-        hex: buffer.toString('hex').substring(0, 100)
-    });
-    return buffer;
-}
 
 /**
  * Driver types available
@@ -218,39 +167,48 @@ class NativeDriver implements IFirebirdDriver {
             } else {
                 connectionString = `${config.host}:${config.database}`;
             }
-            logger.info(`Using TCP/IP connection string: ${connectionString}`);
+            logger.info('Connection details', {
+                connectionString,
+                host: config.host,
+                port: config.port,
+                database: config.database,
+                wireCrypt: config.wireCrypt
+            });
 
-            // Build connection options for DPB
-            const dpbOptions: any = {
+            // IMPORTANT: WireCrypt CANNOT be configured via DPB (Database Parameter Buffer)
+            // According to Firebird documentation, WireCrypt must be configured in:
+            // - firebird.conf (server-side)
+            // - databases.conf (per-database override)
+            //
+            // The DPB only supports: username, password, role, forcedWrite
+            // See: https://firebirdsql.org/file/documentation/release_notes/html/en/3_0/rlsnotes30.html
+            //
+            // If you need wire encryption, configure it in the Firebird server's firebird.conf:
+            // WireCrypt = Required | Enabled | Disabled
+
+            if (config.wireCrypt) {
+                logger.warn('WireCrypt parameter ignored - must be configured in firebird.conf on the server');
+                logger.warn('See: https://firebirdsql.org/file/documentation/release_notes/html/en/3_0/rlsnotes30.html#conf-wirecrypt');
+            }
+
+            // Use the standard connect method with connection options
+            const connectionOptions: any = {
                 username: config.user,
                 password: config.password
             };
 
             // Add optional parameters
             if (config.role) {
-                dpbOptions.role = config.role;
+                connectionOptions.role = config.role;
             }
 
-            // Add wire encryption configuration
-            if (config.wireCrypt) {
-                dpbOptions.config = `WireCrypt=${config.wireCrypt}`;
-                logger.info(`Wire encryption configured: WireCrypt=${config.wireCrypt}`);
-            }
+            logger.info('Connecting with standard connection options', connectionOptions);
 
-            // Create DPB buffer with wire encryption support
-            const dpb = createDpbWithWireCrypt(dpbOptions);
-
-            logger.info('Connecting with custom DPB buffer', { dpbLength: dpb.length });
-
-            // Use statusAction helper to manage status object lifecycle
-            this.attachment = await (this.client as any).statusAction(async (status: any) => {
-                return await (this.client as any).dispatcher.attachDatabaseAsync(
-                    status,
-                    connectionString,
-                    dpb.length,
-                    dpb
-                );
-            });
+            // Use the standard connect method
+            this.attachment = await (this.client as any).connect(
+                connectionString,
+                connectionOptions
+            );
             
             logger.info('Conexión exitosa con node-firebird-driver-native');
             
