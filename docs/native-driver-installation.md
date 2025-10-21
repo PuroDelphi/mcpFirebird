@@ -29,25 +29,42 @@ The native driver (`node-firebird-driver-native`) requires:
 - ❌ Requires admin/sudo privileges
 - ❌ Larger installation size (~7 GB on Windows)
 
-### ⚠️ Important: NPX vs Global Installation
+### ⚠️ CRITICAL: NPX Does NOT Work with Native Driver
 
-When using `npx mcp-firebird@alpha`, npm downloads a temporary copy of the package that **does NOT include optional dependencies** like `node-firebird-driver-native`.
+**`npx mcp-firebird@alpha` CANNOT use the native driver**, even if `node-firebird-driver-native` is installed globally.
 
-**Two solutions:**
+**Why?** When `npx` runs a package, it downloads it to a temporary cache folder (`C:\Users\...\npm-cache\_npx\...`). Node.js module resolution (`require()` and `import()`) can only find modules in:
+1. The same `node_modules` folder as the running package
+2. Parent directories of the running package
 
-1. **Install globally** (Recommended):
-   ```bash
-   npm install -g mcp-firebird@alpha
-   npm install -g node-firebird-driver-native
-   ```
-   Then use: `mcp-firebird --use-native-driver ...`
+Global modules are installed in a completely different location (`C:\Users\...\AppData\Roaming\npm\node_modules`), so they are **invisible** to packages running from npx's temporary cache.
 
-2. **Use automated installation script** (Windows):
-   ```powershell
-   # Download and run the installation script
-   Invoke-WebRequest -Uri "https://raw.githubusercontent.com/PuroDelphi/mcpFirebird/alpha/install-with-native-driver.ps1" -OutFile "install.ps1"
-   .\install.ps1
-   ```
+**The ONLY solution for wire encryption support:**
+
+### ✅ Global Installation (Required for Native Driver)
+
+```bash
+# Step 1: Install mcp-firebird globally
+npm install -g mcp-firebird@alpha
+
+# Step 2: Install native driver globally
+npm install -g node-firebird-driver-native
+
+# Step 3: Verify both are in the same location
+npm list -g mcp-firebird
+npm list -g node-firebird-driver-native
+
+# Step 4: Run directly (WITHOUT npx)
+mcp-firebird --use-native-driver --database "path/to/database.fdb" --user SYSDBA --password masterkey
+```
+
+**Alternative: Automated Installation Script (Windows)**
+
+```powershell
+# Download and run the installation script
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/PuroDelphi/mcpFirebird/alpha/install-with-native-driver.ps1" -OutFile "install.ps1"
+.\install.ps1
+```
 
 ---
 

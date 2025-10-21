@@ -46,6 +46,8 @@ npx mcp-firebird@alpha --database=/path/to/database.fdb
 
 ### Advanced (With Wire Encryption Support)
 
+⚠️ **CRITICAL**: `npx` does NOT work with the native driver. You MUST install globally.
+
 ⚠️ **IMPORTANT**: Wire encryption must be configured on the **Firebird server** (`firebird.conf`), not on the client.
 
 **Server Configuration** (required first):
@@ -54,23 +56,28 @@ npx mcp-firebird@alpha --database=/path/to/database.fdb
 WireCrypt = Required  # or Enabled
 ```
 
-**Client Installation**:
+**Client Installation** (MUST be global):
 ```bash
 # Step 1: Install build tools
 # Windows: Visual Studio Build Tools (https://visualstudio.microsoft.com/downloads/)
 # Linux: sudo apt-get install build-essential python3 firebird-dev
 # macOS: xcode-select --install && brew install firebird
 
-# Step 2: Install native driver
+# Step 2: Install MCP Firebird globally
+npm install -g mcp-firebird@alpha
+
+# Step 3: Install native driver globally
 npm install -g node-firebird-driver-native
 
-# Step 3: Use native driver
-npx mcp-firebird@alpha --use-native-driver \
+# Step 4: Run directly (WITHOUT npx)
+mcp-firebird --use-native-driver \
   --database=/path/to/database.fdb \
   --host=localhost \
   --user=SYSDBA \
   --password=masterkey
 ```
+
+**Why not npx?** When `npx` runs a package from its temporary cache, it cannot access globally installed modules like `node-firebird-driver-native`. Both packages must be installed globally in the same location.
 
 **📚 For detailed installation instructions, see:**
 - [Native Driver Installation Guide](./docs/native-driver-installation.md) - **Step-by-step for Windows/Linux/macOS**
