@@ -187,7 +187,7 @@ class NativeDriver implements IFirebirdDriver {
     
     async attach(config: ConfigOptions): Promise<FirebirdDatabase> {
         await this.initialize();
-        
+
         try {
             logger.info('Conectando con node-firebird-driver-native (Native Client)...', {
                 host: config.host,
@@ -216,7 +216,7 @@ class NativeDriver implements IFirebirdDriver {
                 }
                 logger.info(`Using remote connection string: ${connectionString}`);
             }
-            
+
             // Build connection options for DPB
             const dpbOptions: any = {
                 username: config.user,
@@ -230,7 +230,6 @@ class NativeDriver implements IFirebirdDriver {
 
             // Add wire encryption configuration
             if (config.wireCrypt) {
-                // WireCrypt values: Disabled, Enabled, Required
                 dpbOptions.config = `WireCrypt=${config.wireCrypt}`;
                 logger.info(`Wire encryption configured: WireCrypt=${config.wireCrypt}`);
             }
@@ -238,21 +237,17 @@ class NativeDriver implements IFirebirdDriver {
             // Create DPB buffer with wire encryption support
             const dpb = createDpbWithWireCrypt(dpbOptions);
 
-            logger.info('Connecting with DPB buffer', { dpbLength: dpb.length });
+            logger.info('Connecting with custom DPB buffer', { dpbLength: dpb.length });
 
-            // Connect using native driver with DPB buffer
-            // We need to use the low-level API to pass the DPB buffer directly
-            const status = this.client.master.getStatusSync();
-            try {
-                this.attachment = await this.client.dispatcher.attachDatabaseAsync(
+            // Use statusAction helper to manage status object lifecycle
+            this.attachment = await (this.client as any).statusAction(async (status: any) => {
+                return await (this.client as any).dispatcher.attachDatabaseAsync(
                     status,
                     connectionString,
                     dpb.length,
                     dpb
                 );
-            } finally {
-                status.disposeSync();
-            }
+            });
             
             logger.info('Conexión exitosa con node-firebird-driver-native');
             
