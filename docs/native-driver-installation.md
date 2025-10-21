@@ -118,7 +118,34 @@ Invoke-WebRequest -Uri "https://raw.githubusercontent.com/PuroDelphi/mcpFirebird
    dir "C:\Program Files\Firebird\Firebird_5_0\fbclient.dll"
    ```
 
-4. **Add to PATH** (if not already added):
+4. **⚠️ CRITICAL: Verify 64-bit DLL**:
+
+   Node.js is typically 64-bit, so you MUST use a 64-bit `fbclient.dll`. Using a 32-bit DLL will cause the error:
+   ```
+   Cannot load Firebird client library: 'fbclient.dll'
+   ```
+
+   **Verify Node.js architecture:**
+   ```powershell
+   node -p "process.arch"
+   # Should output: x64
+   ```
+
+   **Verify fbclient.dll architecture:**
+   ```powershell
+   # Using Git Bash or WSL
+   file "C:/Program Files/Firebird/Firebird_5_0/fbclient.dll"
+   # Should output: PE32+ executable (DLL) ... x86-64
+   # NOT: PE32 executable (DLL) ... Intel 80386 (32-bit)
+   ```
+
+   **If you have a 32-bit DLL:**
+   - Download the **64-bit** version of Firebird from https://firebirdsql.org/
+   - Look for "Windows 64-bit" or "x64" in the download name
+   - Uninstall the 32-bit version first
+   - Install the 64-bit version
+
+5. **Add to PATH** (if not already added):
    ```powershell
    # Add Firebird bin directory to PATH
    $env:Path += ";C:\Program Files\Firebird\Firebird_5_0"
