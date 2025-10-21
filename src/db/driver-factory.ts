@@ -127,16 +127,29 @@ class NativeDriver implements IFirebirdDriver {
     async initialize(): Promise<void> {
         if (!this.client) {
             try {
-                // Dynamic import using Function constructor to avoid TypeScript checking
-                // This allows the module to be optional without compilation errors
-                const importModule = new Function('moduleName', 'return import(moduleName)');
-                const nativeModule = await importModule('node-firebird-driver-native');
+                // Try to load the native driver using require (works with global modules)
+                // We use require instead of import because it can find globally installed modules
+                let nativeModule;
+
+                try {
+                    // First try: direct require (works if installed locally or globally accessible)
+                    nativeModule = require('node-firebird-driver-native');
+                    logger.info('Native driver loaded via require (local or global)');
+                } catch (requireError) {
+                    // Second try: dynamic import (for ESM compatibility)
+                    const importModule = new Function('moduleName', 'return import(moduleName)');
+                    nativeModule = await importModule('node-firebird-driver-native');
+                    logger.info('Native driver loaded via dynamic import');
+                }
+
                 this.client = nativeModule.createNativeClient(nativeModule.getDefaultLibraryFilename());
                 logger.info('Cliente nativo de Firebird inicializado correctamente');
             } catch (error) {
+                const errorMessage = error instanceof Error ? error.message : String(error);
+                logger.error('Failed to load native driver', { error: errorMessage });
                 throw new FirebirdError(
                     'node-firebird-driver-native no está instalado o no se pudo cargar. ' +
-                    'Instálalo con: npm install node-firebird-driver-native',
+                    'Instálalo globalmente con: npm install -g node-firebird-driver-native',
                     ErrorTypes.DATABASE_CONNECTION,
                     { originalError: error }
                 );
@@ -305,12 +318,18 @@ export class DriverFactory {
      */
     static async isNativeDriverAvailable(): Promise<boolean> {
         try {
-            // Dynamic import using Function constructor to avoid TypeScript checking
-            const importModule = new Function('moduleName', 'return import(moduleName)');
-            await importModule('node-firebird-driver-native');
+            // Try require first (works with global modules)
+            require('node-firebird-driver-native');
             return true;
         } catch {
-            return false;
+            try {
+                // Fallback to dynamic import
+                const importModule = new Function('moduleName', 'return import(moduleName)');
+                await importModule('node-firebird-driver-native');
+                return true;
+            } catch {
+                return false;
+            }
         }
     }
     
