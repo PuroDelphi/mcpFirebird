@@ -208,24 +208,17 @@ class NativeDriver implements IFirebirdDriver {
             });
 
             // Build connection string for native driver
-            // For local connections (localhost/127.0.0.1), use direct path
-            // For remote connections, use host:path or host/port:path format
+            // IMPORTANT: Always use TCP/IP format (host:path) even for localhost
+            // to enable wire encryption. Direct path uses embedded mode which doesn't support wire encryption.
             let connectionString: string;
-            const isLocalConnection = config.host === 'localhost' || config.host === '127.0.0.1';
 
-            if (isLocalConnection) {
-                // Local connection - use direct path
-                connectionString = config.database;
-                logger.info(`Using local connection string: ${connectionString}`);
+            // Always use TCP/IP format when wire encryption is enabled
+            if (config.port && config.port !== 3050) {
+                connectionString = `${config.host}/${config.port}:${config.database}`;
             } else {
-                // Remote connection - use host/port:path format if port is specified
-                if (config.port && config.port !== 3050) {
-                    connectionString = `${config.host}/${config.port}:${config.database}`;
-                } else {
-                    connectionString = `${config.host}:${config.database}`;
-                }
-                logger.info(`Using remote connection string: ${connectionString}`);
+                connectionString = `${config.host}:${config.database}`;
             }
+            logger.info(`Using TCP/IP connection string: ${connectionString}`);
 
             // Build connection options for DPB
             const dpbOptions: any = {
