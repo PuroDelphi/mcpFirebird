@@ -259,11 +259,37 @@ class NativeDriver implements IFirebirdDriver {
      */
     private createAdapter(attachment: any): FirebirdDatabase {
         return {
-            query: (sql: string, params: any[], callback: (err: Error | null, results?: any[]) => void) => {
-                attachment.executeQuery(sql, params)
-                    .then((resultSet: any) => resultSet.fetchAll())
-                    .then((rows: any[]) => callback(null, rows))
-                    .catch((err: Error) => callback(err));
+            query: async (sql: string, params: any[], callback: (err: Error | null, results?: any[]) => void) => {
+                let transaction;
+                try {
+                    // Start a transaction for the query
+                    transaction = await attachment.startTransaction();
+
+                    // Execute query with transaction
+                    const resultSet = await attachment.executeQuery(transaction, sql, params);
+
+                    // Fetch all results
+                    const rows = await resultSet.fetchAsObject();
+
+                    // Close result set
+                    await resultSet.close();
+
+                    // Commit transaction
+                    await transaction.commit();
+
+                    // Return results
+                    callback(null, rows);
+                } catch (err) {
+                    // Rollback on error
+                    if (transaction) {
+                        try {
+                            await transaction.rollback();
+                        } catch (rollbackErr) {
+                            logger.error('Error rolling back transaction', { error: rollbackErr });
+                        }
+                    }
+                    callback(err as Error);
+                }
             },
             detach: (callback: (err: Error | null) => void) => {
                 attachment.disconnect()
