@@ -1,6 +1,6 @@
 {
   "name": "mcp-firebird",
-  "version": "2.5.0-alpha.10",
+  "version": "2.5.0-alpha.11",
   "description": "MCP server for Firebird database",
   "main": "dist/index.js",
   "type": "module",
@@ -15,7 +15,8 @@
     "dev": "nodemon -e ts --watch src/ --exec \"npm run build && npm run start\"",
     "sse": "nodemon -e ts --watch src/ --exec \"node dist/index.js\"",
     "inspector": "npm run build && node run-inspector.cjs",
-    "inspector-sse": "npm run build && npx @modelcontextprotocol/inspector http://localhost:3003"
+    "inspector-sse": "npm run build && npx @modelcontextprotocol/inspector http://localhost:3003",
+    "postinstall": "node -e \"try { require('node-firebird-driver-native'); console.log('✅ Native driver available'); } catch(e) { console.log('ℹ️  Native driver not installed. For wire encryption support, run: npm install node-firebird-driver-native'); }\""
   },
   "author": "Jhonny Suárez - asistentesautonomos.com",
   "license": "MIT",

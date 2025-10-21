@@ -29,6 +29,26 @@ The native driver (`node-firebird-driver-native`) requires:
 - ❌ Requires admin/sudo privileges
 - ❌ Larger installation size (~7 GB on Windows)
 
+### ⚠️ Important: NPX vs Global Installation
+
+When using `npx mcp-firebird@alpha`, npm downloads a temporary copy of the package that **does NOT include optional dependencies** like `node-firebird-driver-native`.
+
+**Two solutions:**
+
+1. **Install globally** (Recommended):
+   ```bash
+   npm install -g mcp-firebird@alpha
+   npm install -g node-firebird-driver-native
+   ```
+   Then use: `mcp-firebird --use-native-driver ...`
+
+2. **Use automated installation script** (Windows):
+   ```powershell
+   # Download and run the installation script
+   Invoke-WebRequest -Uri "https://raw.githubusercontent.com/PuroDelphi/mcpFirebird/alpha/install-with-native-driver.ps1" -OutFile "install.ps1"
+   .\install.ps1
+   ```
+
 ---
 
 ## Windows Installation
