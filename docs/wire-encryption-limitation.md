@@ -1,10 +1,17 @@
-# Wire Encryption Limitation - IMPORTANT
+# Wire Encryption Support in MCP Firebird
 
-## ⚠️ Critical Limitation
+## 📋 Overview
 
-**The `node-firebird` library does NOT support Firebird 3.0+ wire encryption protocol.**
+MCP Firebird now supports **two driver options**:
 
-This means that `mcp-firebird` **CANNOT** connect to Firebird 3.0+ servers that have wire encryption enabled, regardless of any client-side configuration.
+1. **Pure JavaScript Driver** (`node-firebird`) - Default, simple installation, **NO wire encryption support**
+2. **Native Driver** (`node-firebird-driver-native`) - Optional, requires compilation, **FULL wire encryption support**
+
+## ⚠️ Default Driver Limitation
+
+**The default `node-firebird` library does NOT support Firebird 3.0+ wire encryption protocol.**
+
+This means that by default, `mcp-firebird` **CANNOT** connect to Firebird 3.0+ servers that have wire encryption enabled.
 
 ## The Problem
 
@@ -23,9 +30,48 @@ The `--wire-crypt` parameter was added to `mcp-firebird` based on a misunderstan
 - The library can ONLY connect to servers with wire encryption **disabled**
 - No client-side parameter can change this limitation
 
-## The ONLY Solution
+## ✅ Solution 1: Use Native Driver (RECOMMENDED for Wire Encryption)
 
-You **MUST** disable wire encryption on the Firebird server by modifying the `firebird.conf` file.
+If you need wire encryption support, use the `--use-native-driver` flag:
+
+```bash
+npx mcp-firebird@alpha --use-native-driver \
+  --database=/path/to/database.fdb \
+  --host=localhost \
+  --port=3050 \
+  --user=SYSDBA \
+  --password=masterkey
+```
+
+### Requirements for Native Driver
+
+1. **Install build tools** (one-time setup):
+   - **Windows**: Visual Studio Build Tools
+   - **Linux**: `build-essential`, `python3`
+   - **macOS**: Xcode Command Line Tools
+
+2. **Install Firebird client library**:
+   - **Windows**: Download and install Firebird client
+   - **Linux**: `sudo apt-get install firebird-dev` (Ubuntu/Debian)
+   - **macOS**: `brew install firebird`
+
+3. **Install the native driver**:
+   ```bash
+   npm install -g node-firebird-driver-native
+   ```
+
+For detailed installation instructions, see [Advanced Installation Guide](./advanced-installation.md).
+
+### Benefits of Native Driver
+
+- ✅ **Full wire encryption support** (Disabled, Enabled, Required)
+- ✅ **Better performance** (uses native fbclient library)
+- ✅ **All Firebird features** supported
+- ❌ **More complex installation** (requires compilation)
+
+## Solution 2: Disable Wire Encryption on Server (Simpler)
+
+If you don't need wire encryption, you can disable it on the Firebird server by modifying the `firebird.conf` file.
 
 ### For Firebird 3.0
 

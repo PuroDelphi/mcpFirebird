@@ -27,6 +27,39 @@ MCP Firebird is a server that implements Anthropic's [Model Context Protocol (MC
 - **VSCode Integration**: Works with GitHub Copilot in Visual Studio Code
 - **Session Management**: Robust session handling with automatic cleanup and configurable timeouts
 - **Security**: Includes SQL query validation and security configuration options
+- **Dual Driver Support**: Choose between simple installation (default) or native driver with wire encryption support
+
+## 🔒 Wire Encryption Support
+
+MCP Firebird supports **two driver options**:
+
+| Driver | Installation | Wire Encryption | Use Case |
+|--------|--------------|-----------------|----------|
+| **Pure JavaScript** (default) | ✅ Simple (`npx`) | ❌ No | Most users, quick setup |
+| **Native Driver** (optional) | ⚠️ Complex (requires build tools) | ✅ Yes | Enterprise, security required |
+
+### Quick Start (Default - No Wire Encryption)
+
+```bash
+npx mcp-firebird@alpha --database=/path/to/database.fdb
+```
+
+### Advanced (With Wire Encryption Support)
+
+```bash
+# Requires: Visual Studio Build Tools (Windows) or build-essential (Linux)
+npm install -g node-firebird-driver-native
+
+npx mcp-firebird@alpha --use-native-driver \
+  --database=/path/to/database.fdb \
+  --host=localhost \
+  --user=SYSDBA \
+  --password=masterkey
+```
+
+**📚 For detailed installation instructions, see:**
+- [Wire Encryption Guide](./docs/wire-encryption-limitation.md)
+- [Advanced Installation Guide](./docs/advanced-installation.md)
 
 ### Manual Installation
 

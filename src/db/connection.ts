@@ -6,6 +6,7 @@
 import Firebird from 'node-firebird';
 import { createLogger } from '../utils/logger.js';
 import { FirebirdError, ErrorTypes } from '../utils/errors.js';
+import { DriverFactory } from './driver-factory.js';
 
 const logger = createLogger('db:connection');
 
@@ -164,76 +165,84 @@ export const DEFAULT_CONFIG: ConfigOptions = {
 // FirebirdError is now imported from '../utils/errors.js'
 
 /**
- * Establece conexión con la base de datos
+ * Establece conexión con la base de datos usando el driver apropiado
  * @param config - Configuración de conexión a la base de datos
  * @returns Objeto de conexión a la base de datos
  * @throws {FirebirdError} Error categorizado si la conexión falla
  */
-export const connectToDatabase = (config = getDefaultConfig()): Promise<FirebirdDatabase> => {
-    return new Promise((resolve, reject) => {
-        logger.info(`Connecting to ${config.host}:${config.port}/${config.database}`);
+export const connectToDatabase = async (config = getDefaultConfig()): Promise<FirebirdDatabase> => {
+    logger.info(`Connecting to ${config.host}:${config.port}/${config.database}`);
 
-        // Verify minimum parameters
-        if (!config.database) {
-            // Si no hay base de datos configurada, usar una ruta predeterminada para pruebas
-            console.error('No database specified in config, using hardcoded default path');
-            config.database = 'F:/Proyectos/SAI/EMPLOYEE.FDB';
-            console.error(`Using default database path: ${config.database}`);
+    // Verify minimum parameters
+    if (!config.database) {
+        // Si no hay base de datos configurada, usar una ruta predeterminada para pruebas
+        console.error('No database specified in config, using hardcoded default path');
+        config.database = 'F:/Proyectos/SAI/EMPLOYEE.FDB';
+        console.error(`Using default database path: ${config.database}`);
+    }
+
+    // Log connection attempt with full details
+    console.error('Attempting to connect with the following configuration:');
+    console.error(`- Host: ${config.host}`);
+    console.error(`- Port: ${config.port}`);
+    console.error(`- Database: ${config.database}`);
+    console.error(`- User: ${config.user}`);
+    console.error(`- Role: ${config.role || 'Not specified'}`);
+    console.error(`- WireCrypt: ${config.wireCrypt || 'Not specified'}`);
+
+    try {
+        // Get appropriate driver from factory
+        const driver = await DriverFactory.getDriver();
+        const driverInfo = await DriverFactory.getDriverInfo();
+
+        logger.info(`Using driver: ${driverInfo.current}`, {
+            supportsWireEncryption: driverInfo.supportsWireEncryption,
+            nativeAvailable: driverInfo.nativeAvailable
+        });
+
+        // Warn if wire encryption is requested but not supported
+        if (config.wireCrypt && config.wireCrypt !== 'Disabled' && !driverInfo.supportsWireEncryption) {
+            logger.warn(
+                'Wire encryption requested but current driver does not support it. ' +
+                'Use --use-native-driver flag to enable wire encryption support.'
+            );
         }
 
-        // Log connection attempt with full details
-        console.error('Attempting to connect with the following configuration:');
-        console.error(`- Host: ${config.host}`);
-        console.error(`- Port: ${config.port}`);
-        console.error(`- Database: ${config.database}`);
-        console.error(`- Database (original case preserved): ${config.database}`);
-        console.error(`- User: ${config.user}`);
-        // Don't log password
-        console.error(`- Role: ${config.role || 'Not specified'}`);
-        console.error(`- WireCrypt: ${config.wireCrypt || 'Not specified'}`);
+        // Connect using the selected driver
+        const db = await driver.attach(config);
+        logger.info('Connection established successfully');
 
-        // Preserve the original database path case
-        // Note: node-firebird may internally convert paths, but we ensure we pass the original case
-        const connectionConfig = {
-            ...config,
-            database: config.database // Explicitly preserve the original case
-        };
+        return db;
+    } catch (error) {
+        // Categorize the error for better handling
+        let errorType = ErrorTypes.DATABASE_CONNECTION;
+        let errorMsg = `Error connecting to database: ${error instanceof Error ? error.message : String(error)}`;
 
-        Firebird.attach(connectionConfig, (err: Error | null, db: any) => {
-            if (err) {
-                // Categorize the error for better handling
-                let errorType = ErrorTypes.DATABASE_CONNECTION;
-                let errorMsg = `Error connecting to database: ${err.message}`;
-
-                if (err.message.includes('service is not defined')) {
-                    errorType = ErrorTypes.DATABASE_CONNECTION;
-                    errorMsg = 'Firebird service is not available. Verify that the Firebird server is running.';
-                } else if (err.message.includes('ECONNREFUSED')) {
-                    errorType = ErrorTypes.DATABASE_CONNECTION;
-                    errorMsg = `Connection refused at ${config.host}:${config.port}. Verify that the Firebird server is running and accessible at this address.`;
-                } else if (err.message.includes('ENOENT')) {
-                    errorType = ErrorTypes.DATABASE_CONNECTION;
-                    errorMsg = `Database not found: ${config.database}. Verify the path and permissions.`;
-                } else if (err.message.includes('password') || err.message.includes('user')) {
-                    errorType = ErrorTypes.SECURITY_AUTHENTICATION;
-                    errorMsg = 'Authentication error. Verify username and password.';
-                } else if (err.message.includes('ETIMEDOUT')) {
-                    errorType = ErrorTypes.DATABASE_CONNECTION;
-                    errorMsg = `Connection timed out at ${config.host}:${config.port}. Verify that the Firebird server is accessible and not blocked by a firewall.`;
-                } else if (err.message.includes('EHOSTUNREACH')) {
-                    errorType = ErrorTypes.DATABASE_CONNECTION;
-                    errorMsg = `Host unreachable at ${config.host}:${config.port}. Verify network connectivity and that the host exists.`;
-                }
-
-                logger.error(errorMsg, { originalError: err });
-                reject(new FirebirdError(errorMsg, errorType, err));
-                return;
+        if (error instanceof Error) {
+            if (error.message.includes('service is not defined')) {
+                errorType = ErrorTypes.DATABASE_CONNECTION;
+                errorMsg = 'Firebird service is not available. Verify that the Firebird server is running.';
+            } else if (error.message.includes('ECONNREFUSED')) {
+                errorType = ErrorTypes.DATABASE_CONNECTION;
+                errorMsg = `Connection refused at ${config.host}:${config.port}. Verify that the Firebird server is running and accessible at this address.`;
+            } else if (error.message.includes('ENOENT')) {
+                errorType = ErrorTypes.DATABASE_CONNECTION;
+                errorMsg = `Database not found: ${config.database}. Verify the path and permissions.`;
+            } else if (error.message.includes('password') || error.message.includes('user')) {
+                errorType = ErrorTypes.SECURITY_AUTHENTICATION;
+                errorMsg = 'Authentication error. Verify username and password.';
+            } else if (error.message.includes('ETIMEDOUT')) {
+                errorType = ErrorTypes.DATABASE_CONNECTION;
+                errorMsg = `Connection timed out at ${config.host}:${config.port}. Verify that the Firebird server is accessible and not blocked by a firewall.`;
+            } else if (error.message.includes('EHOSTUNREACH')) {
+                errorType = ErrorTypes.DATABASE_CONNECTION;
+                errorMsg = `Host unreachable at ${config.host}:${config.port}. Verify network connectivity and that the host exists.`;
             }
+        }
 
-            logger.info('Connection established successfully');
-            resolve(db);
-        });
-    });
+        logger.error(errorMsg, { originalError: error });
+        throw new FirebirdError(errorMsg, errorType, error);
+    }
 };
 
 /**

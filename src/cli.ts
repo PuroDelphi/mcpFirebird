@@ -8,6 +8,7 @@
 // Process command line arguments first
 import minimist from 'minimist';
 import { normalizeDatabasePath, ConfigOptions } from './db/connection.js';
+import { DriverFactory } from './db/driver-factory.js';
 const argv = minimist(process.argv.slice(2));
 
 // Debug: Log all command line arguments
@@ -53,6 +54,16 @@ if (!process.env.FIREBIRD_DATABASE && !process.env.FB_DATABASE && !argv.database
 
 // Make the configuration globally available
 (global as any).MCP_FIREBIRD_CONFIG = dbConfig;
+
+// Configure driver based on --use-native-driver flag
+const useNativeDriver = argv['use-native-driver'] === true || argv['use-native-driver'] === 'true';
+if (useNativeDriver) {
+  console.error('Using native Firebird driver (supports wire encryption)');
+  DriverFactory.setUseNativeDriver(true);
+} else {
+  console.error('Using pure JavaScript Firebird driver (default, no wire encryption support)');
+  DriverFactory.setUseNativeDriver(false);
+}
 
 // Set transport type from command line arguments
 if (argv['transport-type']) {
