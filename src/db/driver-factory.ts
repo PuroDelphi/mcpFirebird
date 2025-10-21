@@ -191,13 +191,12 @@ class NativeDriver implements IFirebirdDriver {
                 connectionOptions.port = config.port;
             }
 
-            // Add wire encryption configuration
+            // Add wire encryption configuration using DPB (Database Parameter Buffer)
             if (config.wireCrypt) {
-                // Map our wireCrypt values to the native driver's expected format
-                // The native driver expects: 'Disabled', 'Enabled', or 'Required'
-                connectionOptions.config = connectionOptions.config || '';
-                connectionOptions.config += `WireCrypt=${config.wireCrypt};`;
-                logger.info(`Wire encryption configured: ${config.wireCrypt}`);
+                // The native driver uses DPB parameters
+                // WireCrypt values: Disabled, Enabled, Required
+                connectionOptions.config = `WireCrypt=${config.wireCrypt}`;
+                logger.info(`Wire encryption configured in DPB: WireCrypt=${config.wireCrypt}`);
             }
 
             logger.info('Connection options:', connectionOptions);
