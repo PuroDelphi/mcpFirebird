@@ -1,13 +1,8 @@
 # Smithery configuration file for MCP Firebird
 # Documentation: https://smithery.ai/docs/build/project-config/smithery-yaml
 
-# Runtime type: "container" uses Docker for deployment
-runtime: "container"
-
-# Docker build configuration
-build:
-  dockerfile: "Dockerfile"
-  dockerBuildPath: "."
+# Runtime type: TypeScript for Smithery CLI deployment
+runtime: "typescript"
 
 # Environment variables (optional)
 env:
@@ -18,49 +13,42 @@ env:
 startCommand:
   type: "http"
 
-  # JSON Schema defining configuration options
+  # Simplified configuration schema for Smithery
   configSchema:
-    type: "object"
-    required:
-      - database
-    properties:
-      host:
-        type: "string"
-        title: "Database Host"
-        description: "Hostname or IP address of the Firebird database server"
-        default: "localhost"
-      port:
-        type: "integer"
-        title: "Database Port"
-        description: "Port number for the Firebird database"
-        default: 3050
-        minimum: 1
-        maximum: 65535
-      database:
-        type: "string"
-        title: "Database Path"
-        description: "Absolute path to the Firebird database file (e.g., /path/to/database.fdb or C:\\path\\to\\database.fdb)"
-      user:
-        type: "string"
-        title: "Database User"
-        description: "Database username for authentication"
-        default: "SYSDBA"
-      password:
-        type: "string"
-        title: "Database Password"
-        description: "Database password for authentication"
-        default: "masterkey"
-      useNativeDriver:
-        type: "boolean"
-        title: "Use Native Driver"
-        description: "Enable native driver for wire encryption support (requires node-firebird-driver-native)"
-        default: false
-      logLevel:
-        type: "string"
-        title: "Log Level"
-        description: "Logging verbosity level"
-        default: "info"
-        enum: ["debug", "info", "warn", "error"]
+    host:
+      type: "string"
+      title: "Database Host"
+      description: "Hostname or IP address of the Firebird database server"
+      default: "localhost"
+    port:
+      type: "number"
+      title: "Database Port"
+      description: "Port number for the Firebird database"
+      default: 3050
+    database:
+      type: "string"
+      title: "Database Path"
+      description: "Absolute path to the Firebird database file (e.g., /path/to/database.fdb)"
+    user:
+      type: "string"
+      title: "Database User"
+      description: "Database username for authentication"
+      default: "SYSDBA"
+    password:
+      type: "string"
+      title: "Database Password"
+      description: "Database password for authentication"
+      default: "masterkey"
+    useNativeDriver:
+      type: "boolean"
+      title: "Use Native Driver"
+      description: "Enable native driver for wire encryption support"
+      default: false
+    logLevel:
+      type: "string"
+      title: "Log Level"
+      description: "Logging verbosity level"
+      default: "info"
 
   # Example configuration for testing
   exampleConfig:
