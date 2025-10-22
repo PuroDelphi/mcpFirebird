@@ -80,9 +80,54 @@ mcp-firebird --use-native-driver \
 **Why not npx?** When `npx` runs a package from its temporary cache, it cannot access globally installed modules like `node-firebird-driver-native`. Both packages must be installed globally in the same location.
 
 **📚 For detailed installation instructions, see:**
+- [Smithery CLI Installation Guide](./docs/smithery-cli-installation.md) - **⭐ Recommended for local setup**
 - [Native Driver Installation Guide](./docs/native-driver-installation.md) - **Step-by-step for Windows/Linux/macOS**
 - [Wire Encryption Guide](./docs/wire-encryption-limitation.md)
 - [Advanced Installation Guide](./docs/advanced-installation.md)
+
+## 🖥️ Local Installation with Smithery CLI
+
+**⭐ Recommended for local AI clients (Claude Desktop, Cursor, etc.)**
+
+The Smithery CLI provides the easiest way to install and configure MCP Firebird for local use:
+
+### Quick Install
+
+```bash
+# Interactive installation (prompts for configuration)
+npx -y @smithery/cli@latest install mcp-firebird --client claude
+
+# Pre-configured installation (skip prompts)
+npx -y @smithery/cli@latest install mcp-firebird --client claude --config '{
+  "database": "/path/to/database.fdb",
+  "user": "SYSDBA",
+  "password": "masterkey",
+  "useNativeDriver": false
+}'
+```
+
+### Features
+
+- ✅ **One-command installation** - No manual configuration needed
+- ✅ **Multiple clients** - Works with Claude Desktop, Cursor, and more
+- ✅ **Interactive setup** - Prompts for all required settings
+- ✅ **Auto-configuration** - Automatically configures your AI client
+- ✅ **Easy management** - List, inspect, and uninstall servers easily
+
+### Common Commands
+
+```bash
+# List installed servers
+npx @smithery/cli list servers --client claude
+
+# Inspect server configuration
+npx @smithery/cli inspect mcp-firebird
+
+# Uninstall server
+npx @smithery/cli uninstall mcp-firebird --client claude
+```
+
+**📖 Full Guide:** [Smithery CLI Installation Guide](./docs/smithery-cli-installation.md)
 
 ### Manual Installation
 
