@@ -72,7 +72,19 @@ async function createMcpServerInstance(): Promise<any> {
     const { McpServer } = await import("@modelcontextprotocol/sdk/server/mcp.js");
     const server = new McpServer({
         name: pkg.name,
-        version: pkg.version
+        version: pkg.version,
+        capabilities: {
+            tools: {
+                listChanged: true
+            },
+            prompts: {
+                listChanged: true
+            },
+            resources: {
+                listChanged: true,
+                subscribe: false
+            }
+        }
     });
 
     // Register tools, prompts and resources

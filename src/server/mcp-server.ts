@@ -4,7 +4,7 @@
  * following the latest recommendations from the Model Context Protocol
  */
 
-import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { createLogger } from '../utils/logger.js';
 import { setupDatabaseTools } from '../tools/database.js';
@@ -14,10 +14,8 @@ import { setupDatabasePrompts } from '../prompts/database.js';
 import { setupSqlPrompts } from '../prompts/sql.js';
 import { setupDatabaseResources, type ResourceDefinition } from '../resources/database.js';
 import { initSecurity } from '../security/index.js';
-import { ConfigError, ErrorTypes, MCPError } from '../utils/errors.js';
-import { createSseRouter } from "./sse.js";
+import { ConfigError } from '../utils/errors.js';
 import pkg from '../../package.json' with { type: 'json' };
-import { z } from 'zod';
 import { type ToolDefinition as DbToolDefinition } from '../tools/database.js';
 import { type ToolDefinition as MetaToolDefinition } from '../tools/metadata.js';
 import { type ToolDefinition as SimpleToolDefinition } from '../tools/simple.js';
@@ -40,7 +38,19 @@ export async function startMcpServer() {
         logger.info('Creating MCP server instance...');
         const server = new McpServer({
             name: pkg.name,
-            version: pkg.version
+            version: pkg.version,
+            capabilities: {
+                tools: {
+                    listChanged: true
+                },
+                prompts: {
+                    listChanged: true
+                },
+                resources: {
+                    listChanged: true,
+                    subscribe: false
+                }
+            }
         });
         logger.info('MCP server instance created with capabilities.');
 
@@ -53,15 +63,20 @@ export async function startMcpServer() {
          * @param toolDef - Tool definition
          */
         const registerTool = (name: string, toolDef: DbToolDefinition | MetaToolDefinition | SimpleToolDefinition) => {
-            const schema = toolDef.inputSchema || z.object({});
-            server.tool(
-                name,
-                name, // Use name as description
-                async (extra) => {
-                    try {
-                        // Get parameters from the request context
-                        const params = {};
+            // Extract the shape from the Zod schema if it's a ZodObject
+            const inputSchema = toolDef.inputSchema && 'shape' in toolDef.inputSchema
+                ? toolDef.inputSchema.shape
+                : {};
 
+            server.registerTool(
+                name,
+                {
+                    title: toolDef.description || name,
+                    description: toolDef.description || `Tool: ${name}`,
+                    inputSchema: inputSchema
+                },
+                async (params: any) => {
+                    try {
                         // Call the handler with the parameters
                         const result = await toolDef.handler(params);
 
@@ -131,15 +146,20 @@ export async function startMcpServer() {
          * @param promptDef - Prompt definition
          */
         const registerPrompt = (name: string, promptDef: any) => {
-            const schema = promptDef.inputSchema || z.object({});
-            server.prompt(
-                name,
-                name, // Use name as description
-                async (extra) => {
-                    try {
-                        // Get parameters from the request context
-                        const params = {};
+            // Extract the shape from the Zod schema if it's a ZodObject
+            const argsSchema = promptDef.inputSchema && 'shape' in promptDef.inputSchema
+                ? promptDef.inputSchema.shape
+                : {};
 
+            server.registerPrompt(
+                name,
+                {
+                    title: promptDef.description || name,
+                    description: promptDef.description || `Prompt: ${name}`,
+                    argsSchema: argsSchema
+                },
+                async (params: any) => {
+                    try {
                         // Call the handler with the parameters
                         const result = await promptDef.handler(params);
                         return result;
@@ -180,11 +200,15 @@ export async function startMcpServer() {
          * @param resourceDef - Resource definition
          */
         const registerResource = (uriTemplate: string, resourceDef: ResourceDefinition) => {
-            // Simple resource registration using the resource handler interface
-            server.resource(
+            server.registerResource(
                 `resource-${uriTemplate}`, // Resource name
-                uriTemplate, // URI pattern
-                async (extra) => {
+                uriTemplate, // URI pattern (simple string, not ResourceTemplate for static resources)
+                {
+                    title: resourceDef.description || uriTemplate,
+                    description: resourceDef.description || `Resource: ${uriTemplate}`,
+                    mimeType: "application/json"
+                },
+                async (uri) => {
                     try {
                         // Call the handler with empty parameters
                         const result = await resourceDef.handler({});
@@ -192,7 +216,7 @@ export async function startMcpServer() {
                         // Return the result in the expected format
                         return {
                             contents: [{
-                                uri: uriTemplate,
+                                uri: uri.href,
                                 mimeType: "application/json",
                                 text: typeof result === 'string' ? result : JSON.stringify(result, null, 2)
                             }]

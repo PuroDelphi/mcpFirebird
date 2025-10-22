@@ -1,4 +1,15 @@
+/**
+ * Type definitions for Model Context Protocol SDK
+ *
+ * @deprecated This file contains legacy type definitions.
+ * The SDK now provides its own TypeScript definitions.
+ * Use imports from '@modelcontextprotocol/sdk/server/mcp.js' instead.
+ */
+
 declare module '@modelcontextprotocol/sdk' {
+    /**
+     * @deprecated Use McpServer from '@modelcontextprotocol/sdk/server/mcp.js' instead
+     */
     export class Server {
         constructor(info: { name: string; version: string }, options: { capabilities: ServerCapabilities });
         setRequestHandler<T = any>(schema: any, handler: (request: any) => Promise<T>): void;
@@ -18,22 +29,22 @@ declare module '@modelcontextprotocol/sdk' {
     export const ListPromptsRequestSchema: any;
     export const GetPromptRequestSchema: any;
 
-    // Tipos de capacidades del servidor
+    // Tipos de capacidades del servidor (actualizados para MCP moderno)
     export interface ServerCapabilities {
         resources?: {
-            list?: boolean;
-            read?: boolean;
+            listChanged?: boolean;
+            subscribe?: boolean;
         };
         tools?: {
-            list?: boolean;
-            call?: boolean;
+            listChanged?: boolean;
         };
         prompts?: {
-            list?: boolean;
-            get?: boolean;
+            listChanged?: boolean;
         };
         logging?: {
             send?: boolean;
         };
+        completions?: object;
+        experimental?: { [key: string]: object };
     }
-} 
+}
