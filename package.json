@@ -1,6 +1,6 @@
 {
   "name": "mcp-firebird",
-  "version": "2.5.0-alpha.16",
+  "version": "2.5.0",
   "description": "MCP server for Firebird database",
   "main": "dist/index.js",
   "module": "./src/smithery.ts",
@@ -9,14 +9,15 @@
     "mcp-firebird": "dist/cli.js"
   },
   "scripts": {
-    "build": "tsc && node --input-type=module -e \"import { chmodSync } from 'fs'; chmodSync('dist/cli.js', '755');\"",
+    "build": "tsc -p tsconfig.build.json && node --input-type=module -e \"import { chmodSync } from 'fs'; chmodSync('dist/cli.js', '755');\"",
+    "build:dev": "tsc && node --input-type=module -e \"import { chmodSync } from 'fs'; chmodSync('dist/cli.js', '755');\"",
     "start": "node dist/cli.js",
     "test": "jest",
     "lint": "eslint src/",
-    "dev": "nodemon -e ts --watch src/ --exec \"npm run build && npm run start\"",
+    "dev": "nodemon -e ts --watch src/ --exec \"npm run build:dev && npm run start\"",
     "sse": "nodemon -e ts --watch src/ --exec \"node dist/index.js\"",
-    "inspector": "npm run build && node run-inspector.cjs",
-    "inspector-sse": "npm run build && npx @modelcontextprotocol/inspector http://localhost:3003",
+    "inspector": "npm run build:dev && node run-inspector.cjs",
+    "inspector-sse": "npm run build:dev && npx @modelcontextprotocol/inspector http://localhost:3003",
     "postinstall": "node -e \"try { require('node-firebird-driver-native'); console.log('✅ Native driver available'); } catch(e) { console.log('ℹ️  Native driver not installed. For wire encryption support, run: npm install node-firebird-driver-native'); }\""
   },
   "author": "Jhonny Suárez - asistentesautonomos.com",
