@@ -8,6 +8,20 @@ All notable changes to this project will be documented in this file.
 
 This release brings the MCP Firebird server fully up-to-date with the latest Model Context Protocol specifications and best practices.
 
+#### 🌐 Smithery Platform Compatibility
+- **Updated Smithery Entry Points**: All Smithery deployment files now use modern MCP APIs
+  - `src/smithery-entry.ts`: Updated with modern registration APIs and capabilities
+  - `src/http-entry.ts`: Updated HTTP transport with modern APIs and capabilities
+  - `src/smithery.ts`: Added capabilities declaration
+- **Fixed smithery.yaml**: Corrected configSchema to proper JSON Schema format
+  - Changed from flat property structure to proper `type`, `required`, and `properties` format
+  - Added `enum` for logLevel field
+- **Type Compatibility**: Fixed all TypeScript type issues for Smithery deployment
+  - Prompt handlers now ensure correct role types (user/assistant)
+  - Resource handlers now accept URL parameter instead of string
+  - Proper ZodRawShape extraction for all schemas
+- **Build Verification**: ✅ Successful compilation with zero TypeScript errors
+
 #### ✅ API Modernization
 - **Updated Tool Registration**: Migrated from `server.tool()` to `server.registerTool()` with modern signature
   - Separated `title` and `description` in options object
