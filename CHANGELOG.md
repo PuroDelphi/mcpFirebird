@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.6.0-alpha.2] - 2025-01-22
+
+### 🔄 Sync with Main
+- Synced with main branch v2.5.1 release
+- Ready for next development cycle
+
 ## [2.6.0-alpha.1] - 2025-01-22
 
 ### 🔄 Smithery Integration
