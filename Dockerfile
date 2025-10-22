@@ -64,7 +64,7 @@ RUN mkdir -p /firebird/data && \
 # Switch to node user for security
 USER node
 
-# Start the MCP server
+# Start the MCP server in HTTP mode
 # Smithery will pass configuration via query parameters to /mcp endpoint
-# The PORT environment variable will be set by Smithery
-CMD ["sh", "-c", "SSE_PORT=${PORT:-3003} node dist/index.js"]
+# The PORT environment variable will be set by Smithery (default: 3003)
+CMD ["node", "dist/http-entry.js"]
