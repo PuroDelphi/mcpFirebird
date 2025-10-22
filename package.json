@@ -3,7 +3,7 @@
   "version": "2.6.0-alpha.0",
   "description": "MCP server for Firebird database",
   "main": "dist/index.js",
-  "module": "./src/smithery.ts",
+  "module": "./src/smithery-entry.ts",
   "type": "module",
   "bin": {
     "mcp-firebird": "dist/cli.js"
@@ -15,36 +15,30 @@
     "test": "jest",
     "lint": "eslint src/",
     "dev": "nodemon -e ts --watch src/ --exec \"npm run build:dev && npm run start\"",
-    "sse": "nodemon -e ts --watch src/ --exec \"node dist/index.js\"",
     "inspector": "npm run build:dev && node run-inspector.cjs",
-    "inspector-sse": "npm run build:dev && npx @modelcontextprotocol/inspector http://localhost:3003",
-    "postinstall": "node -e \"try { require('node-firebird-driver-native'); console.log('✅ Native driver available'); } catch(e) { console.log('ℹ️  Native driver not installed. For wire encryption support, run: npm install node-firebird-driver-native'); }\""
+    "inspector-sse": "npm run build:dev && npx @modelcontextprotocol/inspector http://localhost:3003"
   },
   "author": "Jhonny Suárez - asistentesautonomos.com",
   "license": "MIT",
   "devDependencies": {
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.1",
-    "@types/jest": "^29.5.14",
     "@types/minimist": "^1.2.5",
     "@types/node": "^20.11.26",
-    "@types/supertest": "^6.0.3",
     "@typescript-eslint/eslint-plugin": "^7.2.0",
     "@typescript-eslint/parser": "^7.2.0",
     "eslint": "^8.57.0",
     "jest": "^29.7.0",
     "nodemon": "^3.1.0",
-    "supertest": "^7.1.0",
-    "ts-jest": "^29.3.2",
     "typescript": "^5.4.2"
   },
   "dependencies": {
     "@modelcontextprotocol/inspector": "latest",
-    "@modelcontextprotocol/sdk": "^1.13.2",
+    "@modelcontextprotocol/sdk": "^1.8.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "eventsource": "^2.0.2",
-    "express": "^4.21.2",
+    "express": "^5.1.0",
     "glob": "^10.3.10",
     "minimist": "^1.2.8",
     "node-fetch": "^2.6.7",
@@ -53,12 +47,5 @@
     "winston": "^3.11.0",
     "zod": "^3.22.4",
     "zod-to-json-schema": "^3.22.4"
-  },
-  "optionalDependencies": {
-    "node-firebird-driver-native": "^3.2.2"
-  },
-  "resolutions": {
-    "express": "^4.21.2",
-    "path-to-regexp": "^0.1.12"
   }
 }

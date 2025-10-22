@@ -12,7 +12,8 @@
     "**/*.test.ts",
     "**/*.spec.ts",
     "src/__tests__/**/*",
-    "src/smithery.ts"
+    "src/smithery.ts",
+    "src/smithery-entry.ts"
   ]
 }
 
