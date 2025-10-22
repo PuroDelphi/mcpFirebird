@@ -155,14 +155,20 @@ async function startHttpServer() {
 
             // Register tools
             const registerTool = (name: string, toolDef: DbToolDefinition | MetaToolDefinition | SimpleToolDefinition) => {
-                const schema = toolDef.inputSchema || z.object({});
-                server.tool(
+                const inputSchema = (toolDef.inputSchema && toolDef.inputSchema instanceof z.ZodObject)
+                    ? toolDef.inputSchema.shape
+                    : {};
+
+                server.registerTool(
                     name,
-                    toolDef.description || name,
-                    schema,
-                    async (params) => {
+                    {
+                        title: toolDef.title || name,
+                        description: toolDef.description,
+                        inputSchema: inputSchema
+                    },
+                    async (args: any): Promise<{ content: any[], isError?: boolean }> => {
                         try {
-                            const result = await toolDef.handler(params);
+                            const result = await toolDef.handler(args);
 
                             if (typeof result === 'object' && result !== null) {
                                 if ('success' in result && result.success === false) {
@@ -194,46 +200,63 @@ async function startHttpServer() {
 
             // Setup all tools
             const dbTools = setupDatabaseTools();
-            Object.entries(dbTools).forEach(([name, toolDef]) => registerTool(name, toolDef));
+            for (const [name, toolDef] of dbTools.entries()) {
+                registerTool(name, toolDef);
+            }
 
-            const metaTools = setupMetadataTools();
-            Object.entries(metaTools).forEach(([name, toolDef]) => registerTool(name, toolDef));
+            const metaTools = setupMetadataTools(dbTools);
+            for (const [name, toolDef] of metaTools.entries()) {
+                registerTool(name, toolDef);
+            }
 
             const simpleTools = setupSimpleTools();
-            Object.entries(simpleTools).forEach(([name, toolDef]) => registerTool(name, toolDef));
+            for (const [name, toolDef] of simpleTools.entries()) {
+                registerTool(name, toolDef);
+            }
 
             // Register prompts
             const dbPrompts = setupDatabasePrompts();
-            Object.entries(dbPrompts).forEach(([name, promptDef]) => {
-                server.prompt(
+            for (const [name, promptDef] of dbPrompts.entries()) {
+                server.registerPrompt(
                     name,
-                    promptDef.description || name,
-                    promptDef.arguments || [],
-                    async (params) => await promptDef.handler(params)
+                    {
+                        description: promptDef.description || name,
+                        arguments: promptDef.arguments || []
+                    },
+                    async (args: any) => await promptDef.handler(args)
                 );
-            });
+            }
 
             const sqlPrompts = setupSqlPrompts();
-            Object.entries(sqlPrompts).forEach(([name, promptDef]) => {
-                server.prompt(
+            for (const [name, promptDef] of sqlPrompts.entries()) {
+                server.registerPrompt(
                     name,
-                    promptDef.description || name,
-                    promptDef.arguments || [],
-                    async (params) => await promptDef.handler(params)
+                    {
+                        description: promptDef.description || name,
+                        arguments: promptDef.arguments || []
+                    },
+                    async (args: any) => await promptDef.handler(args)
                 );
-            });
+            }
 
             // Register resources
             const resources = setupDatabaseResources();
-            Object.entries(resources).forEach(([uri, resourceDef]) => {
-                server.resource(
+            for (const [uri, resourceDef] of resources.entries()) {
+                server.registerResource(
+                    `resource-${uri}`,
                     uri,
-                    resourceDef.name,
-                    resourceDef.description || '',
-                    resourceDef.mimeType || 'application/json',
-                    async () => await resourceDef.handler()
+                    async () => {
+                        const result = await resourceDef.handler({});
+                        return {
+                            contents: [{
+                                uri: uri,
+                                mimeType: resourceDef.mimeType || 'application/json',
+                                text: typeof result === 'string' ? result : JSON.stringify(result, null, 2)
+                            }]
+                        };
+                    }
                 );
-            });
+            }
 
             logger.info('MCP server instance created successfully');
             return server;
