@@ -61,12 +61,22 @@ export default function ({ config }: { config: Config }) {
 
   // Register tools
   for (const [name, tool] of allTools.entries()) {
+    // Extract the shape from ZodObject if available
+    let inputSchema = {};
+    if (tool.inputSchema) {
+      if (tool.inputSchema instanceof z.ZodObject) {
+        inputSchema = tool.inputSchema.shape;
+      } else if (typeof tool.inputSchema === 'object') {
+        inputSchema = tool.inputSchema;
+      }
+    }
+
     server.registerTool(
       name,
       {
         title: tool.title || name,
         description: tool.description,
-        inputSchema: (tool.inputSchema && tool.inputSchema instanceof z.ZodObject) ? tool.inputSchema.shape : {}
+        inputSchema: inputSchema
       },
       async (args: any): Promise<{ content: any[], isError?: boolean }> => {
         try {
@@ -89,12 +99,22 @@ export default function ({ config }: { config: Config }) {
 
   // Register prompts
   for (const [name, promptDef] of allPrompts.entries()) {
+    // Extract the shape from ZodObject if available
+    let argsSchema = {};
+    if (promptDef.inputSchema) {
+      if (promptDef.inputSchema instanceof z.ZodObject) {
+        argsSchema = promptDef.inputSchema.shape;
+      } else if (typeof promptDef.inputSchema === 'object') {
+        argsSchema = promptDef.inputSchema;
+      }
+    }
+
     server.registerPrompt(
       name,
       {
         title: promptDef.title || name,
         description: promptDef.description,
-        argsSchema: (promptDef.inputSchema && promptDef.inputSchema instanceof z.ZodObject) ? promptDef.inputSchema.shape : {}
+        argsSchema: argsSchema
       },
       async (args: any) => {
         try {
