@@ -1,17 +1,21 @@
 # Node modules (will be installed in container)
 node_modules/
 npm-debug.log
+package-lock.json
 
 # Build output (will be built in container)
 dist/
+*.tsbuildinfo
 
 # Git files
 .git/
 .gitignore
 .gitattributes
+.github/
 
 # Documentation
 *.md
+!package.json
 docs/
 documentacion/
 
@@ -50,4 +54,14 @@ logs/
 # Temporary files
 tmp/
 temp/
+
+# Smithery specific (not needed in container)
+src/smithery.ts
+smithery.yaml
+smithery.config.js
+
+# CI/CD
+.gitlab-ci.yml
+.travis.yml
+azure-pipelines.yml
 

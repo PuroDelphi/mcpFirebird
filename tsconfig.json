@@ -1,24 +1,26 @@
 {
   "compilerOptions": {
     "target": "ES2020",
-    "module": "NodeNext", // Update module to support import assertions
-    "moduleResolution": "NodeNext", // Update moduleResolution accordingly
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
     "outDir": "./dist",
     "rootDir": "./src",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "declaration": true,
-    "sourceMap": true,
+    "declaration": false,
+    "sourceMap": false,
     "lib": ["ES2020"],
     "baseUrl": ".",
     "paths": {
       "*": ["node_modules/*"]
     },
     "resolveJsonModule": true,
-    "isolatedModules": true
+    "isolatedModules": true,
+    "incremental": true,
+    "tsBuildInfoFile": "./dist/.tsbuildinfo"
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist"]
+  "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.spec.ts"]
 }
