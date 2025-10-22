@@ -78,7 +78,7 @@ USE_NATIVE_DRIVER=true
 ### 📚 Comprehensive Smithery Documentation
 
 **New Documentation:**
-- 📖 `SMITHERY_DEPLOYMENT.md` - Complete Smithery deployment guide
+- 📖 `docs/smithery-deployment.md` - Complete Smithery deployment guide
   - Step-by-step deployment instructions
   - Configuration examples
   - Troubleshooting guide
@@ -302,7 +302,7 @@ useNativeDriver: true
 
 ## 💬 Support & Resources
 
-- **Smithery Deployment Guide:** [SMITHERY_DEPLOYMENT.md](./SMITHERY_DEPLOYMENT.md)
+- **Smithery Deployment Guide:** [docs/smithery-deployment.md](./docs/smithery-deployment.md)
 - **General Deployment Guide:** [DEPLOYMENT.md](./DEPLOYMENT.md)
 - **GitHub Issues:** [Report bugs or request features](https://github.com/PuroDelphi/mcpFirebird/issues)
 - **Donations:** Support development via [PayPal](https://www.paypal.com/donate/?hosted_button_id=KBAUBYYDNHQNQ)
@@ -325,7 +325,7 @@ useNativeDriver: true
 
 ### Added
 - ✅ Official Smithery platform support
-- ✅ `SMITHERY_DEPLOYMENT.md` comprehensive guide
+- ✅ `docs/smithery-deployment.md` comprehensive guide
 - ✅ `smithery.yaml` deployment configuration
 - ✅ `smithery.config.js` build configuration
 - ✅ HTTP/Streamable transport entry points
