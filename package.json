@@ -3,6 +3,7 @@
   "version": "2.5.0-alpha.16",
   "description": "MCP server for Firebird database",
   "main": "dist/index.js",
+  "module": "./src/smithery.ts",
   "type": "module",
   "bin": {
     "mcp-firebird": "dist/cli.js"
