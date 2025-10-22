@@ -1,26 +1,22 @@
-# Smithery configuration file for MCP Firebird
+# Smithery MCP Server Configuration for Firebird
 # Documentation: https://smithery.ai/docs/build/project-config/smithery-yaml
 
-# Runtime type: Container for Docker-based deployment
-# This provides compatibility with both Smithery and standard Docker deployments
-runtime: "container"
+# Runtime type: TypeScript for faster builds and native Smithery support
+# Smithery CLI builds and deploys TypeScript projects as streamable HTTP servers
+runtime: "typescript"
 
-# Docker build configuration
-build:
-  dockerfile: "Dockerfile"
-  dockerBuildPath: "."
-
-# Environment variables (optional)
+# Environment variables
 env:
   NODE_ENV: "production"
   LOG_LEVEL: "info"
 
-# Start command configuration for HTTP-based MCP server
+# Start command configuration
+# TypeScript runtime uses Streamable HTTP protocol automatically
 startCommand:
   type: "http"
 
-  # Configuration schema for Smithery
-  # Note: For container runtime, Smithery passes these as query parameters
+  # Configuration schema using JSON Schema
+  # Smithery passes these as query parameters in dot-notation
   configSchema:
     host:
       type: "string"
