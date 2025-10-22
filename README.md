@@ -524,10 +524,10 @@ curl http://localhost:3003/health | jq '.sessions'
 
 ## Quick Installation via Smithery
 
-To install MCP Firebird for Claude Desktop automatically via [Smithery](https://smithery.ai/server/@PuroDelphi/mcpFirebird):
+To install MCP Firebird automatically via [Smithery](https://smithery.ai/server/@PuroDelphi/mcpFirebird):
 
 ```bash
-npx -y @smithery/cli install @PuroDelphi/mcpFirebird --client claude
+npx -y @smithery/cli install @PuroDelphi/mcpFirebird
 ```
 
 
