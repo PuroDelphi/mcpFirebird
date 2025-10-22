@@ -8,6 +8,32 @@ All notable changes to this project will be documented in this file.
 - Synced with main branch v2.5.1 release
 - Ready for next development cycle
 
+## [2.5.1] - 2025-01-22
+
+### 🌐 Smithery Platform Support
+- **Official Smithery Integration**: One-click cloud deployment support
+- **Smithery Configuration**: Complete smithery.yaml and smithery.config.js
+- **HTTP/Streamable Transport**: Optimized entry points for web-based deployment
+- **Comprehensive Documentation**: docs/smithery-deployment.md with step-by-step guide
+- **README Updates**: Added Smithery quick start section
+
+### 🔒 Enhanced Wire Encryption
+- **Improved Documentation**: Clearer wire encryption setup instructions
+- **Security Emphasis**: Highlighted enterprise-grade encryption capabilities
+- **Configuration Examples**: Multiple scenarios for wire encryption setup
+- **Verification Tools**: Built-in encryption status checks
+
+### 📚 Documentation Improvements
+- **RELEASE_NOTES_v2.5.1.md**: Comprehensive release documentation
+- **Smithery Quick Start**: Easy-to-follow deployment guide
+- **Wire Encryption Guide**: Enhanced security documentation
+- **Configuration Examples**: Real-world deployment scenarios
+
+### ✅ Compatibility
+- Fully backward compatible with v2.5.0
+- All existing deployments continue to work
+- No breaking changes
+
 ## [2.6.0-alpha.1] - 2025-01-22
 
 ### 🔄 Smithery Integration
