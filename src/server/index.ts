@@ -287,6 +287,45 @@ async function startBackwardsCompatibleServer(port: number): Promise<void> {
 
     app.use(express.json());
 
+    // Middleware to handle Smithery configuration via query parameters
+    // Smithery passes configuration as query params using dot-notation
+    // Example: ?host=localhost&port=3050&database=/path/to/db.fdb
+    app.use((req, res, next) => {
+        const queryParams = req.query;
+
+        // Map Smithery query parameters to environment variables
+        if (queryParams.host && typeof queryParams.host === 'string') {
+            process.env.FIREBIRD_HOST = queryParams.host;
+            logger.debug(`Set FIREBIRD_HOST from query param: ${queryParams.host}`);
+        }
+        if (queryParams.port && typeof queryParams.port === 'string') {
+            process.env.FIREBIRD_PORT = queryParams.port;
+            logger.debug(`Set FIREBIRD_PORT from query param: ${queryParams.port}`);
+        }
+        if (queryParams.database && typeof queryParams.database === 'string') {
+            process.env.FIREBIRD_DATABASE = queryParams.database;
+            logger.debug(`Set FIREBIRD_DATABASE from query param: ${queryParams.database}`);
+        }
+        if (queryParams.user && typeof queryParams.user === 'string') {
+            process.env.FIREBIRD_USER = queryParams.user;
+            logger.debug(`Set FIREBIRD_USER from query param: ${queryParams.user}`);
+        }
+        if (queryParams.password && typeof queryParams.password === 'string') {
+            process.env.FIREBIRD_PASSWORD = queryParams.password;
+            logger.debug(`Set FIREBIRD_PASSWORD from query param: [REDACTED]`);
+        }
+        if (queryParams.useNativeDriver && typeof queryParams.useNativeDriver === 'string') {
+            process.env.USE_NATIVE_DRIVER = queryParams.useNativeDriver;
+            logger.debug(`Set USE_NATIVE_DRIVER from query param: ${queryParams.useNativeDriver}`);
+        }
+        if (queryParams.logLevel && typeof queryParams.logLevel === 'string') {
+            process.env.LOG_LEVEL = queryParams.logLevel;
+            logger.debug(`Set LOG_LEVEL from query param: ${queryParams.logLevel}`);
+        }
+
+        next();
+    });
+
     // Store transports for each session type
     const transports = {
         streamable: {} as Record<string, StreamableHTTPServerTransport>,
