@@ -1,8 +1,13 @@
 # Smithery configuration file for MCP Firebird
 # Documentation: https://smithery.ai/docs/build/project-config/smithery-yaml
 
-# Runtime type: "typescript" uses Smithery CLI, "container" uses Docker
-runtime: "typescript"
+# Runtime type: "container" uses Docker for deployment
+runtime: "container"
+
+# Docker build configuration
+build:
+  dockerfile: "Dockerfile"
+  dockerBuildPath: "."
 
 # Environment variables (optional)
 env:

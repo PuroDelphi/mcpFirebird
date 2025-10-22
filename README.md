@@ -27,6 +27,62 @@ MCP Firebird is a server that implements Anthropic's [Model Context Protocol (MC
 - **VSCode Integration**: Works with GitHub Copilot in Visual Studio Code
 - **Session Management**: Robust session handling with automatic cleanup and configurable timeouts
 - **Security**: Includes SQL query validation and security configuration options
+- **Dual Driver Support**: Choose between simple installation (default) or native driver with wire encryption support
+
+## 🔒 Wire Encryption Support
+
+MCP Firebird supports **two driver options**:
+
+| Driver | Installation | Wire Encryption | Use Case |
+|--------|--------------|-----------------|----------|
+| **Pure JavaScript** (default) | ✅ Simple (`npx`) | ❌ No | Most users, quick setup |
+| **Native Driver** (optional) | ⚠️ Complex (requires build tools) | ✅ Yes | Enterprise, security required |
+
+### Quick Start (Default - No Wire Encryption)
+
+```bash
+npx mcp-firebird@alpha --database=/path/to/database.fdb
+```
+
+### Advanced (With Wire Encryption Support)
+
+⚠️ **CRITICAL**: `npx` does NOT work with the native driver. You MUST install globally.
+
+⚠️ **IMPORTANT**: Wire encryption must be configured on the **Firebird server** (`firebird.conf`), not on the client.
+
+**Server Configuration** (required first):
+```conf
+# In firebird.conf on the server
+WireCrypt = Required  # or Enabled
+```
+
+**Client Installation** (MUST be global):
+```bash
+# Step 1: Install build tools
+# Windows: Visual Studio Build Tools (https://visualstudio.microsoft.com/downloads/)
+# Linux: sudo apt-get install build-essential python3 firebird-dev
+# macOS: xcode-select --install && brew install firebird
+
+# Step 2: Install MCP Firebird globally
+npm install -g mcp-firebird@alpha
+
+# Step 3: Install native driver globally
+npm install -g node-firebird-driver-native
+
+# Step 4: Run directly (WITHOUT npx)
+mcp-firebird --use-native-driver \
+  --database=/path/to/database.fdb \
+  --host=localhost \
+  --user=SYSDBA \
+  --password=masterkey
+```
+
+**Why not npx?** When `npx` runs a package from its temporary cache, it cannot access globally installed modules like `node-firebird-driver-native`. Both packages must be installed globally in the same location.
+
+**📚 For detailed installation instructions, see:**
+- [Native Driver Installation Guide](./docs/native-driver-installation.md) - **Step-by-step for Windows/Linux/macOS**
+- [Wire Encryption Guide](./docs/wire-encryption-limitation.md)
+- [Advanced Installation Guide](./docs/advanced-installation.md)
 
 ### Manual Installation
 
