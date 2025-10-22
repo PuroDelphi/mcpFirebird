@@ -1,95 +1,68 @@
-# Smithery configuration file: https://smithery.ai/docs/config#smitheryyaml
+# Smithery configuration file for MCP Firebird
+# Documentation: https://smithery.ai/docs/build/project-config/smithery-yaml
 
+# Runtime type: "typescript" uses Smithery CLI, "container" uses Docker
+runtime: "typescript"
+
+# Environment variables (optional)
+env:
+  NODE_ENV: "production"
+  LOG_LEVEL: "info"
+
+# Start command configuration for HTTP-based MCP server
 startCommand:
-  type: stdio
+  type: "http"
+
+  # JSON Schema defining configuration options
   configSchema:
-    # JSON Schema defining the configuration options for the MCP.
-    type: object
+    type: "object"
     required:
-      - firebirdDatabase
+      - database
     properties:
-      firebirdHost:
-        type: string
-        default: localhost
-        description: Hostname of the Firebird database server
-      firebirdPort:
-        type: number
+      host:
+        type: "string"
+        title: "Database Host"
+        description: "Hostname or IP address of the Firebird database server"
+        default: "localhost"
+      port:
+        type: "integer"
+        title: "Database Port"
+        description: "Port number for the Firebird database"
         default: 3050
-        description: Port for the Firebird database
-      firebirdDatabase:
-        type: string
-        description: Absolute path to the Firebird database file
-      firebirdUser:
-        type: string
-        default: SYSDBA
-        description: Database user
-      firebirdPassword:
-        type: string
-        default: masterkey
-        description: Database password
-      transportType:
-        type: string
-        default: stdio
-        description: "Transport type: 'stdio' for local or 'sse' for server-sent events"
-      ssePort:
-        type: number
-        default: 3003
-        description: Port for SSE transport (if transportType is 'sse')
+        minimum: 1
+        maximum: 65535
+      database:
+        type: "string"
+        title: "Database Path"
+        description: "Absolute path to the Firebird database file (e.g., /path/to/database.fdb or C:\\path\\to\\database.fdb)"
+      user:
+        type: "string"
+        title: "Database User"
+        description: "Database username for authentication"
+        default: "SYSDBA"
+      password:
+        type: "string"
+        title: "Database Password"
+        description: "Database password for authentication"
+        default: "masterkey"
+      useNativeDriver:
+        type: "boolean"
+        title: "Use Native Driver"
+        description: "Enable native driver for wire encryption support (requires node-firebird-driver-native)"
+        default: false
       logLevel:
-        type: string
-        default: info
-        description: Logging level (debug, info, warn, error)
-  commandFunction:
-    # A JS function that produces the CLI command based on the given config to start the MCP on stdio.
-    |-
-    (config) => {
-      // Build command line arguments to pass directly to the CLI
-      const args = ['dist/cli.js'];
+        type: "string"
+        title: "Log Level"
+        description: "Logging verbosity level"
+        default: "info"
+        enum: ["debug", "info", "warn", "error"]
 
-      // Add all configuration parameters as command line arguments
-      if (config.firebirdHost) args.push('--host', config.firebirdHost);
-      if (config.firebirdPort) args.push('--port', String(config.firebirdPort));
-      if (config.firebirdDatabase) args.push('--database', config.firebirdDatabase);
-      if (config.firebirdUser) args.push('--user', config.firebirdUser);
-      if (config.firebirdPassword) args.push('--password', config.firebirdPassword);
-
-      // Set transport type if specified
-      if (config.transportType === 'sse') {
-        args.push('--transport-type', 'sse');
-        if (config.ssePort) args.push('--sse-port', String(config.ssePort));
-      }
-
-      // Set log level if specified
-      if (config.logLevel) args.push('--log-level', config.logLevel);
-
-      // Also set environment variables as a fallback
-      const env = Object.assign({}, process.env, {
-        FIREBIRD_HOST: config.firebirdHost,
-        FIREBIRD_PORT: String(config.firebirdPort),
-        FIREBIRD_DATABASE: config.firebirdDatabase,
-        FIREBIRD_USER: config.firebirdUser,
-        FIREBIRD_PASSWORD: config.firebirdPassword,
-        TRANSPORT_TYPE: config.transportType,
-        LOG_LEVEL: config.logLevel
-      });
-
-      // If transport is sse, add SSE_PORT
-      if(config.transportType === 'sse') {
-        env.SSE_PORT = String(config.ssePort);
-      }
-
-      return {
-        command: 'node',
-        args,
-        env
-      };
-    }
+  # Example configuration for testing
   exampleConfig:
-    firebirdHost: 192.168.1.5
-    firebirdPort: 3050
-    firebirdDatabase: F:\\Proyectos\\SAI\\EMPLOYEE.FDB
-    firebirdUser: SYSDBA
-    firebirdPassword: masterkey
-    transportType: stdio
-    ssePort: 3003
-    logLevel: info
+    host: "192.168.1.5"
+    port: 3050
+    database: "/path/to/EMPLOYEE.FDB"
+    user: "SYSDBA"
+    password: "masterkey"
+    useNativeDriver: false
+    logLevel: "info"
