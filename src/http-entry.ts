@@ -147,10 +147,22 @@ async function startHttpServer() {
             // Initialize security
             await initSecurity();
 
-            // Create server
+            // Create server with modern capabilities
             const server = new McpServer({
                 name: pkg.name,
-                version: pkg.version
+                version: pkg.version,
+                capabilities: {
+                    tools: {
+                        listChanged: true
+                    },
+                    prompts: {
+                        listChanged: true
+                    },
+                    resources: {
+                        listChanged: true,
+                        subscribe: false
+                    }
+                }
             });
 
             // Register tools
@@ -162,8 +174,8 @@ async function startHttpServer() {
                 server.registerTool(
                     name,
                     {
-                        title: toolDef.title || name,
-                        description: toolDef.description,
+                        title: toolDef.description || name,
+                        description: toolDef.description || name,
                         inputSchema: inputSchema
                     },
                     async (args: any): Promise<{ content: any[], isError?: boolean }> => {
@@ -187,8 +199,9 @@ async function startHttpServer() {
                                 content: [{ type: "text", text: JSON.stringify(result) }]
                             };
                         } catch (error) {
-                            logger.error(`Error executing tool ${name}:`, error);
-                            const message = error instanceof Error ? error.message : 'Unknown error';
+                            const err = error as Error;
+                            logger.error(`Error executing tool ${name}:`, { error: err.message });
+                            const message = err.message || 'Unknown error';
                             return {
                                 content: [{ type: "text", text: `Error: ${message}` }],
                                 isError: true
@@ -217,25 +230,57 @@ async function startHttpServer() {
             // Register prompts
             const dbPrompts = setupDatabasePrompts();
             for (const [name, promptDef] of dbPrompts.entries()) {
+                // Extract the shape from ZodObject if available
+                const argsSchema = (promptDef.inputSchema && promptDef.inputSchema instanceof z.ZodObject)
+                    ? promptDef.inputSchema.shape
+                    : {};
+
                 server.registerPrompt(
                     name,
                     {
+                        title: promptDef.description || name,
                         description: promptDef.description || name,
-                        arguments: promptDef.arguments || []
+                        argsSchema: argsSchema
                     },
-                    async (args: any) => await promptDef.handler(args)
+                    async (args: any) => {
+                        const result = await promptDef.handler(args);
+                        // Ensure messages have correct role types
+                        return {
+                            ...result,
+                            messages: result.messages.map((msg: any) => ({
+                                ...msg,
+                                role: (msg.role === 'user' || msg.role === 'assistant') ? msg.role : 'assistant'
+                            }))
+                        };
+                    }
                 );
             }
 
             const sqlPrompts = setupSqlPrompts();
             for (const [name, promptDef] of sqlPrompts.entries()) {
+                // Extract the shape from ZodObject if available
+                const argsSchema = (promptDef.inputSchema && promptDef.inputSchema instanceof z.ZodObject)
+                    ? promptDef.inputSchema.shape
+                    : {};
+
                 server.registerPrompt(
                     name,
                     {
+                        title: promptDef.description || name,
                         description: promptDef.description || name,
-                        arguments: promptDef.arguments || []
+                        argsSchema: argsSchema
                     },
-                    async (args: any) => await promptDef.handler(args)
+                    async (args: any) => {
+                        const result = await promptDef.handler(args);
+                        // Ensure messages have correct role types
+                        return {
+                            ...result,
+                            messages: result.messages.map((msg: any) => ({
+                                ...msg,
+                                role: (msg.role === 'user' || msg.role === 'assistant') ? msg.role : 'assistant'
+                            }))
+                        };
+                    }
                 );
             }
 
@@ -245,11 +290,16 @@ async function startHttpServer() {
                 server.registerResource(
                     `resource-${uri}`,
                     uri,
-                    async () => {
+                    {
+                        title: resourceDef.description || uri,
+                        description: resourceDef.description || '',
+                        mimeType: resourceDef.mimeType || 'application/json'
+                    },
+                    async (resourceUri: URL) => {
                         const result = await resourceDef.handler({});
                         return {
                             contents: [{
-                                uri: uri,
+                                uri: resourceUri.href,
                                 mimeType: resourceDef.mimeType || 'application/json',
                                 text: typeof result === 'string' ? result : JSON.stringify(result, null, 2)
                             }]

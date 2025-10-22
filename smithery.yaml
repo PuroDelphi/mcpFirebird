@@ -22,40 +22,44 @@ startCommand:
   # Configuration schema using JSON Schema
   # Smithery passes these as query parameters to the /mcp endpoint
   configSchema:
-    host:
-      type: "string"
-      title: "Database Host"
-      description: "Hostname or IP address of the Firebird database server"
-      default: "localhost"
-    port:
-      type: "number"
-      title: "Database Port"
-      description: "Port number for the Firebird database"
-      default: 3050
-    database:
-      type: "string"
-      title: "Database Path"
-      description: "Absolute path to the Firebird database file (e.g., /path/to/database.fdb)"
-    user:
-      type: "string"
-      title: "Database User"
-      description: "Database username for authentication"
-      default: "SYSDBA"
-    password:
-      type: "string"
-      title: "Database Password"
-      description: "Database password for authentication"
-      default: "masterkey"
-    useNativeDriver:
-      type: "boolean"
-      title: "Use Native Driver"
-      description: "Enable native driver for wire encryption support"
-      default: false
-    logLevel:
-      type: "string"
-      title: "Log Level"
-      description: "Logging verbosity level"
-      default: "info"
+    type: "object"
+    required: ["database"]
+    properties:
+      host:
+        type: "string"
+        title: "Database Host"
+        description: "Hostname or IP address of the Firebird database server"
+        default: "localhost"
+      port:
+        type: "number"
+        title: "Database Port"
+        description: "Port number for the Firebird database"
+        default: 3050
+      database:
+        type: "string"
+        title: "Database Path"
+        description: "Absolute path to the Firebird database file (e.g., /path/to/database.fdb)"
+      user:
+        type: "string"
+        title: "Database User"
+        description: "Database username for authentication"
+        default: "SYSDBA"
+      password:
+        type: "string"
+        title: "Database Password"
+        description: "Database password for authentication"
+        default: "masterkey"
+      useNativeDriver:
+        type: "boolean"
+        title: "Use Native Driver"
+        description: "Enable native driver for wire encryption support"
+        default: false
+      logLevel:
+        type: "string"
+        title: "Log Level"
+        description: "Logging verbosity level"
+        enum: ["debug", "info", "warn", "error"]
+        default: "info"
 
   # Example configuration for testing
   exampleConfig:

@@ -61,13 +61,25 @@ export default function createServer({ config }: { config: Config }) {
   process.env.USE_NATIVE_DRIVER = String(config.useNativeDriver);
   process.env.LOG_LEVEL = config.logLevel;
 
-  // Create MCP server instance
+  // Create MCP server instance with modern capabilities
   const server = new McpServer({
     name: pkg.name,
-    version: pkg.version
+    version: pkg.version,
+    capabilities: {
+      tools: {
+        listChanged: true
+      },
+      prompts: {
+        listChanged: true
+      },
+      resources: {
+        listChanged: true,
+        subscribe: false
+      }
+    }
   });
 
-  logger.info('MCP server instance created');
+  logger.info('MCP server instance created with capabilities');
 
   // Initialize server asynchronously
   (async () => {
@@ -83,15 +95,22 @@ export default function createServer({ config }: { config: Config }) {
        * Helper function to register a tool with proper error handling
        */
       const registerTool = (name: string, toolDef: DbToolDefinition | MetaToolDefinition | SimpleToolDefinition) => {
-        const schema = toolDef.inputSchema || z.object({});
-        server.tool(
+        // Extract the shape from ZodObject if available
+        const inputSchema = (toolDef.inputSchema && toolDef.inputSchema instanceof z.ZodObject)
+          ? toolDef.inputSchema.shape
+          : {};
+
+        server.registerTool(
           name,
-          toolDef.description || name,
-          schema,
-          async (params) => {
+          {
+            title: toolDef.title || name,
+            description: toolDef.description || name,
+            inputSchema: inputSchema
+          },
+          async (params: any) => {
             try {
               const result = await toolDef.handler(params);
-              
+
               // Handle different result types
               if (typeof result === 'object' && result !== null) {
                 if ('success' in result && result.success === false) {
@@ -100,12 +119,12 @@ export default function createServer({ config }: { config: Config }) {
                     isError: true
                   };
                 }
-                
+
                 if ('content' in result && Array.isArray(result.content)) {
                   return result;
                 }
               }
-              
+
               return {
                 content: [{ type: "text", text: JSON.stringify(result) }]
               };
@@ -143,14 +162,22 @@ export default function createServer({ config }: { config: Config }) {
 
       // Register prompts
       logger.info('Registering prompts...');
-      
+
       const dbPrompts = setupDatabasePrompts();
-      Object.entries(dbPrompts).forEach(([name, promptDef]) => {
-        server.prompt(
+      for (const [name, promptDef] of dbPrompts.entries()) {
+        // Extract the shape from ZodObject if available
+        const argsSchema = (promptDef.inputSchema && promptDef.inputSchema instanceof z.ZodObject)
+          ? promptDef.inputSchema.shape
+          : {};
+
+        server.registerPrompt(
           name,
-          promptDef.description || name,
-          promptDef.arguments || [],
-          async (params) => {
+          {
+            title: promptDef.title || name,
+            description: promptDef.description || name,
+            argsSchema: argsSchema
+          },
+          async (params: any) => {
             try {
               const result = await promptDef.handler(params);
               return result;
@@ -160,15 +187,23 @@ export default function createServer({ config }: { config: Config }) {
             }
           }
         );
-      });
+      }
 
       const sqlPrompts = setupSqlPrompts();
-      Object.entries(sqlPrompts).forEach(([name, promptDef]) => {
-        server.prompt(
+      for (const [name, promptDef] of sqlPrompts.entries()) {
+        // Extract the shape from ZodObject if available
+        const argsSchema = (promptDef.inputSchema && promptDef.inputSchema instanceof z.ZodObject)
+          ? promptDef.inputSchema.shape
+          : {};
+
+        server.registerPrompt(
           name,
-          promptDef.description || name,
-          promptDef.arguments || [],
-          async (params) => {
+          {
+            title: promptDef.title || name,
+            description: promptDef.description || name,
+            argsSchema: argsSchema
+          },
+          async (params: any) => {
             try {
               const result = await promptDef.handler(params);
               return result;
@@ -178,31 +213,40 @@ export default function createServer({ config }: { config: Config }) {
             }
           }
         );
-      });
+      }
 
       logger.info('Prompts registered successfully');
 
       // Register resources
       logger.info('Registering resources...');
-      
+
       const resources = setupDatabaseResources();
-      Object.entries(resources).forEach(([uri, resourceDef]) => {
-        server.resource(
+      for (const [uri, resourceDef] of resources.entries()) {
+        server.registerResource(
+          `resource-${uri}`,
           uri,
-          resourceDef.name,
-          resourceDef.description || '',
-          resourceDef.mimeType || 'application/json',
-          async () => {
+          {
+            title: resourceDef.name || uri,
+            description: resourceDef.description || '',
+            mimeType: resourceDef.mimeType || 'application/json'
+          },
+          async (resourceUri: string) => {
             try {
-              const result = await resourceDef.handler();
-              return result;
+              const result = await resourceDef.handler({});
+              return {
+                contents: [{
+                  uri: resourceUri,
+                  mimeType: resourceDef.mimeType || 'application/json',
+                  text: typeof result === 'string' ? result : JSON.stringify(result, null, 2)
+                }]
+              };
             } catch (error) {
               logger.error(`Error reading resource ${uri}:`, error);
               throw error;
             }
           }
         );
-      });
+      }
 
       logger.info('Resources registered successfully');
       logger.info('MCP Firebird server ready for Smithery deployment');
