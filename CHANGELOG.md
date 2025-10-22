@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.6.0-alpha.1] - 2025-01-22
+
+### 🔄 Smithery Integration
+- **Merged Smithery compatibility** from smithery/config-u9cv branch
+- All Smithery deployment features now available in alpha branch
+- No breaking changes to existing STDIO functionality
+
 ## [2.6.0-alpha.0] - 2025-01-22
 
 ### 🎯 MCP Modernization 2025
