@@ -1,0 +1,53 @@
+# Node modules (will be installed in container)
+node_modules/
+npm-debug.log
+
+# Build output (will be built in container)
+dist/
+
+# Git files
+.git/
+.gitignore
+.gitattributes
+
+# Documentation
+*.md
+docs/
+documentacion/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Test files
+test/
+tests/
+*.test.ts
+*.test.js
+*.spec.ts
+*.spec.js
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Backup files
+*.backup
+Dockerfile.backup
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+
+# Temporary files
+tmp/
+temp/
+
