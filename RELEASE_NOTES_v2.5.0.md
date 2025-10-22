@@ -8,20 +8,13 @@
 
 ## 🎉 Overview
 
-Version 2.5.0 represents a major milestone for MCP Firebird, bringing **universal deployment compatibility**, **performance optimizations**, and **enterprise-ready features**. This release focuses on making MCP Firebird deployable anywhere - from Smithery to Docker, from local development to cloud platforms.
+Version 2.5.0 represents a major milestone for MCP Firebird, bringing **universal deployment compatibility**, **performance optimizations**, and **enterprise-ready features**. This release focuses on making MCP Firebird deployable anywhere - from Docker to cloud platforms, from local development to production environments.
 
 ---
 
 ## ✨ Major Features
 
 ### 🌐 Universal Deployment Support
-
-**Smithery Platform Integration**
-- ✅ Full compatibility with [Smithery.ai](https://smithery.ai) deployment platform
-- ✅ Container runtime support with optimized Docker builds
-- ✅ Automatic configuration via query parameters
-- ✅ Streamable HTTP protocol support
-- ✅ One-click deployment from GitHub
 
 **Docker Everywhere**
 - ✅ Multi-stage Dockerfile for optimized builds
@@ -78,7 +71,6 @@ USE_NATIVE_DRIVER=true
 
 **New Documentation Files**
 - 📖 `DEPLOYMENT.md` - Complete deployment guide
-  - Smithery deployment steps
   - Docker deployment examples
   - NPX/NPM installation
   - Configuration reference
@@ -155,14 +147,6 @@ Optimized build context by excluding:
 
 ## 🆕 New Features
 
-### Smithery Entry Point
-
-New `src/smithery.ts` for Smithery platform:
-- Zod-based configuration schema
-- Automatic environment variable mapping
-- Tool and prompt registration
-- Error handling and logging
-
 ### Build Scripts
 
 ```json
@@ -196,19 +180,7 @@ Version 2.5.0 is **fully backward compatible** with 2.4.x:
 
 ## 📦 Deployment Options
 
-### Option 1: Smithery (Recommended for Production)
-
-```yaml
-# smithery.yaml
-runtime: "container"
-build:
-  dockerfile: "Dockerfile"
-  dockerBuildPath: "."
-```
-
-**Deploy:** Connect GitHub repo → Configure → Deploy
-
-### Option 2: Docker
+### Option 1: Docker
 
 ```bash
 # Build
@@ -248,12 +220,11 @@ services:
 
 ## 🐛 Bug Fixes
 
-- Fixed Smithery build timeout issues
 - Fixed npm dependency resolution in Docker builds
 - Fixed package-lock.json inconsistencies
 - Fixed TypeScript compilation performance
 - Fixed Docker layer caching
-- Improved error handling in Smithery entry point
+- Improved error handling and validation
 - Fixed Zod schema extraction for MCP API
 
 ---
@@ -262,7 +233,6 @@ services:
 
 | Platform | Status | Method |
 |----------|--------|--------|
-| **Smithery** | ✅ Fully Supported | Container runtime |
 | **Docker** | ✅ Fully Supported | Multi-stage build |
 | **Railway** | ✅ Fully Supported | Auto-detect Dockerfile |
 | **Render** | ✅ Fully Supported | Docker runtime |
@@ -299,9 +269,6 @@ npm install -g mcp-firebird@latest
 
 # Docker
 docker pull your-registry/mcp-firebird:2.5.0
-
-# Smithery
-# Automatic update on next deployment
 ```
 
 All existing configurations, environment variables, and CLI arguments remain compatible.
@@ -311,7 +278,6 @@ All existing configurations, environment variables, and CLI arguments remain com
 ## 🙏 Acknowledgments
 
 Special thanks to:
-- The Smithery team for platform support
 - The Firebird community
 - All contributors and testers
 - Early adopters who provided feedback
@@ -348,14 +314,13 @@ Special thanks to:
 ## 📝 Changelog
 
 ### Added
-- Smithery platform support with container runtime
 - Multi-stage Dockerfile for optimized builds
 - `tsconfig.build.json` for production builds
 - `DEPLOYMENT.md` comprehensive guide
 - `.dockerignore` optimizations
-- `src/smithery.ts` entry point
 - Wire encryption documentation
 - Docker Compose examples
+- Enhanced configuration schema
 
 ### Changed
 - Optimized TypeScript compilation (50-60% faster)
@@ -365,11 +330,11 @@ Special thanks to:
 - Better logging configuration
 
 ### Fixed
-- Smithery build timeout issues
 - Docker dependency resolution
 - TypeScript compilation performance
 - Layer caching in Docker builds
 - Zod schema handling in MCP API
+- Build timeout issues in containerized environments
 
 ### Performance
 - 50-60% faster TypeScript compilation
