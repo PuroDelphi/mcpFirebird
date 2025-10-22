@@ -1,6 +1,11 @@
 /**
- * MCP Firebird Server Creation
- * This module provides a function to create and configure the MCP server
+ * MCP Firebird Server Creation (LEGACY)
+ *
+ * @deprecated This module uses the legacy Server class with setRequestHandler.
+ * For new implementations, use mcp-server.ts which uses the modern McpServer class
+ * with registerTool(), registerPrompt(), and registerResource() methods.
+ *
+ * This module is kept for backward compatibility only.
  */
 
 import { z } from 'zod';

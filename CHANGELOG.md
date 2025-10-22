@@ -2,6 +2,72 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.6.0-alpha.0] - 2025-01-22
+
+### 🎯 MCP Modernization 2025
+
+This release brings the MCP Firebird server fully up-to-date with the latest Model Context Protocol specifications and best practices.
+
+#### ✅ API Modernization
+- **Updated Tool Registration**: Migrated from `server.tool()` to `server.registerTool()` with modern signature
+  - Separated `title` and `description` in options object
+  - Direct parameter access in handlers (no more `extra` wrapper)
+  - Better schema validation with ZodRawShape extraction
+
+- **Updated Prompt Registration**: Migrated from `server.prompt()` to `server.registerPrompt()`
+  - Changed `inputSchema` to `argsSchema` for clarity
+  - Improved parameter handling
+  - Consistent options structure
+
+- **Updated Resource Registration**: Migrated from `server.resource()` to `server.registerResource()`
+  - Added `mimeType` support
+  - Enhanced metadata with title and description
+  - Direct URI parameter in handlers
+
+#### 🔧 Capabilities Declaration
+- **Explicit Capabilities**: All servers now declare capabilities with `listChanged` flags
+  - `tools: { listChanged: true }`
+  - `prompts: { listChanged: true }`
+  - `resources: { listChanged: true, subscribe: false }`
+- Better client interoperability
+- Clear feature advertisement
+
+#### 📦 Schema Handling
+- **Zod Integration**: Automatic extraction of `ZodRawShape` from `ZodObject` schemas
+- **Type Safety**: Improved TypeScript types for all handlers
+- **Validation**: Maintained Zod validation while adapting to SDK requirements
+
+#### 🗂️ Code Organization
+- **Legacy Code Marked**: `create-server.ts` marked as deprecated with clear migration path
+- **Type Definitions Updated**: Modern capability types in `modelcontextprotocol.d.ts`
+- **Build Configuration**: Excluded test files from production builds
+
+#### 📚 Documentation
+- **New Guide**: Added `docs/mcp-modernization-2025.md` with complete migration guide
+- **API Examples**: Updated examples showing before/after patterns
+- **Best Practices**: Documented modern MCP patterns and recommendations
+
+#### 🔄 Backwards Compatibility
+- **Legacy Mode**: Preserved legacy server implementation (use `USE_LEGACY_SERVER=true`)
+- **No Breaking Changes**: Existing configurations continue to work
+- **Gradual Migration**: Users can migrate at their own pace
+
+#### 🛠️ Developer Experience
+- **Cleaner Code**: Removed unused imports and deprecated patterns
+- **Better Errors**: Improved error messages and logging
+- **Type Safety**: Enhanced TypeScript support throughout
+
+### Technical Details
+- SDK Version: `@modelcontextprotocol/sdk ^1.13.2`
+- Node.js: 18+ required
+- TypeScript: Strict mode enabled
+- Build: Successful with zero errors
+
+### Migration Notes
+- No changes required for existing users
+- New implementations should use modern APIs
+- See `docs/mcp-modernization-2025.md` for detailed migration guide
+
 ## [2.2.0] - 2025-06-27
 
 ### 🚀 Major Features Added
