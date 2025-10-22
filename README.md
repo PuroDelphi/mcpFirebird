@@ -29,6 +29,63 @@ MCP Firebird is a server that implements Anthropic's [Model Context Protocol (MC
 - **Security**: Includes SQL query validation and security configuration options
 - **Dual Driver Support**: Choose between simple installation (default) or native driver with wire encryption support
 
+## 🚀 Quick Start with Smithery (Recommended for Cloud Deployment)
+
+**Deploy MCP Firebird to the cloud in under 5 minutes!**
+
+[![smithery badge](https://smithery.ai/badge/@PuroDelphi/mcpFirebird)](https://smithery.ai/server/@PuroDelphi/mcpFirebird)
+
+[Smithery](https://smithery.ai) is the easiest way to deploy MCP Firebird to production:
+
+✅ **One-click deployment** - No infrastructure setup required
+✅ **Automatic scaling** - Handles traffic spikes automatically
+✅ **Built-in monitoring** - Track usage and performance
+✅ **Secure credentials** - Encrypted environment variables
+✅ **Auto-updates** - Always running the latest version
+✅ **Global CDN** - Low latency worldwide
+
+### How to Deploy on Smithery
+
+1. **Visit** [smithery.ai](https://smithery.ai)
+2. **Connect** your GitHub account
+3. **Select** the `mcpFirebird` repository
+4. **Configure** your Firebird database connection:
+   ```yaml
+   host: "your-firebird-server.com"
+   port: 3050
+   database: "/path/to/database.fdb"
+   user: "SYSDBA"
+   password: "your-secure-password"
+   useNativeDriver: true  # Enable wire encryption (optional)
+   logLevel: "info"
+   ```
+5. **Click Deploy** - Done! ✨
+
+Your MCP Firebird server will be available at:
+```
+https://server.smithery.ai/your-username/mcp-firebird
+```
+
+### Using with AI Clients
+
+```typescript
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+
+const transport = new StreamableHTTPClientTransport(
+  "https://server.smithery.ai/your-username/mcp-firebird"
+);
+
+const client = new Client({
+  name: "my-ai-app",
+  version: "1.0.0"
+});
+
+await client.connect(transport);
+```
+
+**📚 For detailed Smithery deployment instructions, see [SMITHERY_DEPLOYMENT.md](./SMITHERY_DEPLOYMENT.md)**
+
 ## 🔒 Wire Encryption Support
 
 MCP Firebird supports **two driver options**:
