@@ -8,9 +8,10 @@ WORKDIR /app
 # Copy package files first (for better caching)
 COPY package*.json ./
 COPY tsconfig.json ./
+COPY tsconfig.build.json ./
 
 # Install ALL dependencies (including devDependencies for build)
-RUN npm ci --include=dev
+RUN npm ci
 
 # Copy source code
 COPY src/ ./src/
