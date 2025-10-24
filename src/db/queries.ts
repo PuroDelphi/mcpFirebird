@@ -615,6 +615,8 @@ export const getExecutionPlan = async (
     params: any[] = [],
     config = getGlobalConfig() || DEFAULT_CONFIG
 ): Promise<ExecutionPlanResult> => {
+    let db: any = null;
+
     try {
         // Validate the SQL query to prevent injection
         if (!validateSql(sql)) {
@@ -626,106 +628,168 @@ export const getExecutionPlan = async (
 
         logger.info(`Getting execution plan for query: ${sql.substring(0, 100)}${sql.length > 100 ? '...' : ''}`);
 
-        // En Firebird, podemos obtener el plan de ejecución de dos maneras:
-        // 1. Usando SET PLAN ON antes de la consulta (más compatible con versiones antiguas)
-        // 2. Usando SET EXPLAIN ON para versiones más recientes
+        // Only SELECT queries are supported for execution plan analysis
+        if (!sql.trim().toUpperCase().startsWith('SELECT')) {
+            throw new FirebirdError(
+                `Only SELECT queries are supported for execution plan analysis`,
+                'UNSUPPORTED_OPERATION'
+            );
+        }
 
-        // Intentamos primero con SET EXPLAIN ON que da información más detallada
+        // Get database connection
+        const effectiveConfig = getGlobalConfig() || config;
+        db = await connectToDatabase(effectiveConfig);
+
+        // Firebird execution plan retrieval using SET PLANONLY ON
+        // This shows the plan without executing the query
+        let planText = '';
+        let planSuccess = false;
+
+        // Method 1: Try SET PLANONLY ON (most reliable)
         try {
-            // Ejecutar SET EXPLAIN ON para habilitar la explicación del plan
-            // Asegurarse de que estamos usando la configuración correcta
-            const effectiveConfig = getGlobalConfig() || config;
-            await executeQuery('SET EXPLAIN ON', [], effectiveConfig);
+            logger.debug('Attempting to get plan using SET PLANONLY ON');
 
-            // Ejecutar la consulta original para obtener el plan
-            const explainResults = await executeQuery(sql, params, effectiveConfig);
+            // Enable PLANONLY mode
+            await new Promise<void>((resolve, reject) => {
+                db.query('SET PLANONLY ON', [], (err: any) => {
+                    if (err) {
+                        logger.warn(`SET PLANONLY ON failed: ${err.message}`);
+                        reject(err);
+                    } else {
+                        logger.debug('SET PLANONLY ON executed successfully');
+                        resolve();
+                    }
+                });
+            });
 
-            // Desactivar EXPLAIN después de obtener el plan
-            await executeQuery('SET EXPLAIN OFF', [], effectiveConfig);
+            // Execute the query - in PLANONLY mode, it won't execute but will return the plan
+            await new Promise<void>((resolve, reject) => {
+                db.query(sql, params, (err: any, result: any) => {
+                    // In PLANONLY mode, the query doesn't execute
+                    // The plan might be in the error or result
+                    if (err) {
+                        const errorMsg = String(err.message || err);
+                        logger.debug(`PLANONLY query response (error): ${errorMsg}`);
 
-            // Si llegamos aquí, el enfoque SET EXPLAIN ON funcionó
-            // El plan de ejecución estará en los metadatos de la consulta
-            // Extraer el plan de los metadatos (esto depende de la implementación del driver)
-            let plan = "Plan de ejecución detallado no disponible en este formato.";
-
-            // Intentar extraer el plan de los metadatos si están disponibles
-            // Nota: Esto depende de la implementación específica del driver
-            // y puede no estar disponible en todas las versiones
-
-            return {
-                query: sql,
-                plan: plan,
-                planDetails: [],
-                success: true,
-                analysis: "Análisis del plan de ejecución no disponible en este formato."
-            };
-        } catch (explainError: unknown) {
-            // Si SET EXPLAIN ON falla, intentamos con el método alternativo
-            const errorMsg = explainError instanceof Error ? explainError.message : String(explainError);
-            logger.warn(`SET EXPLAIN ON failed, trying alternative method: ${errorMsg}`);
-
-            // Método alternativo: Ejecutar la consulta con PLAN para ver el plan
-            // En Firebird, podemos usar la palabra clave PLAN dentro de la consulta SELECT
-            // para obtener el plan de ejecución sin ejecutar realmente la consulta
-
-            // Modificar la consulta para extraer solo el plan
-            // Esto funciona mejor para consultas SELECT
-            let planQuery = sql;
-
-            // Si la consulta no comienza con SELECT, no podemos obtener el plan de esta manera
-            if (!sql.trim().toUpperCase().startsWith('SELECT')) {
-                throw new FirebirdError(
-                    `Only SELECT queries are supported for execution plan analysis`,
-                    'UNSUPPORTED_OPERATION'
-                );
-            }
-
-            // Conectar a la base de datos directamente para ejecutar comandos especiales
-            // Asegurarse de que estamos usando la configuración correcta
-            const effectiveConfig = getGlobalConfig() || config;
-            const db = await connectToDatabase(effectiveConfig);
-
-            try {
-                // Ejecutar la consulta con PLAN para obtener el plan de ejecución
-                const planResults = await new Promise<string>((resolve, reject) => {
-                    db.query(
-                        `SELECT FIRST 0 * FROM (${sql}) WHERE 0=1`,
-                        params,
-                        (err: any, result: any) => {
-                            if (err) {
-                                reject(err);
-                                return;
-                            }
-
-                            // El plan de ejecución debería estar disponible en los metadatos
-                            if (result && result._plan) {
-                                resolve(result._plan);
-                            } else {
-                                resolve("Plan de ejecución no disponible");
+                        // Sometimes the plan is in the error message
+                        if (errorMsg.includes('PLAN')) {
+                            const planMatch = errorMsg.match(/PLAN\s+\([^)]+\)/i);
+                            if (planMatch) {
+                                planText = planMatch[0];
+                                planSuccess = true;
                             }
                         }
-                    );
-                });
+                    } else {
+                        logger.debug(`PLANONLY query response (result):`, result);
 
-                return {
-                    query: sql,
-                    plan: planResults || "Plan de ejecución no disponible",
-                    planDetails: [],
-                    success: true,
-                    analysis: "Análisis del plan de ejecución no disponible en este formato."
-                };
-            } finally {
-                // Cerrar la conexión
+                        // Try to extract plan from result
+                        if (typeof result === 'string' && result.includes('PLAN')) {
+                            planText = result;
+                            planSuccess = true;
+                        } else if (result && result.plan) {
+                            planText = result.plan;
+                            planSuccess = true;
+                        }
+                    }
+                    resolve();
+                });
+            });
+
+            // Disable PLANONLY mode
+            await new Promise<void>((resolve) => {
+                db.query('SET PLANONLY OFF', [], (err: any) => {
+                    if (err) {
+                        logger.warn(`SET PLANONLY OFF failed: ${err.message}`);
+                    }
+                    resolve();
+                });
+            });
+        } catch (planOnlyError) {
+            logger.warn(`SET PLANONLY method failed: ${planOnlyError}`);
+        }
+
+        // Method 2: If PLANONLY didn't work, try SET PLAN ON with a limited query
+        if (!planSuccess) {
+            try {
+                logger.debug('Attempting to get plan using SET PLAN ON');
+
                 await new Promise<void>((resolve) => {
-                    db.detach((err) => {
+                    db.query('SET PLAN ON', [], (err: any) => {
                         if (err) {
-                            logger.warn(`Error detaching from database: ${err.message}`);
+                            logger.warn(`SET PLAN ON failed: ${err.message}`);
                         }
                         resolve();
                     });
                 });
+
+                // Execute query with FIRST 1 to minimize execution time
+                const limitedQuery = sql.toUpperCase().includes('FIRST') ? sql : `SELECT FIRST 1 * FROM (${sql})`;
+
+                await new Promise<void>((resolve, reject) => {
+                    db.query(limitedQuery, params, (err: any, result: any, meta: any) => {
+                        if (err) {
+                            logger.warn(`SET PLAN query failed: ${err.message}`);
+                        } else {
+                            logger.debug('SET PLAN query result:', { result, meta });
+
+                            // Check for plan in metadata
+                            if (meta && meta.plan) {
+                                planText = meta.plan;
+                                planSuccess = true;
+                            }
+                        }
+                        resolve();
+                    });
+                });
+
+                await new Promise<void>((resolve) => {
+                    db.query('SET PLAN OFF', [], (err: any) => {
+                        if (err) {
+                            logger.warn(`SET PLAN OFF failed: ${err.message}`);
+                        }
+                        resolve();
+                    });
+                });
+            } catch (planOnError) {
+                logger.warn(`SET PLAN method failed: ${planOnError}`);
             }
         }
+
+        // Close the connection
+        await new Promise<void>((resolve) => {
+            db.detach((err: any) => {
+                if (err) {
+                    logger.warn(`Error detaching from database: ${err.message}`);
+                }
+                resolve();
+            });
+        });
+        db = null;
+
+        // Return results
+        if (planSuccess && planText) {
+            return {
+                query: sql,
+                plan: planText,
+                planDetails: [{ plan: planText }],
+                success: true,
+                analysis: analyzePlan(planText)
+            };
+        }
+
+        // If all methods failed
+        return {
+            query: sql,
+            plan: "Plan de ejecución no disponible",
+            planDetails: [],
+            success: true,
+            analysis: "Los drivers de Firebird para Node.js no exponen el plan de ejecución de forma directa. " +
+                     "Para ver planes de ejecución detallados, use herramientas como:\n" +
+                     "- isql (Firebird command-line tool): SET PLANONLY ON; <query>;\n" +
+                     "- FlameRobin (GUI tool)\n" +
+                     "- IBExpert (GUI tool)\n\n" +
+                     "Alternativamente, puede ejecutar la consulta y analizar su rendimiento con analyze-query-performance."
+        };
 
     } catch (error: any) {
         const errorMessage = `Error getting execution plan: ${error.message || error}`;
@@ -739,8 +803,64 @@ export const getExecutionPlan = async (
             error: errorMessage,
             analysis: "Failed to get execution plan."
         };
+    } finally {
+        // Ensure connection is closed
+        if (db) {
+            try {
+                await new Promise<void>((resolve) => {
+                    db.detach((err: any) => {
+                        if (err) {
+                            logger.warn(`Error detaching from database in finally: ${err.message}`);
+                        }
+                        resolve();
+                    });
+                });
+            } catch (finallyError) {
+                logger.warn(`Error in finally block: ${finallyError}`);
+            }
+        }
     }
 };
+
+/**
+ * Analyzes a Firebird execution plan and provides insights
+ */
+function analyzePlan(plan: string): string {
+    const analysis: string[] = [];
+    const upperPlan = plan.toUpperCase();
+
+    // Check for NATURAL scans (table scans without index)
+    if (upperPlan.includes('NATURAL')) {
+        analysis.push('⚠️ NATURAL scan detected - table is being scanned without using an index. Consider adding an index for better performance.');
+    }
+
+    // Check for INDEX usage
+    const indexMatches = plan.match(/INDEX\s+\(([^)]+)\)/gi);
+    if (indexMatches && indexMatches.length > 0) {
+        analysis.push(`✅ Using ${indexMatches.length} index(es): ${indexMatches.join(', ')}`);
+    }
+
+    // Check for JOIN operations
+    if (upperPlan.includes('JOIN')) {
+        analysis.push('🔗 Query contains JOIN operations');
+    }
+
+    // Check for SORT operations
+    if (upperPlan.includes('SORT')) {
+        analysis.push('📊 SORT operation detected - may impact performance on large datasets');
+    }
+
+    // Check for FILTER operations
+    if (upperPlan.includes('FILTER')) {
+        analysis.push('🔍 FILTER operation detected - rows are being filtered after retrieval');
+    }
+
+    if (analysis.length === 0) {
+        return 'Plan retrieved successfully. The query appears to be optimized.';
+    }
+
+    return analysis.join('\n');
+}
 
 /**
  * Analyzes a query to identify missing indexes that could improve performance
