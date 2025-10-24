@@ -103,7 +103,7 @@ export default function createServer({ config }: { config: Config }) {
         server.registerTool(
           name,
           {
-            title: toolDef.title || name,
+            title: (toolDef as any).title || name,
             description: toolDef.description || name,
             inputSchema: inputSchema
           },
@@ -129,7 +129,7 @@ export default function createServer({ config }: { config: Config }) {
                 content: [{ type: "text", text: JSON.stringify(result) }]
               };
             } catch (error) {
-              logger.error(`Error executing tool ${name}:`, error);
+              logger.error(`Error executing tool ${name}:`, error as Error);
               const message = error instanceof Error ? error.message : 'Unknown error';
               return {
                 content: [{ type: "text", text: `Error: ${message}` }],
@@ -147,7 +147,7 @@ export default function createServer({ config }: { config: Config }) {
       });
 
       // Setup metadata tools
-      const metaTools = setupMetadataTools();
+      const metaTools = setupMetadataTools(dbTools);
       Object.entries(metaTools).forEach(([name, toolDef]) => {
         registerTool(name, toolDef);
       });
@@ -182,7 +182,7 @@ export default function createServer({ config }: { config: Config }) {
               const result = await promptDef.handler(params);
               return result;
             } catch (error) {
-              logger.error(`Error executing prompt ${name}:`, error);
+              logger.error(`Error executing prompt ${name}:`, error as Error);
               throw error;
             }
           }
@@ -208,7 +208,7 @@ export default function createServer({ config }: { config: Config }) {
               const result = await promptDef.handler(params);
               return result;
             } catch (error) {
-              logger.error(`Error executing prompt ${name}:`, error);
+              logger.error(`Error executing prompt ${name}:`, error as Error);
               throw error;
             }
           }
@@ -226,22 +226,22 @@ export default function createServer({ config }: { config: Config }) {
           `resource-${uri}`,
           uri,
           {
-            title: resourceDef.name || uri,
+            title: (resourceDef as any).name || uri,
             description: resourceDef.description || '',
-            mimeType: resourceDef.mimeType || 'application/json'
+            mimeType: (resourceDef as any).mimeType || 'application/json'
           },
-          async (resourceUri: string) => {
+          async (resourceUri: URL) => {
             try {
               const result = await resourceDef.handler({});
               return {
                 contents: [{
-                  uri: resourceUri,
-                  mimeType: resourceDef.mimeType || 'application/json',
+                  uri: resourceUri.toString(),
+                  mimeType: (resourceDef as any).mimeType || 'application/json',
                   text: typeof result === 'string' ? result : JSON.stringify(result, null, 2)
                 }]
               };
             } catch (error) {
-              logger.error(`Error reading resource ${uri}:`, error);
+              logger.error(`Error reading resource ${uri}:`, error as Error);
               throw error;
             }
           }
@@ -252,7 +252,7 @@ export default function createServer({ config }: { config: Config }) {
       logger.info('MCP Firebird server ready for Smithery deployment');
 
     } catch (error) {
-      logger.error('Error initializing MCP server:', error);
+      logger.error('Error initializing MCP server:', error as Error);
       throw error;
     }
   })();
