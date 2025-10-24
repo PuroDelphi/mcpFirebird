@@ -1,5 +1,4 @@
 // src/resources/database.ts
-import { z } from 'zod';
 import { createLogger } from '../utils/logger.js';
 import { listTables, describeTable, executeQuery } from '../db/queries.js';
 import { getTableSchema } from '../db/schema.js';
@@ -83,50 +82,207 @@ export const setupDatabaseResources = (): Map<string, ResourceDefinition> => {
     };
     resources.set("/tables/{tableName}/description", tableDescriptionResource);
 
-
-    // --- Definición del Recurso: Datos de Tabla (con paginación simple) --- (URI: /tables/{tableName}/data?first=N&skip=M)
-    // Nota: Esto es un ejemplo simple, la paginación real puede ser más compleja.
-    const tableDataResource: ResourceDefinition = {
-        description: "Recurso que representa los datos de una tabla, con paginación básica (FIRST/SKIP).",
-        handler: async (params) => {
-            const tableName = params.tableName;
-            const first = params.first ? parseInt(params.first, 10) : undefined;
-            const skip = params.skip ? parseInt(params.skip, 10) : 0; // Default skip to 0
-
-            if (!tableName) {
-                logger.warn("Intento de acceso a /tables/{tableName}/data sin tableName");
-                return { contents: [], error: "Falta el nombre de la tabla en la URI" };
-            }
-            if (params.first && (isNaN(first as number) || (first as number) <= 0)) {
-                return { contents: [], error: "Parámetro 'first' debe ser un número positivo" };
-            }
-            if (params.skip && (isNaN(skip as number) || (skip as number) < 0)) {
-                return { contents: [], error: "Parámetro 'skip' debe ser un número no negativo" };
-            }
-
-            logger.info(`Accediendo al recurso /tables/${tableName}/data (first: ${first}, skip: ${skip})`);
+    // --- Recurso: Esquema Completo de la Base de Datos --- (URI: /schema)
+    const databaseSchemaResource: ResourceDefinition = {
+        title: "Database Schema",
+        description: "Recurso que representa el esquema completo de la base de datos con todas las tablas y sus relaciones.",
+        mimeType: "application/json",
+        handler: async () => {
+            logger.info("Accediendo al recurso /schema");
             try {
-                // Construir la consulta base
-                let sql = `SELECT * FROM "${tableName}"`; // Asegurar comillas por si acaso
-
-                // Firebird usa FIRST y SKIP
-                if (first !== undefined) {
-                    sql += ` FIRST ${first}`;
-                }
-                if (skip > 0) {
-                    sql += ` SKIP ${skip}`;
-                }
-
-                const results = await executeQuery(sql);
-                return { data: results };
+                const tables = await listTables();
+                const schemas = await Promise.all(
+                    tables.map(async (tableName: string) => {
+                        try {
+                            const schema = await getTableSchema(tableName);
+                            return { tableName, schema };
+                        } catch (error: any) {
+                            logger.warn(`Error al obtener esquema de ${tableName}: ${error.message}`);
+                            return { tableName, error: error.message };
+                        }
+                    })
+                );
+                return {
+                    database: "firebird",
+                    tables: schemas,
+                    totalTables: tables.length
+                };
             } catch (error: any) {
-                logger.error(`Error al obtener datos para el recurso /tables/${tableName}/data: ${error.message || error}`);
-                return { contents: [], error: `Error interno al obtener datos para ${tableName}`, details: error.message || String(error) };
+                logger.error(`Error al obtener esquema completo: ${error.message || error}`);
+                return { error: "Error interno al obtener esquema completo", details: error.message || String(error) };
             }
         }
     };
-    // URI puede incluir placeholders para query params, pero el matching debe hacerse en el handler de index.ts
-    resources.set("/tables/{tableName}/data", tableDataResource); // Clave base sin query params
+    resources.set("/schema", databaseSchemaResource);
+
+    // --- Recurso: Índices de una Tabla --- (URI: /tables/{tableName}/indexes)
+    const tableIndexesResource: ResourceDefinition = {
+        title: "Table Indexes",
+        description: "Recurso que representa los índices de una tabla específica.",
+        mimeType: "application/json",
+        handler: async (params) => {
+            const tableName = params.tableName;
+            if (!tableName) {
+                logger.warn("Intento de acceso a /tables/{tableName}/indexes sin tableName");
+                return { error: "Falta el nombre de la tabla en la URI" };
+            }
+            logger.info(`Accediendo al recurso /tables/${tableName}/indexes`);
+            try {
+                const sql = `
+                    SELECT
+                        RDB$INDEX_NAME AS INDEX_NAME,
+                        RDB$RELATION_NAME AS TABLE_NAME,
+                        RDB$UNIQUE_FLAG AS IS_UNIQUE,
+                        RDB$INDEX_TYPE AS INDEX_TYPE,
+                        RDB$SEGMENT_COUNT AS SEGMENT_COUNT
+                    FROM RDB$INDICES
+                    WHERE RDB$RELATION_NAME = '${tableName.toUpperCase()}'
+                    AND RDB$SYSTEM_FLAG = 0
+                    ORDER BY RDB$INDEX_NAME
+                `;
+                const indexes = await executeQuery(sql);
+                return {
+                    tableName,
+                    indexes: indexes.map((idx: any) => ({
+                        name: idx.INDEX_NAME?.trim(),
+                        isUnique: idx.IS_UNIQUE === 1,
+                        type: idx.INDEX_TYPE === 0 ? 'ASCENDING' : 'DESCENDING',
+                        segmentCount: idx.SEGMENT_COUNT
+                    }))
+                };
+            } catch (error: any) {
+                logger.error(`Error al obtener índices para ${tableName}: ${error.message || error}`);
+                return { error: `Error interno al obtener índices para ${tableName}`, details: error.message || String(error) };
+            }
+        }
+    };
+    resources.set("/tables/{tableName}/indexes", tableIndexesResource);
+
+    // --- Recurso: Constraints de una Tabla --- (URI: /tables/{tableName}/constraints)
+    const tableConstraintsResource: ResourceDefinition = {
+        title: "Table Constraints",
+        description: "Recurso que representa las restricciones (constraints) de una tabla específica.",
+        mimeType: "application/json",
+        handler: async (params) => {
+            const tableName = params.tableName;
+            if (!tableName) {
+                logger.warn("Intento de acceso a /tables/{tableName}/constraints sin tableName");
+                return { error: "Falta el nombre de la tabla en la URI" };
+            }
+            logger.info(`Accediendo al recurso /tables/${tableName}/constraints`);
+            try {
+                const sql = `
+                    SELECT
+                        RC.RDB$CONSTRAINT_NAME AS CONSTRAINT_NAME,
+                        RC.RDB$CONSTRAINT_TYPE AS CONSTRAINT_TYPE,
+                        RC.RDB$RELATION_NAME AS TABLE_NAME,
+                        I.RDB$INDEX_NAME AS INDEX_NAME
+                    FROM RDB$RELATION_CONSTRAINTS RC
+                    LEFT JOIN RDB$INDICES I ON RC.RDB$INDEX_NAME = I.RDB$INDEX_NAME
+                    WHERE RC.RDB$RELATION_NAME = '${tableName.toUpperCase()}'
+                    ORDER BY RC.RDB$CONSTRAINT_NAME
+                `;
+                const constraints = await executeQuery(sql);
+                return {
+                    tableName,
+                    constraints: constraints.map((c: any) => ({
+                        name: c.CONSTRAINT_NAME?.trim(),
+                        type: c.CONSTRAINT_TYPE?.trim(),
+                        indexName: c.INDEX_NAME?.trim()
+                    }))
+                };
+            } catch (error: any) {
+                logger.error(`Error al obtener constraints para ${tableName}: ${error.message || error}`);
+                return { error: `Error interno al obtener constraints para ${tableName}`, details: error.message || String(error) };
+            }
+        }
+    };
+    resources.set("/tables/{tableName}/constraints", tableConstraintsResource);
+
+    // --- Recurso: Triggers de una Tabla --- (URI: /tables/{tableName}/triggers)
+    const tableTriggersResource: ResourceDefinition = {
+        title: "Table Triggers",
+        description: "Recurso que representa los triggers de una tabla específica.",
+        mimeType: "application/json",
+        handler: async (params) => {
+            const tableName = params.tableName;
+            if (!tableName) {
+                logger.warn("Intento de acceso a /tables/{tableName}/triggers sin tableName");
+                return { error: "Falta el nombre de la tabla en la URI" };
+            }
+            logger.info(`Accediendo al recurso /tables/${tableName}/triggers`);
+            try {
+                const sql = `
+                    SELECT
+                        RDB$TRIGGER_NAME AS TRIGGER_NAME,
+                        RDB$RELATION_NAME AS TABLE_NAME,
+                        RDB$TRIGGER_TYPE AS TRIGGER_TYPE,
+                        RDB$TRIGGER_SEQUENCE AS SEQUENCE,
+                        RDB$TRIGGER_INACTIVE AS IS_INACTIVE,
+                        CAST(RDB$TRIGGER_SOURCE AS VARCHAR(8000)) AS SOURCE
+                    FROM RDB$TRIGGERS
+                    WHERE RDB$RELATION_NAME = '${tableName.toUpperCase()}'
+                    AND RDB$SYSTEM_FLAG = 0
+                    ORDER BY RDB$TRIGGER_NAME
+                `;
+                const triggers = await executeQuery(sql);
+                return {
+                    tableName,
+                    triggers: triggers.map((t: any) => ({
+                        name: t.TRIGGER_NAME?.trim(),
+                        type: t.TRIGGER_TYPE,
+                        sequence: t.SEQUENCE,
+                        isActive: t.IS_INACTIVE === 0,
+                        source: t.SOURCE?.trim()
+                    }))
+                };
+            } catch (error: any) {
+                logger.error(`Error al obtener triggers para ${tableName}: ${error.message || error}`);
+                return { error: `Error interno al obtener triggers para ${tableName}`, details: error.message || String(error) };
+            }
+        }
+    };
+    resources.set("/tables/{tableName}/triggers", tableTriggersResource);
+
+    // --- Recurso: Estadísticas de la Base de Datos --- (URI: /statistics)
+    const databaseStatisticsResource: ResourceDefinition = {
+        title: "Database Statistics",
+        description: "Recurso que representa estadísticas generales de la base de datos.",
+        mimeType: "application/json",
+        handler: async () => {
+            logger.info("Accediendo al recurso /statistics");
+            try {
+                const tables = await listTables();
+                const tableStats = await Promise.all(
+                    tables.map(async (tableName: string) => {
+                        try {
+                            const countSql = `SELECT COUNT(*) as ROW_COUNT FROM "${tableName}"`;
+                            const result = await executeQuery(countSql);
+                            return {
+                                tableName,
+                                rowCount: result[0]?.ROW_COUNT || 0
+                            };
+                        } catch (error: any) {
+                            logger.warn(`Error al contar filas de ${tableName}: ${error.message}`);
+                            return { tableName, rowCount: 0, error: error.message };
+                        }
+                    })
+                );
+
+                const totalRows = tableStats.reduce((sum, stat) => sum + (stat.rowCount || 0), 0);
+
+                return {
+                    totalTables: tables.length,
+                    totalRows,
+                    tables: tableStats
+                };
+            } catch (error: any) {
+                logger.error(`Error al obtener estadísticas: ${error.message || error}`);
+                return { error: "Error interno al obtener estadísticas", details: error.message || String(error) };
+            }
+        }
+    };
+    resources.set("/statistics", databaseStatisticsResource);
 
     // Añadir más recursos aquí...
 

@@ -47,6 +47,8 @@ import { setupDatabaseTools } from '../tools/database.js';
 import { setupMetadataTools } from '../tools/metadata.js';
 import { setupDatabasePrompts } from '../prompts/database.js';
 import { setupSqlPrompts } from '../prompts/sql.js';
+import { setupTemplatePrompts } from '../prompts/templates.js';
+import { setupAdvancedTemplatePrompts } from '../prompts/advanced-templates.js';
 import { initSecurity } from '../security/index.js';
 import { ConfigError } from '../utils/errors.js';
 import pkg from '../../package.json' with { type: 'json' };
@@ -63,9 +65,16 @@ async function createMcpServerInstance(): Promise<any> {
     const metadataTools = setupMetadataTools(databaseTools);
     const databasePrompts = setupDatabasePrompts();
     const sqlPrompts = setupSqlPrompts();
+    const templatePrompts = setupTemplatePrompts();
+    const advancedTemplatePrompts = setupAdvancedTemplatePrompts();
     // Temporarily disable resources due to path-to-regexp compatibility issues
     const allResources: Map<string, ResourceDefinition> = new Map();
-    const allPrompts = new Map<string, PromptDefinition>([...databasePrompts, ...sqlPrompts]);
+    const allPrompts = new Map<string, PromptDefinition>([
+        ...databasePrompts,
+        ...sqlPrompts,
+        ...templatePrompts,
+        ...advancedTemplatePrompts
+    ]);
     const allTools = new Map<string, DbToolDefinition | MetaToolDefinition>([...databaseTools, ...metadataTools]);
 
     // Create MCP server instance

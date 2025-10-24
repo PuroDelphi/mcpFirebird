@@ -102,6 +102,22 @@ export const DescribeBatchTablesArgsSchema = z.object({
     maxConcurrent: z.number().int().min(1).max(10).optional().default(5).describe("Maximum number of concurrent operations (default: 5)")
 });
 
+export const GetTableDataArgsSchema = z.object({
+    tableName: z.string().min(1).describe("Name of the table to retrieve data from"),
+    first: z.number().int().positive().optional().describe("Number of rows to retrieve (FIRST clause in Firebird)"),
+    skip: z.number().int().min(0).optional().describe("Number of rows to skip (SKIP clause in Firebird)"),
+    where: z.string().optional().describe("Optional WHERE clause (without the WHERE keyword)"),
+    orderBy: z.string().optional().describe("Optional ORDER BY clause (without the ORDER BY keyword)")
+});
+
+export const AnalyzeTableStatisticsArgsSchema = z.object({
+    tableName: z.string().min(1).describe("Name of the table to analyze")
+});
+
+export const VerifyWireEncryptionArgsSchema = z.object({});
+
+export const GetDatabaseInfoArgsSchema = z.object({});
+
 /**
  * Interfaz para definir una herramienta MCP.
  */
@@ -516,6 +532,196 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
             } catch (error) {
                 const errorResponse = wrapError(error);
                 logger.error(`Error describing batch tables: ${errorResponse.error} [${errorResponse.errorType || 'UNKNOWN'}]`);
+
+                return {
+                    content: [{
+                        type: "text",
+                        text: formatForClaude(errorResponse)
+                    }]
+                };
+            }
+        }
+    });
+
+    // Nueva herramienta: get-table-data
+    tools.set("get-table-data", {
+        name: "get-table-data",
+        title: "Get Table Data",
+        description: "Retrieves data from a specific table with optional filtering, pagination, and ordering.",
+        inputSchema: GetTableDataArgsSchema,
+        handler: async (args: z.infer<typeof GetTableDataArgsSchema>) => {
+            const { tableName, first, skip, where, orderBy } = args;
+            logger.info(`Getting data from table: ${tableName}`);
+
+            try {
+                let sql = `SELECT * FROM "${tableName}"`;
+
+                if (where) {
+                    sql += ` WHERE ${where}`;
+                }
+
+                if (orderBy) {
+                    sql += ` ORDER BY ${orderBy}`;
+                }
+
+                if (first !== undefined) {
+                    sql = `SELECT FIRST ${first} ${skip ? `SKIP ${skip}` : ''} * FROM "${tableName}"${where ? ` WHERE ${where}` : ''}${orderBy ? ` ORDER BY ${orderBy}` : ''}`;
+                }
+
+                const result = await executeQuery(sql);
+                logger.info(`Retrieved ${result.length} rows from ${tableName}`);
+
+                return {
+                    content: [{
+                        type: "text",
+                        text: formatForClaude({
+                            tableName,
+                            rowCount: result.length,
+                            data: result
+                        })
+                    }]
+                };
+            } catch (error) {
+                const errorResponse = wrapError(error);
+                logger.error(`Error getting data from ${tableName}: ${errorResponse.error}`);
+
+                return {
+                    content: [{
+                        type: "text",
+                        text: formatForClaude(errorResponse)
+                    }]
+                };
+            }
+        }
+    });
+
+    // Nueva herramienta: analyze-table-statistics
+    tools.set("analyze-table-statistics", {
+        name: "analyze-table-statistics",
+        title: "Analyze Table Statistics",
+        description: "Analyzes statistical information about a table including row count, column statistics, and data distribution.",
+        inputSchema: AnalyzeTableStatisticsArgsSchema,
+        handler: async (args: z.infer<typeof AnalyzeTableStatisticsArgsSchema>) => {
+            const { tableName } = args;
+            logger.info(`Analyzing statistics for table: ${tableName}`);
+
+            try {
+                // Get row count
+                const countResult = await executeQuery(`SELECT COUNT(*) as ROW_COUNT FROM "${tableName}"`);
+                const rowCount = countResult[0]?.ROW_COUNT || 0;
+
+                // Get table schema
+                const schema = await describeTable(tableName);
+
+                // Get sample data for analysis
+                const sampleData = await executeQuery(`SELECT FIRST 100 * FROM "${tableName}"`);
+
+                const statistics = {
+                    tableName,
+                    rowCount,
+                    columnCount: schema.length,
+                    sampleSize: sampleData.length,
+                    columns: schema.map((col: any) => ({
+                        name: col.FIELD_NAME,
+                        type: col.FIELD_TYPE,
+                        nullable: col.NULL_FLAG === 'YES',
+                        hasDefault: !!col.DEFAULT_VALUE
+                    }))
+                };
+
+                logger.info(`Statistics analyzed for ${tableName}: ${rowCount} rows, ${schema.length} columns`);
+
+                return {
+                    content: [{
+                        type: "text",
+                        text: formatForClaude(statistics)
+                    }]
+                };
+            } catch (error) {
+                const errorResponse = wrapError(error);
+                logger.error(`Error analyzing statistics for ${tableName}: ${errorResponse.error}`);
+
+                return {
+                    content: [{
+                        type: "text",
+                        text: formatForClaude(errorResponse)
+                    }]
+                };
+            }
+        }
+    });
+
+    // Nueva herramienta: verify-wire-encryption
+    tools.set("verify-wire-encryption", {
+        name: "verify-wire-encryption",
+        title: "Verify Wire Encryption",
+        description: "Verifies if the current database connection is using wire encryption (requires native driver).",
+        inputSchema: VerifyWireEncryptionArgsSchema,
+        handler: async () => {
+            logger.info("Verifying wire encryption status");
+
+            try {
+                // Check if native driver is available
+                const driverInfo = {
+                    hasNativeDriver: process.env.USE_NATIVE_DRIVER === 'true',
+                    wireEncryptionEnabled: process.env.WIRE_CRYPT === 'Enabled',
+                    driverType: process.env.USE_NATIVE_DRIVER === 'true' ? 'native' : 'pure-js',
+                    recommendation: process.env.USE_NATIVE_DRIVER !== 'true'
+                        ? 'Wire encryption requires the native driver. Set USE_NATIVE_DRIVER=true and install node-firebird-driver-native.'
+                        : 'Native driver is configured. Ensure WIRE_CRYPT=Enabled for encryption.'
+                };
+
+                return {
+                    content: [{
+                        type: "text",
+                        text: formatForClaude(driverInfo)
+                    }]
+                };
+            } catch (error) {
+                const errorResponse = wrapError(error);
+                logger.error(`Error verifying wire encryption: ${errorResponse.error}`);
+
+                return {
+                    content: [{
+                        type: "text",
+                        text: formatForClaude(errorResponse)
+                    }]
+                };
+            }
+        }
+    });
+
+    // Nueva herramienta: get-database-info
+    tools.set("get-database-info", {
+        name: "get-database-info",
+        title: "Get Database Info",
+        description: "Retrieves general information about the connected Firebird database.",
+        inputSchema: GetDatabaseInfoArgsSchema,
+        handler: async () => {
+            logger.info("Getting database information");
+
+            try {
+                const tables = await listTables();
+
+                const info = {
+                    database: process.env.DB_NAME || 'unknown',
+                    host: process.env.DB_HOST || 'localhost',
+                    port: process.env.DB_PORT || 3050,
+                    totalTables: tables.length,
+                    driverType: process.env.USE_NATIVE_DRIVER === 'true' ? 'native' : 'pure-js',
+                    wireEncryption: process.env.WIRE_CRYPT || 'Disabled',
+                    tables: tables
+                };
+
+                return {
+                    content: [{
+                        type: "text",
+                        text: formatForClaude(info)
+                    }]
+                };
+            } catch (error) {
+                const errorResponse = wrapError(error);
+                logger.error(`Error getting database info: ${errorResponse.error}`);
 
                 return {
                     content: [{

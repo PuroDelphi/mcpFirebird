@@ -584,6 +584,7 @@ For more detailed information, check the following documents:
 - [Complete Installation](./docs/installation.md)
 - [Configuration Options](./docs/configuration.md)
 - [Available Tools](./docs/tools.md)
+- [Resources, Tools, and Prompts Reference](./docs/resources-tools-prompts.md) - Complete guide to all MCP capabilities
 
 ### Transport Protocols
 - [SSE Transport Configuration](./docs/sse-transport.md)

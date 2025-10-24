@@ -12,6 +12,8 @@ import { setupMetadataTools } from '../tools/metadata.js';
 import { setupSimpleTools } from '../tools/simple.js';
 import { setupDatabasePrompts } from '../prompts/database.js';
 import { setupSqlPrompts } from '../prompts/sql.js';
+import { setupTemplatePrompts } from '../prompts/templates.js';
+import { setupAdvancedTemplatePrompts } from '../prompts/advanced-templates.js';
 import { setupDatabaseResources, type ResourceDefinition } from '../resources/database.js';
 import { initSecurity } from '../security/index.js';
 import { ConfigError } from '../utils/errors.js';
@@ -182,6 +184,8 @@ export async function startMcpServer() {
         logger.info('Registering prompts...');
         const databasePrompts = setupDatabasePrompts();
         const sqlPrompts = setupSqlPrompts();
+        const templatePrompts = setupTemplatePrompts();
+        const advancedTemplatePrompts = setupAdvancedTemplatePrompts();
 
         // Register all prompts using the helper function
         for (const [name, promptDef] of databasePrompts.entries()) {
@@ -192,7 +196,16 @@ export async function startMcpServer() {
             registerPrompt(name, promptDef);
         }
 
-        logger.info(`Registered ${databasePrompts.size + sqlPrompts.size} prompts in total.`);
+        for (const [name, promptDef] of templatePrompts.entries()) {
+            registerPrompt(name, promptDef);
+        }
+
+        for (const [name, promptDef] of advancedTemplatePrompts.entries()) {
+            registerPrompt(name, promptDef);
+        }
+
+        const totalPrompts = databasePrompts.size + sqlPrompts.size + templatePrompts.size + advancedTemplatePrompts.size;
+        logger.info(`Registered ${totalPrompts} prompts in total (${databasePrompts.size} database, ${sqlPrompts.size} SQL, ${templatePrompts.size} templates, ${advancedTemplatePrompts.size} advanced).`);
 
         /**
          * Helper function to register a resource with proper error handling

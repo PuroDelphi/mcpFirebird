@@ -10,6 +10,8 @@ import { setupDatabaseTools } from './tools/database.js';
 import { setupMetadataTools } from './tools/metadata.js';
 import { setupDatabasePrompts } from './prompts/database.js';
 import { setupSqlPrompts } from './prompts/sql.js';
+import { setupTemplatePrompts } from './prompts/templates.js';
+import { setupAdvancedTemplatePrompts } from './prompts/advanced-templates.js';
 import { createLogger } from './utils/logger.js';
 import pkg from '../package.json' with { type: 'json' };
 
@@ -49,8 +51,15 @@ export default function ({ config }: { config: Config }) {
   const metadataTools = setupMetadataTools(databaseTools);
   const databasePrompts = setupDatabasePrompts();
   const sqlPrompts = setupSqlPrompts();
-  
-  const allPrompts = new Map([...databasePrompts, ...sqlPrompts]);
+  const templatePrompts = setupTemplatePrompts();
+  const advancedTemplatePrompts = setupAdvancedTemplatePrompts();
+
+  const allPrompts = new Map([
+    ...databasePrompts,
+    ...sqlPrompts,
+    ...templatePrompts,
+    ...advancedTemplatePrompts
+  ]);
   const allTools = new Map([...databaseTools, ...metadataTools]);
 
   // Create MCP server instance with modern capabilities
