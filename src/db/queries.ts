@@ -615,11 +615,6 @@ export const getExecutionPlan = async (
     params: any[] = [],
     config = getGlobalConfig() || DEFAULT_CONFIG
 ): Promise<ExecutionPlanResult> => {
-    let db: any = null;
-    let attachment: any = null;
-    let transaction: any = null;
-    let statement: any = null;
-
     try {
         // Validate the SQL query to prevent injection
         if (!validateSql(sql)) {
@@ -639,256 +634,58 @@ export const getExecutionPlan = async (
             );
         }
 
-        // Get database connection
-        const effectiveConfig = getGlobalConfig() || config;
-
         // Check if we're using the native driver by checking DriverFactory
         const { DriverFactory } = await import('./driver-factory.js');
         const driverInfo = await DriverFactory.getDriverInfo();
-        const useNativeDriver = driverInfo.current === 'node-firebird-driver-native';
 
         logger.debug('Driver info for execution plan', {
-            useNativeDriver,
             driverType: driverInfo.current,
             nativeAvailable: driverInfo.nativeAvailable
         });
 
-        if (useNativeDriver && driverInfo.nativeAvailable) {
-            // Use native driver API to get execution plan via getPlan() method
-            logger.debug('Using native driver API to get execution plan');
+        // Note: node-firebird-driver-native and node-firebird do not expose a direct method to get execution plans
+        // The Firebird API has isc_dsql_sql_info with isc_info_sql_get_plan (constant value: 22), but this is not
+        // exposed in the high-level driver interfaces. The low-level node-firebird-native-api would be needed,
+        // but it's complex to use directly and would require significant refactoring.
+        //
+        // Research findings:
+        // - FDB (Python driver) uses: isc_dsql_sql_info(statement_handle, [isc_info_sql_get_plan])
+        // - node-firebird-driver-native Statement object does not have getPlan() or getInfo() methods
+        // - node-firebird (pure JS) does not support SET PLANONLY or SET PLAN commands (isql-specific)
+        //
+        // Recommendation: Use Firebird tools for execution plan analysis:
+        // - isql: SET PLANONLY ON; <query>; SET PLANONLY OFF;
+        // - FlameRobin: GUI tool with built-in plan visualization
+        // - IBExpert: Commercial tool with advanced plan analysis
 
-            try {
-                // Import native driver
-                const { createNativeClient, getDefaultLibraryFilename } = await import('node-firebird-driver-native');
-                const client = createNativeClient(getDefaultLibraryFilename());
+        logger.info('Execution plan retrieval is not available through Node.js Firebird drivers');
+        logger.info('The drivers do not expose the isc_dsql_sql_info API needed to get execution plans');
+        logger.info('Recommendation: Use Firebird tools like isql, FlameRobin, or IBExpert for execution plans');
 
-                // Build connection string
-                let connectionString: string;
-                if (effectiveConfig.port && effectiveConfig.port !== 3050) {
-                    connectionString = `${effectiveConfig.host}/${effectiveConfig.port}:${effectiveConfig.database}`;
-                } else {
-                    connectionString = `${effectiveConfig.host}:${effectiveConfig.database}`;
-                }
-
-                logger.debug('Connecting to database with native driver', { connectionString });
-
-                // Connect to database
-                attachment = await client.createDatabase(connectionString, {
-                    username: effectiveConfig.user,
-                    password: effectiveConfig.password
-                }).catch(() => client.connect(connectionString, {
-                    username: effectiveConfig.user,
-                    password: effectiveConfig.password
-                }));
-
-                // Start transaction
-                transaction = await attachment.startTransaction();
-
-                // Prepare statement
-                logger.debug('Preparing statement');
-                statement = await attachment.prepare(transaction, sql);
-
-                // Get execution plan using getInfo() method with isc_info_sql_get_plan
-                logger.debug('Getting execution plan via statement.getInfo()');
-
-                // Try to get the plan using getInfo if available
-                let plan: string | undefined;
-
-                if (typeof (statement as any).getInfo === 'function') {
-                    // Use getInfo with isc_info_sql_get_plan constant (value: 22)
-                    const infoResult = await (statement as any).getInfo([22]); // isc_info_sql_get_plan = 22
-
-                    if (infoResult && infoResult.length > 0) {
-                        // The result should contain the plan as a string
-                        plan = infoResult[0];
-                        logger.debug('Execution plan retrieved via getInfo', { plan });
-                    }
-                } else {
-                    throw new Error('statement.getInfo() method not available');
-                }
-
-                // Clean up
-                await statement.dispose();
-                await transaction.commit();
-                await attachment.disconnect();
-
-                if (plan) {
-                    return {
-                        query: sql,
-                        plan: plan,
-                        planDetails: [{ plan: plan }],
-                        success: true,
-                        analysis: analyzePlan(plan)
-                    };
-                } else {
-                    throw new Error('No execution plan returned from getInfo()');
-                }
-
-            } catch (nativeError: any) {
-                logger.error('Native driver getInfo failed:', nativeError);
-
-                // Clean up on error
-                if (statement) await statement.dispose().catch(() => {});
-                if (transaction) await transaction.rollback().catch(() => {});
-                if (attachment) await attachment.disconnect().catch(() => {});
-
-                // Fall through to legacy method
-                logger.warn('Falling back to legacy method');
-            }
-        }
-
-        // Legacy method for pure-js driver or if native driver failed
-        db = await connectToDatabase(effectiveConfig);
-
-        // Firebird execution plan retrieval using SET PLANONLY ON
-        // This shows the plan without executing the query
-        let planText = '';
-        let planSuccess = false;
-
-        // Method 1: Try SET PLANONLY ON (most reliable)
-        try {
-            logger.debug('Attempting to get plan using SET PLANONLY ON');
-
-            // Enable PLANONLY mode
-            await new Promise<void>((resolve, reject) => {
-                db.query('SET PLANONLY ON', [], (err: any) => {
-                    if (err) {
-                        logger.warn(`SET PLANONLY ON failed: ${err.message}`);
-                        reject(err);
-                    } else {
-                        logger.debug('SET PLANONLY ON executed successfully');
-                        resolve();
-                    }
-                });
-            });
-
-            // Execute the query - in PLANONLY mode, it won't execute but will return the plan
-            await new Promise<void>((resolve, reject) => {
-                db.query(sql, params, (err: any, result: any) => {
-                    // In PLANONLY mode, the query doesn't execute
-                    // The plan might be in the error or result
-                    if (err) {
-                        const errorMsg = String(err.message || err);
-                        logger.debug(`PLANONLY query response (error): ${errorMsg}`);
-
-                        // Sometimes the plan is in the error message
-                        if (errorMsg.includes('PLAN')) {
-                            const planMatch = errorMsg.match(/PLAN\s+\([^)]+\)/i);
-                            if (planMatch) {
-                                planText = planMatch[0];
-                                planSuccess = true;
-                            }
-                        }
-                    } else {
-                        logger.debug(`PLANONLY query response (result):`, result);
-
-                        // Try to extract plan from result
-                        if (typeof result === 'string' && result.includes('PLAN')) {
-                            planText = result;
-                            planSuccess = true;
-                        } else if (result && result.plan) {
-                            planText = result.plan;
-                            planSuccess = true;
-                        }
-                    }
-                    resolve();
-                });
-            });
-
-            // Disable PLANONLY mode
-            await new Promise<void>((resolve) => {
-                db.query('SET PLANONLY OFF', [], (err: any) => {
-                    if (err) {
-                        logger.warn(`SET PLANONLY OFF failed: ${err.message}`);
-                    }
-                    resolve();
-                });
-            });
-        } catch (planOnlyError) {
-            logger.warn(`SET PLANONLY method failed: ${planOnlyError}`);
-        }
-
-        // Method 2: If PLANONLY didn't work, try SET PLAN ON with a limited query
-        if (!planSuccess) {
-            try {
-                logger.debug('Attempting to get plan using SET PLAN ON');
-
-                await new Promise<void>((resolve) => {
-                    db.query('SET PLAN ON', [], (err: any) => {
-                        if (err) {
-                            logger.warn(`SET PLAN ON failed: ${err.message}`);
-                        }
-                        resolve();
-                    });
-                });
-
-                // Execute query with FIRST 1 to minimize execution time
-                const limitedQuery = sql.toUpperCase().includes('FIRST') ? sql : `SELECT FIRST 1 * FROM (${sql})`;
-
-                await new Promise<void>((resolve, reject) => {
-                    db.query(limitedQuery, params, (err: any, result: any, meta: any) => {
-                        if (err) {
-                            logger.warn(`SET PLAN query failed: ${err.message}`);
-                        } else {
-                            logger.debug('SET PLAN query result:', { result, meta });
-
-                            // Check for plan in metadata
-                            if (meta && meta.plan) {
-                                planText = meta.plan;
-                                planSuccess = true;
-                            }
-                        }
-                        resolve();
-                    });
-                });
-
-                await new Promise<void>((resolve) => {
-                    db.query('SET PLAN OFF', [], (err: any) => {
-                        if (err) {
-                            logger.warn(`SET PLAN OFF failed: ${err.message}`);
-                        }
-                        resolve();
-                    });
-                });
-            } catch (planOnError) {
-                logger.warn(`SET PLAN method failed: ${planOnError}`);
-            }
-        }
-
-        // Close the connection
-        await new Promise<void>((resolve) => {
-            db.detach((err: any) => {
-                if (err) {
-                    logger.warn(`Error detaching from database: ${err.message}`);
-                }
-                resolve();
-            });
-        });
-        db = null;
-
-        // Return results
-        if (planSuccess && planText) {
-            return {
-                query: sql,
-                plan: planText,
-                planDetails: [{ plan: planText }],
-                success: true,
-                analysis: analyzePlan(planText)
-            };
-        }
-
-        // If all methods failed
+        // Return informative message
         return {
             query: sql,
-            plan: "Plan de ejecución no disponible",
+            plan: "Execution plan not available",
             planDetails: [],
             success: true,
-            analysis: "Los drivers de Firebird para Node.js no exponen el plan de ejecución de forma directa. " +
-                     "Para ver planes de ejecución detallados, use herramientas como:\n" +
-                     "- isql (Firebird command-line tool): SET PLANONLY ON; <query>;\n" +
-                     "- FlameRobin (GUI tool)\n" +
-                     "- IBExpert (GUI tool)\n\n" +
-                     "Alternativamente, puede ejecutar la consulta y analizar su rendimiento con analyze-query-performance."
+            analysis: "Node.js Firebird drivers do not expose the execution plan API.\n\n" +
+                     "The Firebird API provides isc_dsql_sql_info with isc_info_sql_get_plan (constant: 22) " +
+                     "to retrieve execution plans, but neither node-firebird-driver-native nor node-firebird " +
+                     "expose this functionality in their high-level interfaces.\n\n" +
+                     "To view execution plans, please use one of these Firebird tools:\n\n" +
+                     "1. isql (Firebird command-line tool):\n" +
+                     "   SET PLANONLY ON;\n" +
+                     "   <your query>;\n" +
+                     "   SET PLANONLY OFF;\n\n" +
+                     "2. FlameRobin (Free GUI tool):\n" +
+                     "   - Open SQL Editor\n" +
+                     "   - Enter your query\n" +
+                     "   - Click 'Show Plan' button\n\n" +
+                     "3. IBExpert (Commercial GUI tool):\n" +
+                     "   - SQL Editor with built-in plan visualization\n" +
+                     "   - Advanced plan analysis features\n\n" +
+                     "Alternatively, you can use the 'analyze-query-performance' tool to measure " +
+                     "query execution time and identify performance issues."
         };
 
     } catch (error: any) {
@@ -903,22 +700,6 @@ export const getExecutionPlan = async (
             error: errorMessage,
             analysis: "Failed to get execution plan."
         };
-    } finally {
-        // Ensure connection is closed
-        if (db) {
-            try {
-                await new Promise<void>((resolve) => {
-                    db.detach((err: any) => {
-                        if (err) {
-                            logger.warn(`Error detaching from database in finally: ${err.message}`);
-                        }
-                        resolve();
-                    });
-                });
-            } catch (finallyError) {
-                logger.warn(`Error in finally block: ${finallyError}`);
-            }
-        }
     }
 };
 

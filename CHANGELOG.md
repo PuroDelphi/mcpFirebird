@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.6.0-alpha.11] - 2025-10-24
+
+### Changed
+- **get-execution-plan tool**: Simplified implementation to return informative message
+  - Removed all legacy code attempting to use SET PLANONLY/SET PLAN commands (isql-specific, not supported by drivers)
+  - Removed attempts to use non-existent getPlan() and getInfo() methods
+  - Now returns clear explanation that execution plan retrieval is not available through Node.js Firebird drivers
+  - Provides detailed recommendations for using Firebird tools (isql, FlameRobin, IBExpert)
+  - Suggests using analyze-query-performance tool as alternative for performance analysis
+
+### Technical Notes
+- Research confirmed that node-firebird-driver-native and node-firebird do not expose isc_dsql_sql_info API
+- The Firebird API provides isc_info_sql_get_plan (constant: 22) but this is not available in high-level driver interfaces
+- Low-level node-firebird-native-api would be needed but requires significant refactoring
+- FDB (Python driver) successfully uses: isc_dsql_sql_info(statement_handle, [isc_info_sql_get_plan])
+
 ## [2.6.0-alpha.10] - 2025-10-24
 
 ### 🔧 Fixed
