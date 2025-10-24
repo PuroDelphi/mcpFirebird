@@ -371,7 +371,23 @@ STREAMABLE_STATELESS_MODE=false        # Enable stateless mode
 #### Command Line
 
 ```bash
-# Basic HTTP Streamable server
+# RECOMMENDED: Stateless mode (works with MCP Inspector)
+STREAMABLE_STATELESS_MODE=true npx mcp-firebird@alpha \
+  --transport-type http \
+  --http-port 3003 \
+  --database /path/to/database.fdb \
+  --user SYSDBA \
+  --password masterkey
+
+# Windows example (Git Bash)
+STREAMABLE_STATELESS_MODE=true npx mcp-firebird@alpha \
+  --transport-type http \
+  --http-port 3012 \
+  --database "F:\\Proyectos\\SAI\\EMPLOYEE.FDB" \
+  --user SYSDBA \
+  --password masterkey
+
+# Stateful mode (for custom clients with proper session management)
 npx mcp-firebird@alpha \
   --transport-type http \
   --http-port 3003 \
@@ -381,28 +397,42 @@ npx mcp-firebird@alpha \
   --user SYSDBA \
   --password masterkey
 
-# With custom session timeout
-npx mcp-firebird@alpha \
+# With custom session timeout (stateful mode)
+STREAMABLE_SESSION_TIMEOUT_MS=600000 npx mcp-firebird@alpha \
   --transport-type http \
   --http-port 3003 \
   --database /path/to/database.fdb
+```
 
-# Stateless mode (no session management)
+**Important Notes:**
+- ⚠️ **Use stateless mode** (`STREAMABLE_STATELESS_MODE=true`) when testing with MCP Inspector
+- ⚠️ Stateful mode requires clients to properly implement session initialization
+- ✅ Stateless mode works with all clients but doesn't maintain session state
+
+### MCP Inspector with HTTP Streamable
+
+**Important:** MCP Inspector currently has compatibility issues with stateful HTTP Streamable mode. Use **stateless mode** for MCP Inspector:
+
+```bash
+# Start server in STATELESS mode for MCP Inspector
 STREAMABLE_STATELESS_MODE=true npx mcp-firebird@alpha \
   --transport-type http \
   --http-port 3003 \
   --database /path/to/database.fdb
-```
 
-### MCP Inspector with HTTP Streamable
+# Or using command line
+npx mcp-firebird@alpha \
+  --transport-type http \
+  --http-port 3003 \
+  --database "F:\\Proyectos\\SAI\\EMPLOYEE.FDB" \
+  --user SYSDBA \
+  --password masterkey
 
-```bash
-# Connect to HTTP Streamable server
+# Then connect with MCP Inspector
 npx @modelcontextprotocol/inspector http://localhost:3003/mcp
-
-# Connect to remote server
-npx @modelcontextprotocol/inspector http://192.168.1.100:3003/mcp
 ```
+
+**Note:** Set `STREAMABLE_STATELESS_MODE=true` environment variable before starting the server to avoid session-related errors with MCP Inspector.
 
 ### HTTP Streamable Examples
 
@@ -975,6 +1005,36 @@ SSE server includes CORS headers by default. If issues persist:
 
 ### HTTP Streamable Issues
 
+**Problem:** "Bad Request: No valid session ID provided" error with MCP Inspector
+
+**This is the most common issue!**
+
+**Solution:**
+Enable stateless mode before starting the server:
+
+```bash
+# Windows (Git Bash)
+STREAMABLE_STATELESS_MODE=true npx mcp-firebird@alpha \
+  --transport-type http \
+  --http-port 3012 \
+  --database "F:\\Proyectos\\SAI\\EMPLOYEE.FDB" \
+  --user SYSDBA \
+  --password masterkey
+
+# Windows (PowerShell)
+$env:STREAMABLE_STATELESS_MODE="true"
+npx mcp-firebird@alpha --transport-type http --http-port 3012 --database "F:\Proyectos\SAI\EMPLOYEE.FDB"
+
+# Linux/macOS
+export STREAMABLE_STATELESS_MODE=true
+npx mcp-firebird@alpha --transport-type http --http-port 3012 --database /path/to/database.fdb
+```
+
+**Why this happens:**
+- MCP Inspector doesn't properly send the `initialize` request required for stateful sessions
+- Stateless mode bypasses session management entirely
+- Each request is independent (no session state)
+
 **Problem:** Session not persisting between requests
 
 **Solution:**
@@ -982,14 +1042,16 @@ SSE server includes CORS headers by default. If issues persist:
 2. Check session timeout: `STREAMABLE_SESSION_TIMEOUT_MS`
 3. Verify session is initialized with `initialize` request
 4. Review server logs for session cleanup
+5. **For MCP Inspector:** Use stateless mode instead
 
-**Problem:** "No valid session ID" error
+**Problem:** "No valid session ID" error (general)
 
 **Solution:**
 1. Send `initialize` request first to create session
 2. Include `mcp-session-id` header in subsequent requests
 3. Check if session expired (default 30 minutes)
 4. Use stateless mode if sessions not needed: `STREAMABLE_STATELESS_MODE=true`
+5. **Quick fix:** Always use stateless mode for testing
 
 **Problem:** Performance issues with stateful mode
 
