@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.6.0-alpha.12] - 2025-10-24
+
+### Fixed
+- **get-server-info tool**: Fixed hardcoded version number
+  - Now reads version dynamically from package.json instead of using hardcoded "2.2.0-alpha.1"
+  - Also reads name and description from package.json for consistency
+  - Version now correctly reflects the actual running version
+
 ## [2.6.0-alpha.11] - 2025-10-24
 
 ### Changed

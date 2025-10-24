@@ -2,6 +2,9 @@
 import { createLogger } from '../utils/logger.js';
 import { formatForClaude } from '../utils/jsonHelper.js';
 import { z, ZodTypeAny } from 'zod';
+import { readFileSync } from 'fs';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
 
 // Definición local de ToolDefinition basada en el uso
 export interface ToolDefinition {
@@ -13,6 +16,12 @@ export interface ToolDefinition {
 }
 
 const logger = createLogger('tools:metadata');
+
+// Get package.json version
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const packageJsonPath = join(__dirname, '../../package.json');
+const pkg = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
 
 /**
  * Configura las herramientas de metadatos, tomando las herramientas de base de datos como entrada.
@@ -30,9 +39,9 @@ export function setupMetadataTools(databaseTools: Map<string, any>): Map<string,
         handler: async () => {
             try {
                 const serverInfo = {
-                    name: 'MCP Firebird Server',
-                    version: process.env.npm_package_version || '2.2.0-alpha.1',
-                    description: 'Servidor MCP para bases de datos Firebird',
+                    name: pkg.name || 'MCP Firebird Server',
+                    version: pkg.version || '2.6.0-alpha.11',
+                    description: pkg.description || 'Servidor MCP para bases de datos Firebird',
                     capabilities: {
                         tools: Array.from(databaseTools.keys()),
                         totalTools: databaseTools.size,
