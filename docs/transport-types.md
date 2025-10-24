@@ -4,10 +4,23 @@ This document provides comprehensive examples and configuration for the differen
 
 ## Overview
 
-MCP Firebird supports two transport types:
+MCP Firebird supports **four transport modes**:
 
 1. **STDIO (Standard Input/Output)** - For local integrations like Claude Desktop
-2. **SSE (Server-Sent Events)** - For web applications and remote access
+2. **SSE (Server-Sent Events)** - Legacy web transport for backwards compatibility
+3. **HTTP Streamable** - Modern MCP protocol (2025-03-26) with bidirectional communication
+4. **Unified** - Supports both SSE and HTTP Streamable simultaneously with auto-detection
+
+### Which Transport Should I Use?
+
+| Transport | Use Case | Recommended For |
+|-----------|----------|-----------------|
+| **STDIO** | Local integration | Claude Desktop, CLI tools, single-user |
+| **SSE** | Legacy web clients | Older MCP clients, backwards compatibility |
+| **HTTP Streamable** | Modern web clients | New applications, production deployments |
+| **Unified** | Mixed environments | Supporting both old and new clients |
+
+**Recommendation:** Use **HTTP Streamable** or **Unified** for new projects. Use **STDIO** for Claude Desktop integration.
 
 ## STDIO Transport
 
@@ -313,7 +326,354 @@ result = call_mcp_tool('get-table-data', {
 print(json.dumps(result, indent=2))
 ```
 
-#### Example 3: Node.js/JavaScript Client
+---
+
+## HTTP Streamable Transport (Modern - Recommended)
+
+### What is HTTP Streamable?
+
+HTTP Streamable is the **modern MCP protocol (2025-03-26)** that provides bidirectional communication with improved performance and session management. This is the **recommended transport for new applications**.
+
+**Key Features:**
+- ✅ Modern MCP protocol specification
+- ✅ Bidirectional communication
+- ✅ Session management with automatic cleanup
+- ✅ Stateful and stateless modes
+- ✅ Better performance than SSE
+- ✅ Full MCP SDK support
+
+**Recommended for:**
+- New web applications
+- Production deployments
+- Modern MCP clients
+- High-performance scenarios
+- Applications requiring session management
+
+### HTTP Streamable Configuration
+
+#### Environment Variables
+
+```bash
+# .env file
+TRANSPORT_TYPE=http
+HTTP_PORT=3003
+FIREBIRD_HOST=localhost
+FIREBIRD_PORT=3050
+FIREBIRD_DATABASE=/path/to/database.fdb
+FIREBIRD_USER=SYSDBA
+FIREBIRD_PASSWORD=masterkey
+
+# Optional: Session configuration
+STREAMABLE_SESSION_TIMEOUT_MS=1800000  # 30 minutes
+STREAMABLE_STATELESS_MODE=false        # Enable stateless mode
+```
+
+#### Command Line
+
+```bash
+# Basic HTTP Streamable server
+npx mcp-firebird@alpha \
+  --transport-type http \
+  --http-port 3003 \
+  --database /path/to/database.fdb \
+  --host localhost \
+  --port 3050 \
+  --user SYSDBA \
+  --password masterkey
+
+# With custom session timeout
+npx mcp-firebird@alpha \
+  --transport-type http \
+  --http-port 3003 \
+  --database /path/to/database.fdb
+
+# Stateless mode (no session management)
+STREAMABLE_STATELESS_MODE=true npx mcp-firebird@alpha \
+  --transport-type http \
+  --http-port 3003 \
+  --database /path/to/database.fdb
+```
+
+### MCP Inspector with HTTP Streamable
+
+```bash
+# Connect to HTTP Streamable server
+npx @modelcontextprotocol/inspector http://localhost:3003/mcp
+
+# Connect to remote server
+npx @modelcontextprotocol/inspector http://192.168.1.100:3003/mcp
+```
+
+### HTTP Streamable Examples
+
+#### Example 1: TypeScript/JavaScript Client with MCP SDK
+
+```typescript
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+
+// Create transport
+const transport = new StreamableHTTPClientTransport(
+  "http://localhost:3003/mcp"
+);
+
+// Create client
+const client = new Client({
+  name: "my-firebird-client",
+  version: "1.0.0"
+}, {
+  capabilities: {}
+});
+
+// Connect
+await client.connect(transport);
+
+// List available tools
+const tools = await client.listTools();
+console.log('Available tools:', tools);
+
+// Call a tool
+const result = await client.callTool({
+  name: 'list-tables',
+  arguments: {}
+});
+console.log('Tables:', result);
+
+// Execute a query
+const queryResult = await client.callTool({
+  name: 'execute-query',
+  arguments: {
+    query: 'SELECT * FROM EMPLOYEES WHERE SALARY > 50000'
+  }
+});
+console.log('Query result:', queryResult);
+
+// Access resources
+const schema = await client.readResource({
+  uri: '/schema'
+});
+console.log('Database schema:', schema);
+
+// Use prompts
+const healthCheck = await client.getPrompt({
+  name: 'database-health-check',
+  arguments: {
+    focusAreas: ['performance', 'security']
+  }
+});
+console.log('Health check guide:', healthCheck);
+
+// Close connection
+await client.close();
+```
+
+#### Example 2: Python Client with HTTP Streamable
+
+```python
+import requests
+import json
+
+class MCPStreamableClient:
+    def __init__(self, base_url):
+        self.base_url = base_url
+        self.session_id = None
+        self.session = requests.Session()
+
+    def initialize(self):
+        """Initialize MCP session"""
+        response = self.session.post(
+            f'{self.base_url}/mcp',
+            headers={'Content-Type': 'application/json'},
+            json={
+                'jsonrpc': '2.0',
+                'id': 1,
+                'method': 'initialize',
+                'params': {
+                    'protocolVersion': '2024-11-05',
+                    'capabilities': {},
+                    'clientInfo': {
+                        'name': 'python-mcp-client',
+                        'version': '1.0.0'
+                    }
+                }
+            }
+        )
+
+        # Extract session ID from response headers
+        self.session_id = response.headers.get('mcp-session-id')
+        return response.json()
+
+    def call_tool(self, tool_name, arguments=None):
+        """Call an MCP tool"""
+        headers = {
+            'Content-Type': 'application/json'
+        }
+        if self.session_id:
+            headers['mcp-session-id'] = self.session_id
+
+        response = self.session.post(
+            f'{self.base_url}/mcp',
+            headers=headers,
+            json={
+                'jsonrpc': '2.0',
+                'id': 2,
+                'method': 'tools/call',
+                'params': {
+                    'name': tool_name,
+                    'arguments': arguments or {}
+                }
+            }
+        )
+
+        return response.json()
+
+    def read_resource(self, uri):
+        """Read an MCP resource"""
+        headers = {
+            'Content-Type': 'application/json'
+        }
+        if self.session_id:
+            headers['mcp-session-id'] = self.session_id
+
+        response = self.session.post(
+            f'{self.base_url}/mcp',
+            headers=headers,
+            json={
+                'jsonrpc': '2.0',
+                'id': 3,
+                'method': 'resources/read',
+                'params': {
+                    'uri': uri
+                }
+            }
+        )
+
+        return response.json()
+
+# Usage example
+client = MCPStreamableClient('http://localhost:3003')
+
+# Initialize session
+init_result = client.initialize()
+print('Initialized:', json.dumps(init_result, indent=2))
+
+# List tables
+tables = client.call_tool('list-tables')
+print('Tables:', json.dumps(tables, indent=2))
+
+# Get database schema
+schema = client.read_resource('/schema')
+print('Schema:', json.dumps(schema, indent=2))
+
+# Execute query
+result = client.call_tool('execute-query', {
+    'query': 'SELECT * FROM EMPLOYEES WHERE SALARY > 50000'
+})
+print('Query result:', json.dumps(result, indent=2))
+```
+
+---
+
+## Unified Transport (Recommended for Production)
+
+### What is Unified Transport?
+
+Unified transport mode runs **both SSE and HTTP Streamable** protocols simultaneously with automatic protocol detection. This is the **recommended mode for production** as it supports both legacy and modern clients.
+
+**Key Features:**
+- ✅ Supports both SSE (legacy) and HTTP Streamable (modern)
+- ✅ Automatic protocol detection
+- ✅ Backwards compatibility
+- ✅ Single server instance
+- ✅ Flexible client support
+
+**Endpoints:**
+- `/sse` - SSE protocol (legacy)
+- `/mcp` - HTTP Streamable protocol (modern)
+- `/mcp-auto` - Auto-detection endpoint
+- `/health` - Health check
+
+### Unified Configuration
+
+#### Environment Variables
+
+```bash
+# .env file
+TRANSPORT_TYPE=unified
+HTTP_PORT=3003
+FIREBIRD_HOST=localhost
+FIREBIRD_PORT=3050
+FIREBIRD_DATABASE=/path/to/database.fdb
+FIREBIRD_USER=SYSDBA
+FIREBIRD_PASSWORD=masterkey
+```
+
+#### Command Line
+
+```bash
+# Start unified server (supports both SSE and HTTP Streamable)
+npx mcp-firebird@alpha \
+  --transport-type unified \
+  --http-port 3003 \
+  --database /path/to/database.fdb \
+  --host localhost \
+  --port 3050 \
+  --user SYSDBA \
+  --password masterkey
+```
+
+### Unified Server Usage
+
+```bash
+# Modern clients use HTTP Streamable
+npx @modelcontextprotocol/inspector http://localhost:3003/mcp
+
+# Legacy clients use SSE
+npx @modelcontextprotocol/inspector http://localhost:3003/sse
+
+# Auto-detection endpoint
+curl http://localhost:3003/mcp-auto
+```
+
+### Unified Server Example
+
+```typescript
+// Modern client (HTTP Streamable)
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+
+const modernTransport = new StreamableHTTPClientTransport(
+  "http://localhost:3003/mcp"
+);
+
+const modernClient = new Client({
+  name: "modern-client",
+  version: "1.0.0"
+}, {
+  capabilities: {}
+});
+
+await modernClient.connect(modernTransport);
+
+// Legacy client (SSE) - still works!
+const legacyResponse = await fetch('http://localhost:3003/messages', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    jsonrpc: '2.0',
+    id: 1,
+    method: 'tools/call',
+    params: {
+      name: 'list-tables',
+      arguments: {}
+    }
+  })
+});
+```
+
+---
+
+#### Example 3: Node.js/JavaScript Client (SSE)
 
 ```javascript
 // sse-client.js
@@ -519,19 +879,53 @@ services:
 
 ---
 
-## Comparison: STDIO vs SSE
+## Transport Comparison
 
-| Feature | STDIO | SSE |
-|---------|-------|-----|
-| **Use Case** | Local integration | Web/Remote access |
-| **Clients** | Single (Claude Desktop) | Multiple concurrent |
-| **Network** | Not required | HTTP/HTTPS |
-| **Port** | None | Configurable (default 3003) |
-| **Security** | Local only | Requires authentication/HTTPS |
-| **Performance** | Fastest (no network) | Network overhead |
-| **Debugging** | MCP Inspector (local) | MCP Inspector (remote) |
-| **Scalability** | Single instance | Load balanceable |
-| **Best For** | Development, Claude Desktop | Production, Web apps |
+### Complete Comparison Table
+
+| Feature | STDIO | SSE (Legacy) | HTTP Streamable | Unified |
+|---------|-------|--------------|-----------------|---------|
+| **Protocol** | Standard I/O | Server-Sent Events | Modern MCP (2025-03-26) | Both SSE + HTTP |
+| **Use Case** | Local integration | Legacy web clients | Modern web clients | Mixed environments |
+| **Clients** | Single | Multiple concurrent | Multiple concurrent | Multiple concurrent |
+| **Network** | Not required | HTTP/HTTPS | HTTP/HTTPS | HTTP/HTTPS |
+| **Port** | None | Configurable (3003) | Configurable (3003) | Configurable (3003) |
+| **Session Management** | N/A | Basic | Advanced (stateful/stateless) | Advanced |
+| **Bidirectional** | Yes | No (server→client only) | Yes | Yes |
+| **Performance** | Fastest | Good | Better than SSE | Good |
+| **MCP Protocol Version** | Latest | Legacy | Latest (2025-03-26) | Both |
+| **Backwards Compatible** | N/A | Yes | No | Yes |
+| **Security** | Local only | Requires auth/HTTPS | Requires auth/HTTPS | Requires auth/HTTPS |
+| **Debugging** | MCP Inspector (local) | MCP Inspector (remote) | MCP Inspector (remote) | MCP Inspector (remote) |
+| **Scalability** | Single instance | Load balanceable | Load balanceable | Load balanceable |
+| **Best For** | Claude Desktop, CLI | Old clients | New applications | Production |
+| **Recommended** | ✅ For local use | ⚠️ Legacy only | ✅ For new projects | ✅ For production |
+
+### Quick Decision Guide
+
+**Choose STDIO if:**
+- ✅ Integrating with Claude Desktop
+- ✅ Building CLI tools
+- ✅ Single-user local application
+- ✅ No network access needed
+
+**Choose SSE if:**
+- ⚠️ Supporting legacy MCP clients
+- ⚠️ Backwards compatibility required
+- ❌ Not recommended for new projects
+
+**Choose HTTP Streamable if:**
+- ✅ Building new web applications
+- ✅ Need modern MCP features
+- ✅ Want best performance
+- ✅ Require session management
+- ✅ Production deployment
+
+**Choose Unified if:**
+- ✅ Need to support both old and new clients
+- ✅ Production environment with mixed clients
+- ✅ Want maximum compatibility
+- ✅ Migrating from SSE to HTTP Streamable
 
 ---
 
@@ -579,6 +973,50 @@ SSE server includes CORS headers by default. If issues persist:
 2. Check network connectivity
 3. Verify Firebird server is accessible from MCP server
 
+### HTTP Streamable Issues
+
+**Problem:** Session not persisting between requests
+
+**Solution:**
+1. Ensure client sends `mcp-session-id` header
+2. Check session timeout: `STREAMABLE_SESSION_TIMEOUT_MS`
+3. Verify session is initialized with `initialize` request
+4. Review server logs for session cleanup
+
+**Problem:** "No valid session ID" error
+
+**Solution:**
+1. Send `initialize` request first to create session
+2. Include `mcp-session-id` header in subsequent requests
+3. Check if session expired (default 30 minutes)
+4. Use stateless mode if sessions not needed: `STREAMABLE_STATELESS_MODE=true`
+
+**Problem:** Performance issues with stateful mode
+
+**Solution:**
+1. Enable stateless mode: `STREAMABLE_STATELESS_MODE=true`
+2. Reduce session timeout to free resources faster
+3. Monitor active sessions count
+4. Consider load balancing for high traffic
+
+### Unified Transport Issues
+
+**Problem:** Client connecting to wrong protocol
+
+**Solution:**
+1. Use specific endpoints: `/mcp` for HTTP Streamable, `/sse` for SSE
+2. Check client MCP SDK version
+3. Use `/mcp-auto` for automatic detection
+4. Review client logs for protocol negotiation
+
+**Problem:** Mixed protocol errors
+
+**Solution:**
+1. Ensure both protocols are enabled in configuration
+2. Check that HTTP_PORT is accessible
+3. Verify no port conflicts
+4. Review unified server logs
+
 ---
 
 ## Security Considerations
@@ -588,25 +1026,100 @@ SSE server includes CORS headers by default. If issues persist:
 - ✅ No network exposure
 - ⚠️ Credentials in config file (use environment variables)
 
-### SSE
+**Security Level:** High (local only)
+
+### SSE (Legacy)
 - ⚠️ Network exposed (use firewall)
 - ⚠️ No built-in authentication (add reverse proxy)
 - ⚠️ Use HTTPS in production
 - ✅ CORS headers included
 - ✅ Session management with timeouts
 
-### Recommendations
+**Security Level:** Medium (requires additional security layers)
 
-1. **For Development:**
-   - STDIO for local testing
-   - SSE with localhost only
+### HTTP Streamable
+- ⚠️ Network exposed (use firewall)
+- ⚠️ No built-in authentication (add reverse proxy)
+- ⚠️ Use HTTPS in production
+- ✅ Session management with automatic cleanup
+- ✅ Stateful and stateless modes
+- ✅ Better session security than SSE
 
-2. **For Production:**
-   - SSE behind reverse proxy (nginx, Apache)
-   - HTTPS with valid certificates
-   - Authentication layer (OAuth, JWT)
-   - Firewall rules to restrict access
-   - Wire encryption enabled on Firebird
+**Security Level:** Medium-High (modern protocol with better session management)
+
+### Unified
+- ⚠️ Network exposed (use firewall)
+- ⚠️ No built-in authentication (add reverse proxy)
+- ⚠️ Use HTTPS in production
+- ✅ Supports both SSE and HTTP Streamable security features
+- ✅ Protocol-specific security measures
+
+**Security Level:** Medium-High (inherits security from both protocols)
+
+### Security Recommendations by Environment
+
+#### Development Environment
+
+**STDIO:**
+- ✅ Use for local testing
+- ✅ No additional security needed
+- ⚠️ Use environment variables for credentials
+
+**SSE/HTTP Streamable/Unified:**
+- ✅ Bind to localhost only: `--host 127.0.0.1`
+- ✅ Use firewall to block external access
+- ⚠️ Don't expose to internet
+
+#### Production Environment
+
+**All Network Transports (SSE/HTTP Streamable/Unified):**
+
+1. **Use Reverse Proxy:**
+   ```nginx
+   # nginx example
+   server {
+       listen 443 ssl;
+       server_name mcp.example.com;
+
+       ssl_certificate /path/to/cert.pem;
+       ssl_certificate_key /path/to/key.pem;
+
+       location / {
+           proxy_pass http://localhost:3003;
+           proxy_set_header Host $host;
+           proxy_set_header X-Real-IP $remote_addr;
+           proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+           proxy_set_header X-Forwarded-Proto $scheme;
+       }
+   }
+   ```
+
+2. **Add Authentication:**
+   - OAuth 2.0 / OpenID Connect
+   - JWT tokens
+   - API keys
+   - Basic Auth (over HTTPS only)
+
+3. **Enable HTTPS:**
+   - Valid SSL/TLS certificates
+   - Strong cipher suites
+   - HSTS headers
+
+4. **Firewall Configuration:**
+   - Restrict access by IP
+   - Use VPN for remote access
+   - Rate limiting
+
+5. **Database Security:**
+   - Enable Firebird wire encryption
+   - Use strong passwords
+   - Limit database user permissions
+   - Regular security audits
+
+6. **Monitoring:**
+   - Log all access attempts
+   - Monitor for suspicious activity
+   - Set up alerts for anomalies
 
 ---
 
