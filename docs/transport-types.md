@@ -364,31 +364,32 @@ FIREBIRD_USER=SYSDBA
 FIREBIRD_PASSWORD=masterkey
 
 # Optional: Session configuration
-STREAMABLE_SESSION_TIMEOUT_MS=1800000  # 30 minutes
-STREAMABLE_STATELESS_MODE=false        # Enable stateless mode
+STREAMABLE_SESSION_TIMEOUT_MS=1800000  # 30 minutes (only for stateful mode)
+STREAMABLE_STATELESS_MODE=true         # Default: true (stateless mode)
+                                       # Set to false for stateful mode
 ```
 
 #### Command Line
 
 ```bash
-# RECOMMENDED: Stateless mode (works with MCP Inspector)
-STREAMABLE_STATELESS_MODE=true npx mcp-firebird@alpha \
+# Default mode: Stateless (works with MCP Inspector and most clients)
+npx mcp-firebird@alpha \
   --transport-type http \
   --http-port 3003 \
   --database /path/to/database.fdb \
   --user SYSDBA \
   --password masterkey
 
-# Windows example (Git Bash)
-STREAMABLE_STATELESS_MODE=true npx mcp-firebird@alpha \
+# Windows example (Git Bash) - Stateless by default
+npx mcp-firebird@alpha \
   --transport-type http \
   --http-port 3012 \
   --database "F:\\Proyectos\\SAI\\EMPLOYEE.FDB" \
   --user SYSDBA \
   --password masterkey
 
-# Stateful mode (for custom clients with proper session management)
-npx mcp-firebird@alpha \
+# Enable stateful mode (for custom clients with proper session management)
+STREAMABLE_STATELESS_MODE=false npx mcp-firebird@alpha \
   --transport-type http \
   --http-port 3003 \
   --database /path/to/database.fdb \
@@ -397,42 +398,45 @@ npx mcp-firebird@alpha \
   --user SYSDBA \
   --password masterkey
 
-# With custom session timeout (stateful mode)
-STREAMABLE_SESSION_TIMEOUT_MS=600000 npx mcp-firebird@alpha \
+# Stateful mode with custom session timeout
+STREAMABLE_STATELESS_MODE=false STREAMABLE_SESSION_TIMEOUT_MS=600000 npx mcp-firebird@alpha \
   --transport-type http \
   --http-port 3003 \
   --database /path/to/database.fdb
 ```
 
 **Important Notes:**
-- ⚠️ **Use stateless mode** (`STREAMABLE_STATELESS_MODE=true`) when testing with MCP Inspector
+- ✅ **Stateless mode is now the default** - Works with MCP Inspector and all clients
+- ⚠️ Set `STREAMABLE_STATELESS_MODE=false` to enable stateful mode
 - ⚠️ Stateful mode requires clients to properly implement session initialization
-- ✅ Stateless mode works with all clients but doesn't maintain session state
+- ✅ Stateless mode: Each request is independent, no session state maintained
 
 ### MCP Inspector with HTTP Streamable
 
-**Important:** MCP Inspector currently has compatibility issues with stateful HTTP Streamable mode. Use **stateless mode** for MCP Inspector:
+**Good news!** HTTP Streamable now uses **stateless mode by default**, so it works perfectly with MCP Inspector:
 
 ```bash
-# Start server in STATELESS mode for MCP Inspector
-STREAMABLE_STATELESS_MODE=true npx mcp-firebird@alpha \
-  --transport-type http \
-  --http-port 3003 \
-  --database /path/to/database.fdb
-
-# Or using command line
+# Start server (stateless by default - works with MCP Inspector)
 npx mcp-firebird@alpha \
   --transport-type http \
   --http-port 3003 \
+  --database /path/to/database.fdb \
+  --user SYSDBA \
+  --password masterkey
+
+# Windows example (Git Bash)
+npx mcp-firebird@alpha \
+  --transport-type http \
+  --http-port 3012 \
   --database "F:\\Proyectos\\SAI\\EMPLOYEE.FDB" \
   --user SYSDBA \
   --password masterkey
 
 # Then connect with MCP Inspector
-npx @modelcontextprotocol/inspector http://localhost:3003/mcp
+npx @modelcontextprotocol/inspector http://localhost:3012/mcp
 ```
 
-**Note:** Set `STREAMABLE_STATELESS_MODE=true` environment variable before starting the server to avoid session-related errors with MCP Inspector.
+**Note:** Stateless mode is now the default. No need to set `STREAMABLE_STATELESS_MODE=true` anymore!
 
 ### HTTP Streamable Examples
 
@@ -1005,12 +1009,17 @@ SSE server includes CORS headers by default. If issues persist:
 
 ### HTTP Streamable Issues
 
-**Problem:** "Bad Request: No valid session ID provided" error with MCP Inspector
+**Problem:** "Bad Request: No valid session ID provided" error
 
-**This is the most common issue!**
+**This issue is now FIXED!** As of v2.6.0-alpha.6, HTTP Streamable uses **stateless mode by default**.
 
-**Solution:**
-Enable stateless mode before starting the server:
+**If you still see this error:**
+1. Make sure you're using version 2.6.0-alpha.6 or later
+2. Verify you haven't explicitly set `STREAMABLE_STATELESS_MODE=false`
+3. Restart the server
+
+**For older versions (before v2.6.0-alpha.6):**
+Enable stateless mode manually:
 
 ```bash
 # Windows (Git Bash)
@@ -1020,20 +1029,12 @@ STREAMABLE_STATELESS_MODE=true npx mcp-firebird@alpha \
   --database "F:\\Proyectos\\SAI\\EMPLOYEE.FDB" \
   --user SYSDBA \
   --password masterkey
-
-# Windows (PowerShell)
-$env:STREAMABLE_STATELESS_MODE="true"
-npx mcp-firebird@alpha --transport-type http --http-port 3012 --database "F:\Proyectos\SAI\EMPLOYEE.FDB"
-
-# Linux/macOS
-export STREAMABLE_STATELESS_MODE=true
-npx mcp-firebird@alpha --transport-type http --http-port 3012 --database /path/to/database.fdb
 ```
 
-**Why this happens:**
-- MCP Inspector doesn't properly send the `initialize` request required for stateful sessions
-- Stateless mode bypasses session management entirely
-- Each request is independent (no session state)
+**Why stateless is now the default:**
+- MCP Inspector and most clients don't properly implement stateful session management
+- Stateless mode works with all clients out of the box
+- Each request is independent (simpler, more reliable)
 
 **Problem:** Session not persisting between requests
 

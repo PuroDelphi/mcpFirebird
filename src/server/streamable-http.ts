@@ -34,7 +34,9 @@ export function createStreamableHttpRouter(createServerInstance: () => Promise<M
     // Configuration
     const SESSION_TIMEOUT_MS = parseInt(process.env.STREAMABLE_SESSION_TIMEOUT_MS || '1800000', 10); // 30 minutes
     const CLEANUP_INTERVAL_MS = 60000; // 1 minute
-    const STATELESS_MODE = process.env.STREAMABLE_STATELESS_MODE === 'true';
+    // Default to stateless mode for better compatibility with MCP Inspector and most clients
+    // Set STREAMABLE_STATELESS_MODE=false to enable stateful mode (requires proper session management)
+    const STATELESS_MODE = process.env.STREAMABLE_STATELESS_MODE !== 'false';
 
     logger.info(`Streamable HTTP router initialized in ${STATELESS_MODE ? 'stateless' : 'stateful'} mode`);
 
