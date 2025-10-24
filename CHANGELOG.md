@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.6.0-alpha.9] - 2025-10-24
+
+### 🔧 Fixed
+- **Native Driver Detection**: Fixed detection of native driver in `get-execution-plan` tool
+  - Now uses `DriverFactory.getDriverInfo()` instead of `process.env.USE_NATIVE_DRIVER`
+  - Properly detects when native driver is active and configured
+  - Added debug logging to show driver detection status
+  - **This should now correctly use `getPlan()` API when `--use-native-driver` flag is set**
+
 ## [2.6.0-alpha.8] - 2025-10-24
 
 ### 🔧 Fixed
