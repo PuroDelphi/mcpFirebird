@@ -16,6 +16,8 @@ import { setupMetadataTools } from './tools/metadata.js';
 import { setupSimpleTools } from './tools/simple.js';
 import { setupDatabasePrompts } from './prompts/database.js';
 import { setupSqlPrompts } from './prompts/sql.js';
+import { setupTemplatePrompts } from './prompts/templates.js';
+import { setupAdvancedTemplatePrompts } from './prompts/advanced-templates.js';
 import { setupDatabaseResources } from './resources/database.js';
 import { initSecurity } from './security/index.js';
 import pkg from '../package.json' with { type: 'json' };
@@ -163,35 +165,70 @@ export default function createServer({ config }: { config: Config }) {
       // Register prompts
       logger.info('Registering prompts...');
 
+      // Legacy prompts have been removed - setupDatabasePrompts and setupSqlPrompts now return empty maps
+      // Skip registration of legacy prompts
       const dbPrompts = setupDatabasePrompts();
-      for (const [name, promptDef] of dbPrompts.entries()) {
-        // Extract the shape from ZodObject if available
-        const argsSchema = (promptDef.inputSchema && promptDef.inputSchema instanceof z.ZodObject)
-          ? promptDef.inputSchema.shape
-          : {};
+      if (dbPrompts.size > 0) {
+        logger.info('Registering database prompts (legacy - should be empty)...');
+        for (const [name, promptDef] of dbPrompts.entries()) {
+          // Extract the shape from ZodObject if available
+          const argsSchema = (promptDef.inputSchema && promptDef.inputSchema instanceof z.ZodObject)
+            ? promptDef.inputSchema.shape
+            : {};
 
-        server.registerPrompt(
-          name,
-          {
-            title: promptDef.title || name,
-            description: promptDef.description || name,
-            argsSchema: argsSchema
-          },
-          async (params: any) => {
-            try {
-              const result = await promptDef.handler(params);
-              return result;
-            } catch (error) {
-              logger.error(`Error executing prompt ${name}:`, error as Error);
-              throw error;
+          server.registerPrompt(
+            name,
+            {
+              title: promptDef.title || name,
+              description: promptDef.description || name,
+              argsSchema: argsSchema
+            },
+            async (params: any) => {
+              try {
+                const result = await promptDef.handler(params);
+                return result as any;
+              } catch (error) {
+                logger.error(`Error executing prompt ${name}:`, error as Error);
+                throw error;
+              }
             }
-          }
-        );
+          );
+        }
       }
 
       const sqlPrompts = setupSqlPrompts();
-      for (const [name, promptDef] of sqlPrompts.entries()) {
-        // Extract the shape from ZodObject if available
+      if (sqlPrompts.size > 0) {
+        logger.info('Registering SQL prompts (legacy - should be empty)...');
+        for (const [name, promptDef] of sqlPrompts.entries()) {
+          // Extract the shape from ZodObject if available
+          const argsSchema = (promptDef.inputSchema && promptDef.inputSchema instanceof z.ZodObject)
+            ? promptDef.inputSchema.shape
+            : {};
+
+          server.registerPrompt(
+            name,
+            {
+              title: promptDef.title || name,
+              description: promptDef.description || name,
+              argsSchema: argsSchema
+            },
+            async (params: any) => {
+              try {
+                const result = await promptDef.handler(params);
+                return result as any;
+              } catch (error) {
+                logger.error(`Error executing prompt ${name}:`, error as Error);
+                throw error;
+              }
+            }
+          );
+        }
+      }
+
+      // Register template prompts (the real MCP prompts)
+      logger.info('Registering template prompts...');
+      const templatePrompts = setupTemplatePrompts();
+      for (const [name, promptDef] of templatePrompts.entries()) {
         const argsSchema = (promptDef.inputSchema && promptDef.inputSchema instanceof z.ZodObject)
           ? promptDef.inputSchema.shape
           : {};
@@ -199,23 +236,50 @@ export default function createServer({ config }: { config: Config }) {
         server.registerPrompt(
           name,
           {
-            title: promptDef.title || name,
+            title: promptDef.title || promptDef.name || name,
             description: promptDef.description || name,
             argsSchema: argsSchema
           },
           async (params: any) => {
             try {
               const result = await promptDef.handler(params);
-              return result;
+              return result as any;
             } catch (error) {
-              logger.error(`Error executing prompt ${name}:`, error as Error);
+              logger.error(`Error executing template prompt ${name}:`, error as Error);
               throw error;
             }
           }
         );
       }
 
-      logger.info('Prompts registered successfully');
+      // Register advanced template prompts
+      logger.info('Registering advanced template prompts...');
+      const advancedPrompts = setupAdvancedTemplatePrompts();
+      for (const [name, promptDef] of advancedPrompts.entries()) {
+        const argsSchema = (promptDef.inputSchema && promptDef.inputSchema instanceof z.ZodObject)
+          ? promptDef.inputSchema.shape
+          : {};
+
+        server.registerPrompt(
+          name,
+          {
+            title: promptDef.title || promptDef.name || name,
+            description: promptDef.description || name,
+            argsSchema: argsSchema
+          },
+          async (params: any) => {
+            try {
+              const result = await promptDef.handler(params);
+              return result as any;
+            } catch (error) {
+              logger.error(`Error executing advanced prompt ${name}:`, error as Error);
+              throw error;
+            }
+          }
+        );
+      }
+
+      logger.info('All prompts registered successfully');
 
       // Register resources
       logger.info('Registering resources...');
