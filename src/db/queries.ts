@@ -642,10 +642,18 @@ export const getExecutionPlan = async (
         // Get database connection
         const effectiveConfig = getGlobalConfig() || config;
 
-        // Check if we're using the native driver
-        const useNativeDriver = process.env.USE_NATIVE_DRIVER === 'true';
+        // Check if we're using the native driver by checking DriverFactory
+        const { DriverFactory } = await import('./driver-factory.js');
+        const driverInfo = await DriverFactory.getDriverInfo();
+        const useNativeDriver = driverInfo.current === 'node-firebird-driver-native';
 
-        if (useNativeDriver) {
+        logger.debug('Driver info for execution plan', {
+            useNativeDriver,
+            driverType: driverInfo.current,
+            nativeAvailable: driverInfo.nativeAvailable
+        });
+
+        if (useNativeDriver && driverInfo.nativeAvailable) {
             // Use native driver API to get execution plan via getPlan() method
             logger.debug('Using native driver API to get execution plan');
 
