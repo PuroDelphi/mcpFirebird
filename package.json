@@ -1,6 +1,6 @@
 {
   "name": "mcp-firebird",
-  "version": "2.6.0-alpha.9",
+  "version": "2.6.0-alpha.10",
   "description": "MCP server for Firebird database",
   "main": "dist/index.js",
   "module": "./src/smithery.ts",

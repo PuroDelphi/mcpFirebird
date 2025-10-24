@@ -688,27 +688,44 @@ export const getExecutionPlan = async (
                 logger.debug('Preparing statement');
                 statement = await attachment.prepare(transaction, sql);
 
-                // Get execution plan using getPlan() method
-                logger.debug('Getting execution plan via getPlan()');
-                const plan = await statement.getPlan();
+                // Get execution plan using getInfo() method with isc_info_sql_get_plan
+                logger.debug('Getting execution plan via statement.getInfo()');
 
-                logger.debug('Execution plan retrieved successfully', { plan });
+                // Try to get the plan using getInfo if available
+                let plan: string | undefined;
+
+                if (typeof (statement as any).getInfo === 'function') {
+                    // Use getInfo with isc_info_sql_get_plan constant (value: 22)
+                    const infoResult = await (statement as any).getInfo([22]); // isc_info_sql_get_plan = 22
+
+                    if (infoResult && infoResult.length > 0) {
+                        // The result should contain the plan as a string
+                        plan = infoResult[0];
+                        logger.debug('Execution plan retrieved via getInfo', { plan });
+                    }
+                } else {
+                    throw new Error('statement.getInfo() method not available');
+                }
 
                 // Clean up
                 await statement.dispose();
                 await transaction.commit();
                 await attachment.disconnect();
 
-                return {
-                    query: sql,
-                    plan: plan || "Plan retrieved but empty",
-                    planDetails: [{ plan: plan }],
-                    success: true,
-                    analysis: analyzePlan(plan || "")
-                };
+                if (plan) {
+                    return {
+                        query: sql,
+                        plan: plan,
+                        planDetails: [{ plan: plan }],
+                        success: true,
+                        analysis: analyzePlan(plan)
+                    };
+                } else {
+                    throw new Error('No execution plan returned from getInfo()');
+                }
 
             } catch (nativeError: any) {
-                logger.error('Native driver getPlan failed:', nativeError);
+                logger.error('Native driver getInfo failed:', nativeError);
 
                 // Clean up on error
                 if (statement) await statement.dispose().catch(() => {});

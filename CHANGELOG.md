@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.6.0-alpha.10] - 2025-10-24
+
+### 🔧 Fixed
+- **get-execution-plan Tool**: Fixed API method for retrieving execution plans with native driver
+  - Changed from non-existent `statement.getPlan()` to `statement.getInfo([22])` (isc_info_sql_get_plan)
+  - Uses correct Firebird API constant (22 = isc_info_sql_get_plan) to retrieve execution plan
+  - Properly handles getInfo() response to extract plan string
+  - Falls back to legacy method if getInfo() is not available or fails
+  - **This should now correctly retrieve execution plans using the native driver API**
+
 ## [2.6.0-alpha.9] - 2025-10-24
 
 ### 🔧 Fixed
