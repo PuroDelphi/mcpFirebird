@@ -2,6 +2,40 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.6.0-alpha.7] - 2025-10-24
+
+### 🔧 HTTP Streamable Transport Fixes
+- **Fixed Stateless Mode**: Implemented correct stateless pattern following official MCP SDK documentation
+- **Port Configuration Bug**: Fixed issue where `--http-port` parameter was being ignored
+- **Transport Priority**: HTTP_PORT now correctly prioritized for HTTP transport type
+- **Shared Server Instance**: Optimized to reuse server instance while creating new transport per request
+- **MCP Inspector Compatibility**: Now works correctly with MCP Inspector without requiring session management
+
+### 📚 Examples Modernization
+- **New Examples Structure**: Organized examples into config/, clients/, and legacy/ folders
+- **TypeScript Client**: Added modern Streamable HTTP client example
+- **Python Client**: Added Python client example with requirements.txt
+- **JavaScript Client**: Added JavaScript client example
+- **Configuration Examples**: Added Claude Desktop, VS Code, and environment variables examples
+- **Legacy SSE**: Moved deprecated SSE examples to legacy/ folder
+
+### 🧹 Project Cleanup
+- **Removed 40+ Temporary Files**: Cleaned up test scripts, temporary files, and legacy code
+- **Updated .gitignore**: Added patterns to prevent temporary files from being committed
+- **Removed Legacy Proxy**: Deleted mcp-sse-proxy folder and related files
+- **Removed Old Release Notes**: Consolidated release notes into CHANGELOG.md
+- **Better Organization**: Cleaner project structure for easier maintenance
+
+### 📖 Documentation
+- **Examples README**: Comprehensive guide for all example types
+- **Transport Types**: Updated documentation to reflect stateless as default
+- **Configuration Guide**: Enhanced with modern examples
+
+### ✅ Compatibility
+- Fully backward compatible with previous alpha versions
+- Stateless mode is now default (can be changed with STREAMABLE_STATELESS_MODE=false)
+- All existing STDIO and SSE integrations continue to work
+
 ## [2.6.0-alpha.2] - 2025-01-22
 
 ### 🔄 Sync with Main
