@@ -152,9 +152,39 @@ Thumbs.db
 # Archivos temporales adicionales
 tmp/
 temp/
+temp-*.json
+temp-*.cjs
+temp-*.js
 
 # Archivos de bloqueo adicionales
 .lock
 
 # Carpeta de documentación local
 /documentacion/
+
+# Scripts temporales de prueba
+run-*.js
+run-*.bat
+run-*.cjs
+start-*.js
+test-*.js
+test-*.py
+test-*.html
+test-*.cjs
+*-temp-*.js
+*temp-script*.js
+
+# Archivos de log y PID
+*.pid
+stderr.log
+stdout.log
+
+# Archivos legacy y obsoletos
+mcp-sse-proxy/
+proxy-package.json
+sse-proxy.js
+release.json
+DEPLOYMENT.md
+CHANGELOG_MCP_IMPROVEMENTS.md
+RELEASE_NOTES_*.md
+release-notes-*.md

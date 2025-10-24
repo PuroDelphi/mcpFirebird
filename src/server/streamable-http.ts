@@ -40,6 +40,19 @@ export function createStreamableHttpRouter(createServerInstance: () => Promise<M
 
     logger.info(`Streamable HTTP router initialized in ${STATELESS_MODE ? 'stateless' : 'stateful'} mode`);
 
+    // In stateless mode, we can reuse the server instance but must create new transports
+    // for each request to prevent request ID collisions
+    let sharedServer: McpServer | null = null;
+
+    async function getSharedServer() {
+        if (!sharedServer) {
+            logger.debug('Creating shared server instance for stateless mode');
+            sharedServer = await createServerInstance();
+            logger.debug('Shared server instance created');
+        }
+        return sharedServer;
+    }
+
     // Periodic cleanup of expired sessions (only in stateful mode)
     let cleanupInterval: NodeJS.Timeout | null = null;
     if (!STATELESS_MODE) {
@@ -81,8 +94,8 @@ export function createStreamableHttpRouter(createServerInstance: () => Promise<M
 
         try {
             if (STATELESS_MODE) {
-                // Stateless mode: create new instances for each request
-                await handleStatelessRequest(req, res, createServerInstance);
+                // Stateless mode: reuse server, create new transport per request
+                await handleStatelessRequest(req, res, getSharedServer);
             } else {
                 // Stateful mode: manage sessions
                 await handleStatefulRequest(req, res, createServerInstance, activeSessions);
@@ -156,8 +169,8 @@ export function createStreamableHttpRouter(createServerInstance: () => Promise<M
 
         try {
             if (STATELESS_MODE) {
-                // Stateless mode: create new instances for each request
-                await handleStatelessRequest(req, res, createServerInstance);
+                // Stateless mode: reuse server, create new transport per request
+                await handleStatelessRequest(req, res, getSharedServer);
             } else {
                 // Stateful mode: manage sessions
                 await handleStatefulRequest(req, res, createServerInstance, activeSessions);
@@ -314,36 +327,42 @@ export function createStreamableHttpRouter(createServerInstance: () => Promise<M
 }
 
 /**
- * Handles requests in stateless mode - creates new instances for each request
+ * Handles requests in stateless mode following the official SDK pattern:
+ * - Reuse the server instance across requests
+ * - Create a new transport for EACH request to prevent request ID collisions
+ * - Connect the server to the new transport for each request
  */
 async function handleStatelessRequest(
     req: express.Request,
     res: express.Response,
-    createServerInstance: () => Promise<McpServer>
+    getServer: () => Promise<McpServer>
 ) {
     logger.debug('Handling request in stateless mode');
 
-    const server = await createServerInstance();
-    const transport = new StreamableHTTPServerTransport({
-        sessionIdGenerator: undefined, // Disable session management
-    });
-
-    // Clean up on response close
-    res.on('close', () => {
-        logger.debug('Request closed, cleaning up stateless resources');
-        try {
-            transport.close();
-            server.close();
-        } catch (error) {
-            logger.warn('Error cleaning up stateless resources:', { error });
-        }
-    });
-
     try {
+        // Create a new transport for this request (required to prevent ID collisions)
+        const transport = new StreamableHTTPServerTransport({
+            sessionIdGenerator: undefined,
+            enableJsonResponse: true
+        });
+
+        // Clean up transport when response closes
+        res.on('close', () => {
+            transport.close();
+        });
+
+        // Get the shared server instance and connect it to the new transport
+        const server = await getServer();
         await server.connect(transport);
+
+        // Handle the request
         await transport.handleRequest(req, res, req.body);
     } catch (error) {
-        logger.error('Error in stateless request handling:', { error });
+        logger.error('Error in stateless request handling:', {
+            error: error instanceof Error ? error.message : String(error),
+            stack: error instanceof Error ? error.stack : undefined,
+            body: req.body
+        });
         throw error;
     }
 }

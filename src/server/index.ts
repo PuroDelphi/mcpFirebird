@@ -31,12 +31,12 @@ process.on('unhandledRejection', (reason, promise) => {
 
 // --- SDK Imports ---
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import express from "express";
 import cors from "cors";
 import crypto from "crypto";
 // SDK types will be imported as needed
+import { createStreamableHttpRouter } from './streamable-http.js';
 
 // --- Local Imports ---
 import { type ToolDefinition as DbToolDefinition } from '../tools/database.js';
@@ -243,9 +243,20 @@ export async function main() {
             // Use backwards compatible server for HTTP-based transports
             logger.info('Starting backwards compatible server with SSE and Streamable HTTP...');
 
-            const port = parseInt(process.env.SSE_PORT || process.env.HTTP_PORT || '3003', 10);
+            // Prioritize the port based on transport type
+            let portEnvVar: string;
+            if (transportType === 'http') {
+                portEnvVar = process.env.HTTP_PORT || process.env.SSE_PORT || '3003';
+            } else if (transportType === 'sse') {
+                portEnvVar = process.env.SSE_PORT || process.env.HTTP_PORT || '3003';
+            } else {
+                // unified - use either
+                portEnvVar = process.env.HTTP_PORT || process.env.SSE_PORT || '3003';
+            }
+
+            const port = parseInt(portEnvVar, 10);
             if (isNaN(port)) {
-                throw new ConfigError(`Invalid port: ${process.env.SSE_PORT || process.env.HTTP_PORT}`);
+                throw new ConfigError(`Invalid port: ${portEnvVar}`);
             }
 
             await startBackwardsCompatibleServer(port);
@@ -347,74 +358,14 @@ async function startBackwardsCompatibleServer(port: number): Promise<void> {
         next();
     });
 
-    // Store transports for each session type
+    // Store transports for SSE (Streamable HTTP uses its own router)
     const transports = {
-        streamable: {} as Record<string, StreamableHTTPServerTransport>,
         sse: {} as Record<string, SSEServerTransport>
     };
 
-    // Modern Streamable HTTP endpoint
-    app.all('/mcp', async (req, res) => {
-        try {
-            // Check for existing session ID
-            const sessionId = req.headers['mcp-session-id'] as string | undefined;
-            let transport: StreamableHTTPServerTransport;
-
-            if (sessionId && transports.streamable[sessionId]) {
-                // Reuse existing transport
-                transport = transports.streamable[sessionId];
-            } else if (!sessionId && req.method === 'POST') {
-                // New initialization request
-                transport = new StreamableHTTPServerTransport({
-                    sessionIdGenerator: () => crypto.randomUUID(),
-                });
-
-                // Store the transport by session ID when initialized
-                transport.onclose = () => {
-                    if (transport.sessionId) {
-                        delete transports.streamable[transport.sessionId];
-                        logger.debug(`Cleaned up streamable transport for session: ${transport.sessionId}`);
-                    }
-                };
-
-                // Create and connect server
-                const server = await createMcpServerInstance();
-                await server.connect(transport);
-
-                // Store transport after connection
-                if (transport.sessionId) {
-                    transports.streamable[transport.sessionId] = transport;
-                    logger.debug(`Created streamable transport for session: ${transport.sessionId}`);
-                }
-            } else {
-                // Invalid request
-                res.status(400).json({
-                    jsonrpc: '2.0',
-                    error: {
-                        code: -32000,
-                        message: 'Bad Request: No valid session ID provided',
-                    },
-                    id: null,
-                });
-                return;
-            }
-
-            // Handle the request
-            await transport.handleRequest(req, res, req.body);
-        } catch (error) {
-            logger.error('Error handling Streamable HTTP request:', { error });
-            if (!res.headersSent) {
-                res.status(500).json({
-                    jsonrpc: '2.0',
-                    error: {
-                        code: -32603,
-                        message: 'Internal server error',
-                    },
-                    id: null,
-                });
-            }
-        }
-    });
+    // Modern Streamable HTTP endpoint - use the dedicated router with stateless support
+    const streamableRouter = createStreamableHttpRouter(createMcpServerInstance);
+    app.use('/', streamableRouter);
 
     // Legacy SSE endpoint for older clients
     app.get('/sse', async (req, res) => {

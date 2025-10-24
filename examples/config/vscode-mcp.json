@@ -1,0 +1,22 @@
+{
+  "mcp.servers": {
+    "firebird": {
+      "command": "npx",
+      "args": [
+        "mcp-firebird@alpha",
+        "--database",
+        "F:\\Proyectos\\SAI\\EMPLOYEE.FDB",
+        "--user",
+        "SYSDBA",
+        "--password",
+        "masterkey",
+        "--use-native-driver"
+      ],
+      "env": {
+        "FIREBIRD_HOST": "127.0.0.1",
+        "FIREBIRD_PORT": "3050"
+      }
+    }
+  }
+}
+
