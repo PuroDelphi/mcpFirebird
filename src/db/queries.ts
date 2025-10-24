@@ -616,6 +616,9 @@ export const getExecutionPlan = async (
     config = getGlobalConfig() || DEFAULT_CONFIG
 ): Promise<ExecutionPlanResult> => {
     let db: any = null;
+    let attachment: any = null;
+    let transaction: any = null;
+    let statement: any = null;
 
     try {
         // Validate the SQL query to prevent injection
@@ -638,6 +641,78 @@ export const getExecutionPlan = async (
 
         // Get database connection
         const effectiveConfig = getGlobalConfig() || config;
+
+        // Check if we're using the native driver
+        const useNativeDriver = process.env.USE_NATIVE_DRIVER === 'true';
+
+        if (useNativeDriver) {
+            // Use native driver API to get execution plan via getPlan() method
+            logger.debug('Using native driver API to get execution plan');
+
+            try {
+                // Import native driver
+                const { createNativeClient, getDefaultLibraryFilename } = await import('node-firebird-driver-native');
+                const client = createNativeClient(getDefaultLibraryFilename());
+
+                // Build connection string
+                let connectionString: string;
+                if (effectiveConfig.port && effectiveConfig.port !== 3050) {
+                    connectionString = `${effectiveConfig.host}/${effectiveConfig.port}:${effectiveConfig.database}`;
+                } else {
+                    connectionString = `${effectiveConfig.host}:${effectiveConfig.database}`;
+                }
+
+                logger.debug('Connecting to database with native driver', { connectionString });
+
+                // Connect to database
+                attachment = await client.createDatabase(connectionString, {
+                    username: effectiveConfig.user,
+                    password: effectiveConfig.password
+                }).catch(() => client.connect(connectionString, {
+                    username: effectiveConfig.user,
+                    password: effectiveConfig.password
+                }));
+
+                // Start transaction
+                transaction = await attachment.startTransaction();
+
+                // Prepare statement
+                logger.debug('Preparing statement');
+                statement = await attachment.prepare(transaction, sql);
+
+                // Get execution plan using getPlan() method
+                logger.debug('Getting execution plan via getPlan()');
+                const plan = await statement.getPlan();
+
+                logger.debug('Execution plan retrieved successfully', { plan });
+
+                // Clean up
+                await statement.dispose();
+                await transaction.commit();
+                await attachment.disconnect();
+
+                return {
+                    query: sql,
+                    plan: plan || "Plan retrieved but empty",
+                    planDetails: [{ plan: plan }],
+                    success: true,
+                    analysis: analyzePlan(plan || "")
+                };
+
+            } catch (nativeError: any) {
+                logger.error('Native driver getPlan failed:', nativeError);
+
+                // Clean up on error
+                if (statement) await statement.dispose().catch(() => {});
+                if (transaction) await transaction.rollback().catch(() => {});
+                if (attachment) await attachment.disconnect().catch(() => {});
+
+                // Fall through to legacy method
+                logger.warn('Falling back to legacy method');
+            }
+        }
+
+        // Legacy method for pure-js driver or if native driver failed
         db = await connectToDatabase(effectiveConfig);
 
         // Firebird execution plan retrieval using SET PLANONLY ON
