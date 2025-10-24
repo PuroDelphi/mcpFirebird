@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.6.0-alpha.8] - 2025-10-24
+
+### 🔧 Fixed
+- **get-execution-plan Tool**: Implemented proper native driver support using Firebird API's `getPlan()` method
+  - Now uses `statement.getPlan()` from node-firebird-driver-native for accurate execution plans
+  - Properly prepares statement, retrieves plan, and cleans up resources (statement, transaction, attachment)
+  - Falls back to legacy methods if native driver is not available or fails
+  - Improved error handling and logging for debugging
+  - **Important**: `SET PLANONLY` and `SET PLAN` are isql-specific commands and don't work through programmatic drivers
+
+### 📝 Technical Details
+- Native driver creates attachment, starts transaction, prepares statement, and calls `getPlan()` API method
+- Legacy fallback attempts `SET PLAN ON` for pure-js driver (limited functionality)
+- Comprehensive resource cleanup in all code paths (success and error)
+
 ## [2.6.0-alpha.7] - 2025-10-24
 
 ### 🔧 HTTP Streamable Transport Fixes
