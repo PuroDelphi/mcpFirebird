@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.7.0-alpha.0] - 2025-10-24
+
+### Development
+- Started development of version 2.7.0
+- Ready for new features and improvements
+
 ## [2.6.0] - 2025-10-24
 
 ### Added
