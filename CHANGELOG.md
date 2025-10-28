@@ -2,6 +2,33 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.6.0] - 2025-10-24
+
+### Added
+- **HTTP Streamable Transport**: Modern MCP protocol (2025-03-26) with bidirectional communication
+- **Unified Transport Mode**: Supports both SSE and Streamable HTTP simultaneously with auto-detection
+- **Stateless Mode**: Full support for stateless HTTP operations compatible with MCP Inspector
+- **Enhanced Documentation**: Comprehensive transport types documentation covering all 4 modes (STDIO, SSE, HTTP Streamable, Unified)
+
+### Fixed
+- **get-server-info tool**: Fixed hardcoded version number - now reads dynamically from package.json
+- **get-execution-plan tool**: Simplified to return informative message instead of attempting unsupported operations
+  - Removed legacy code using isql-specific commands (SET PLANONLY/SET PLAN)
+  - Provides clear guidance on using Firebird tools (isql, FlameRobin, IBExpert)
+  - Suggests analyze-query-performance as alternative
+- **HTTP Transport**: Fixed port configuration not being respected
+- **Environment Variables**: Complete .env.example with all configuration options
+
+### Changed
+- **Default Transport**: HTTP Streamable is now the recommended transport for web clients
+- **Port Selection**: Improved logic to respect user-specified ports
+- **Security**: Enhanced security configuration and documentation
+
+### Technical Notes
+- Research confirmed node-firebird drivers don't expose execution plan API (isc_dsql_sql_info)
+- HTTP transport now properly implements stateless mode following official MCP SDK patterns
+- All transport modes tested and verified with MCP Inspector
+
 ## [2.6.0-alpha.12] - 2025-10-24
 
 ### Fixed
