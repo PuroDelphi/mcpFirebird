@@ -1,10 +1,21 @@
 // Herramientas para metadatos e información del sistema
 import { createLogger } from '../utils/logger.js';
-import { formatForClaude } from '../utils/jsonHelper.js';
+import { formatForClaude, wrapError } from '../utils/jsonHelper.js';
 import { z, ZodTypeAny } from 'zod';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import {
+    listTriggers,
+    describeTrigger,
+    listProcedures,
+    describeProcedure,
+    listFunctions,
+    describeFunction,
+    listPackages,
+    describePackage
+} from '../db/metadata.js';
+import { checkAllowedOperation } from '../security/authorization.js';
 
 // Definición local de ToolDefinition basada en el uso
 export interface ToolDefinition {
@@ -216,6 +227,318 @@ export function setupMetadataTools(databaseTools: Map<string, any>): Map<string,
                     content: [{
                         type: 'text',
                         text: `Error en verificación de salud: ${error instanceof Error ? error.message : String(error)}`
+                    }],
+                    isError: true
+                };
+            }
+        }
+    });
+
+    // Herramienta para listar triggers
+    tools.set('list-triggers', {
+        title: 'List Triggers',
+        description: 'Lista todos los triggers en la base de datos con información sobre tabla asociada, tipo de trigger y estado',
+        inputSchema: z.object({}),
+        handler: async () => {
+            logger.info('Listing triggers');
+
+            try {
+                // Check if EXECUTE operation is allowed
+                checkAllowedOperation('EXECUTE');
+
+                const triggers = await listTriggers();
+                logger.info(`Retrieved ${triggers.length} triggers`);
+
+                return {
+                    content: [{
+                        type: "text",
+                        text: `Triggers en la base de datos:\n\n${formatForClaude({
+                            totalTriggers: triggers.length,
+                            triggers: triggers
+                        })}`
+                    }]
+                };
+            } catch (error) {
+                const errorResponse = wrapError(error);
+                logger.error(`Error listing triggers: ${errorResponse.error}`);
+
+                return {
+                    content: [{
+                        type: "text",
+                        text: formatForClaude(errorResponse)
+                    }],
+                    isError: true
+                };
+            }
+        }
+    });
+
+    // Herramienta para describir un trigger específico
+    tools.set('describe-trigger', {
+        title: 'Describe Trigger',
+        description: 'Obtiene información detallada sobre un trigger específico incluyendo su código fuente, tipo, secuencia y estado',
+        inputSchema: z.object({
+            triggerName: z.string().describe('Nombre del trigger a describir')
+        }),
+        handler: async (args: { triggerName: string }) => {
+            const { triggerName } = args;
+            logger.info(`Describing trigger: ${triggerName}`);
+
+            try {
+                // Check if EXECUTE operation is allowed
+                checkAllowedOperation('EXECUTE');
+
+                const trigger = await describeTrigger(triggerName);
+                logger.info(`Retrieved trigger details for: ${triggerName}`);
+
+                return {
+                    content: [{
+                        type: "text",
+                        text: `Detalles del trigger '${triggerName}':\n\n${formatForClaude(trigger)}`
+                    }]
+                };
+            } catch (error) {
+                const errorResponse = wrapError(error);
+                logger.error(`Error describing trigger ${triggerName}: ${errorResponse.error}`);
+
+                return {
+                    content: [{
+                        type: "text",
+                        text: formatForClaude(errorResponse)
+                    }],
+                    isError: true
+                };
+            }
+        }
+    });
+
+    // Herramienta para listar procedimientos almacenados
+    tools.set('list-procedures', {
+        title: 'List Stored Procedures',
+        description: 'Lista todos los procedimientos almacenados en la base de datos con información sobre parámetros de entrada/salida',
+        inputSchema: z.object({}),
+        handler: async () => {
+            logger.info('Listing stored procedures');
+
+            try {
+                // Check if EXECUTE operation is allowed
+                checkAllowedOperation('EXECUTE');
+
+                const procedures = await listProcedures();
+                logger.info(`Retrieved ${procedures.length} procedures`);
+
+                return {
+                    content: [{
+                        type: "text",
+                        text: `Procedimientos almacenados en la base de datos:\n\n${formatForClaude({
+                            totalProcedures: procedures.length,
+                            procedures: procedures
+                        })}`
+                    }]
+                };
+            } catch (error) {
+                const errorResponse = wrapError(error);
+                logger.error(`Error listing procedures: ${errorResponse.error}`);
+
+                return {
+                    content: [{
+                        type: "text",
+                        text: formatForClaude(errorResponse)
+                    }],
+                    isError: true
+                };
+            }
+        }
+    });
+
+    // Herramienta para describir un procedimiento almacenado específico
+    tools.set('describe-procedure', {
+        title: 'Describe Stored Procedure',
+        description: 'Obtiene información detallada sobre un procedimiento almacenado específico incluyendo su código fuente y parámetros',
+        inputSchema: z.object({
+            procedureName: z.string().describe('Nombre del procedimiento almacenado a describir')
+        }),
+        handler: async (args: { procedureName: string }) => {
+            const { procedureName } = args;
+            logger.info(`Describing procedure: ${procedureName}`);
+
+            try {
+                // Check if EXECUTE operation is allowed
+                checkAllowedOperation('EXECUTE');
+
+                const procedure = await describeProcedure(procedureName);
+                logger.info(`Retrieved procedure details for: ${procedureName}`);
+
+                return {
+                    content: [{
+                        type: "text",
+                        text: `Detalles del procedimiento '${procedureName}':\n\n${formatForClaude(procedure)}`
+                    }]
+                };
+            } catch (error) {
+                const errorResponse = wrapError(error);
+                logger.error(`Error describing procedure ${procedureName}: ${errorResponse.error}`);
+
+                return {
+                    content: [{
+                        type: "text",
+                        text: formatForClaude(errorResponse)
+                    }],
+                    isError: true
+                };
+            }
+        }
+    });
+
+    // Herramienta para listar funciones
+    tools.set('list-functions', {
+        title: 'List Functions',
+        description: 'Lista todas las funciones en la base de datos (UDFs y PSQL functions)',
+        inputSchema: z.object({}),
+        handler: async () => {
+            logger.info('Listing functions');
+
+            try {
+                // Check if EXECUTE operation is allowed
+                checkAllowedOperation('EXECUTE');
+
+                const functions = await listFunctions();
+                logger.info(`Retrieved ${functions.length} functions`);
+
+                return {
+                    content: [{
+                        type: "text",
+                        text: `Funciones en la base de datos:\n\n${formatForClaude({
+                            totalFunctions: functions.length,
+                            functions: functions
+                        })}`
+                    }]
+                };
+            } catch (error) {
+                const errorResponse = wrapError(error);
+                logger.error(`Error listing functions: ${errorResponse.error}`);
+
+                return {
+                    content: [{
+                        type: "text",
+                        text: formatForClaude(errorResponse)
+                    }],
+                    isError: true
+                };
+            }
+        }
+    });
+
+    // Herramienta para describir una función específica
+    tools.set('describe-function', {
+        title: 'Describe Function',
+        description: 'Obtiene información detallada sobre una función específica incluyendo su código fuente (si es PSQL function)',
+        inputSchema: z.object({
+            functionName: z.string().describe('Nombre de la función a describir')
+        }),
+        handler: async (args: { functionName: string }) => {
+            const { functionName } = args;
+            logger.info(`Describing function: ${functionName}`);
+
+            try {
+                // Check if EXECUTE operation is allowed
+                checkAllowedOperation('EXECUTE');
+
+                const func = await describeFunction(functionName);
+                logger.info(`Retrieved function details for: ${functionName}`);
+
+                return {
+                    content: [{
+                        type: "text",
+                        text: `Detalles de la función '${functionName}':\n\n${formatForClaude(func)}`
+                    }]
+                };
+            } catch (error) {
+                const errorResponse = wrapError(error);
+                logger.error(`Error describing function ${functionName}: ${errorResponse.error}`);
+
+                return {
+                    content: [{
+                        type: "text",
+                        text: formatForClaude(errorResponse)
+                    }],
+                    isError: true
+                };
+            }
+        }
+    });
+
+    // Herramienta para listar paquetes
+    tools.set('list-packages', {
+        title: 'List Packages',
+        description: 'Lista todos los paquetes en la base de datos (disponible en Firebird 3.0+)',
+        inputSchema: z.object({}),
+        handler: async () => {
+            logger.info('Listing packages');
+
+            try {
+                // Check if EXECUTE operation is allowed
+                checkAllowedOperation('EXECUTE');
+
+                const packages = await listPackages();
+                logger.info(`Retrieved ${packages.length} packages`);
+
+                return {
+                    content: [{
+                        type: "text",
+                        text: `Paquetes en la base de datos:\n\n${formatForClaude({
+                            totalPackages: packages.length,
+                            packages: packages
+                        })}`
+                    }]
+                };
+            } catch (error) {
+                const errorResponse = wrapError(error);
+                logger.error(`Error listing packages: ${errorResponse.error}`);
+
+                return {
+                    content: [{
+                        type: "text",
+                        text: formatForClaude(errorResponse)
+                    }],
+                    isError: true
+                };
+            }
+        }
+    });
+
+    // Herramienta para describir un paquete específico
+    tools.set('describe-package', {
+        title: 'Describe Package',
+        description: 'Obtiene información detallada sobre un paquete específico incluyendo su header y body source',
+        inputSchema: z.object({
+            packageName: z.string().describe('Nombre del paquete a describir')
+        }),
+        handler: async (args: { packageName: string }) => {
+            const { packageName } = args;
+            logger.info(`Describing package: ${packageName}`);
+
+            try {
+                // Check if EXECUTE operation is allowed
+                checkAllowedOperation('EXECUTE');
+
+                const pkg = await describePackage(packageName);
+                logger.info(`Retrieved package details for: ${packageName}`);
+
+                return {
+                    content: [{
+                        type: "text",
+                        text: `Detalles del paquete '${packageName}':\n\n${formatForClaude(pkg)}`
+                    }]
+                };
+            } catch (error) {
+                const errorResponse = wrapError(error);
+                logger.error(`Error describing package ${packageName}: ${errorResponse.error}`);
+
+                return {
+                    content: [{
+                        type: "text",
+                        text: formatForClaude(errorResponse)
                     }],
                     isError: true
                 };

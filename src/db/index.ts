@@ -41,3 +41,6 @@ export * from './management.js';
 
 // Exportar funciones de esquema
 export * from './schema.js';
+
+// Exportar funciones de metadata (triggers, procedures, functions, packages)
+export * from './metadata.js';

@@ -18,6 +18,7 @@ MCP Firebird is a server that implements Anthropic's [Model Context Protocol (MC
 
 - **SQL Queries**: Execute SQL queries on Firebird databases
 - **Schema Analysis**: Get detailed information about tables, columns, and relationships
+- **Database Metadata**: Inspect triggers, stored procedures, functions, and packages with source code
 - **Database Management**: Perform backup, restore, and validation operations
 - **Performance Analysis**: Analyze query performance and suggest optimizations
 - **Multiple Transports**: Supports STDIO, SSE (Server-Sent Events), and Streamable HTTP transports
@@ -584,6 +585,7 @@ For more detailed information, check the following documents:
 - [Complete Installation](./docs/installation.md)
 - [Configuration Options](./docs/configuration.md)
 - [Available Tools](./docs/tools.md)
+- [Database Metadata Tools](./docs/metadata-tools.md) - Inspect triggers, procedures, functions, and packages
 - [Resources, Tools, and Prompts Reference](./docs/resources-tools-prompts.md) - Complete guide to all MCP capabilities
 
 ### Transport Protocols

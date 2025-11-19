@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [2.7.0-alpha.0] - 2025-10-24
 
+### Added
+- **Database Metadata Tools**: New tools for inspecting database objects
+  - `list-triggers`: List all triggers in the database with table, type, and status information
+  - `describe-trigger`: Get detailed information about a specific trigger including source code
+  - `list-procedures`: List all stored procedures with parameter information
+  - `describe-procedure`: Get detailed information about a specific stored procedure including source code
+  - `list-functions`: List all functions (UDFs and PSQL functions)
+  - `describe-function`: Get detailed information about a specific function including source code
+  - `list-packages`: List all packages (Firebird 3.0+)
+  - `describe-package`: Get detailed information about a specific package including header and body source
+- **Security Integration**: All new metadata tools respect the security configuration
+  - Tools check for EXECUTE operation permission before accessing metadata
+  - Follows the same authorization pattern as existing database tools
+
 ### Development
 - Started development of version 2.7.0
 - Ready for new features and improvements
