@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [2.7.0-alpha.0] - 2025-10-24
+## [2.7.0-alpha.1] - 2025-11-19
 
 ### Added
 - **Database Metadata Tools**: New tools for inspecting database objects
