@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.7.0-alpha.2] - 2025-11-30
+
+### Fixed
+- **BLOB Source Code Retrieval**: Fixed metadata tools returning BLOB objects instead of text
+  - Added CAST to VARCHAR(32000) for all source code BLOB fields
+  - Affects: describe-trigger, describe-procedure, describe-function, describe-package
+  - Source code now correctly returned as readable strings
+
 ## [2.7.0-alpha.1] - 2025-11-19
 
 ### Added
