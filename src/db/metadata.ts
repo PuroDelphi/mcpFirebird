@@ -123,7 +123,7 @@ export const describeTrigger = async (triggerName: string, config?: ConfigOption
                 RDB$TRIGGER_TYPE AS TRIGGER_TYPE,
                 RDB$TRIGGER_SEQUENCE AS SEQUENCE,
                 RDB$TRIGGER_INACTIVE AS INACTIVE,
-                CAST(RDB$TRIGGER_SOURCE AS VARCHAR(32000)) AS SOURCE,
+                CAST(RDB$TRIGGER_SOURCE AS VARCHAR(8000)) AS SOURCE,
                 CAST(RDB$DESCRIPTION AS VARCHAR(500)) AS DESCRIPTION
             FROM RDB$TRIGGERS
             WHERE RDB$TRIGGER_NAME = ?
@@ -215,7 +215,7 @@ export const describeProcedure = async (procedureName: string, config?: ConfigOp
                 TRIM(RDB$PROCEDURE_NAME) AS NAME,
                 RDB$PROCEDURE_INPUTS AS INPUT_PARAMS,
                 RDB$PROCEDURE_OUTPUTS AS OUTPUT_PARAMS,
-                CAST(RDB$PROCEDURE_SOURCE AS VARCHAR(32000)) AS SOURCE,
+                CAST(RDB$PROCEDURE_SOURCE AS VARCHAR(8000)) AS SOURCE,
                 CAST(RDB$DESCRIPTION AS VARCHAR(500)) AS DESCRIPTION,
                 RDB$VALID_BLR AS VALID_BLR
             FROM RDB$PROCEDURES
@@ -309,7 +309,7 @@ export const describeFunction = async (functionName: string, config?: ConfigOpti
                 TRIM(RDB$MODULE_NAME) AS MODULE_NAME,
                 TRIM(RDB$ENTRYPOINT) AS ENTRY_POINT,
                 RDB$RETURN_ARGUMENT AS RETURN_ARGUMENT,
-                CAST(RDB$FUNCTION_SOURCE AS VARCHAR(32000)) AS SOURCE,
+                CAST(RDB$FUNCTION_SOURCE AS VARCHAR(8000)) AS SOURCE,
                 CAST(RDB$DESCRIPTION AS VARCHAR(500)) AS DESCRIPTION,
                 RDB$VALID_BLR AS VALID_BLR
             FROM RDB$FUNCTIONS
@@ -397,8 +397,8 @@ export const describePackage = async (packageName: string, config?: ConfigOption
         const sql = `
             SELECT
                 TRIM(RDB$PACKAGE_NAME) AS NAME,
-                CAST(RDB$PACKAGE_HEADER_SOURCE AS VARCHAR(32000)) AS HEADER_SOURCE,
-                CAST(RDB$PACKAGE_BODY_SOURCE AS VARCHAR(32000)) AS BODY_SOURCE,
+                CAST(RDB$PACKAGE_HEADER_SOURCE AS VARCHAR(8000)) AS HEADER_SOURCE,
+                CAST(RDB$PACKAGE_BODY_SOURCE AS VARCHAR(8000)) AS BODY_SOURCE,
                 CAST(RDB$DESCRIPTION AS VARCHAR(500)) AS DESCRIPTION,
                 RDB$VALID_BODY_FLAG AS VALID_BODY_FLAG
             FROM RDB$PACKAGES

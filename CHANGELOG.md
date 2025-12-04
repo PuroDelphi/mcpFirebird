@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.7.0-alpha.3] - 2025-12-04
+
+### Fixed
+- **Firebird 5.0 Compatibility**: Fixed VARCHAR size limit error in metadata tools
+  - Changed CAST to VARCHAR(8000) instead of VARCHAR(32000) for BLOB source code fields
+  - Resolves "Data type unknown, Implementation limit exceeded" error in Firebird 5.0 with DataTypeCompatibility = 3.0
+  - Affects: describe-trigger, describe-procedure, describe-function, describe-package
+  - VARCHAR(8000) is safe for all character sets (UTF8, NONE, ISO8859_1) in both Firebird 3.0 and 5.0
+
 ## [2.7.0-alpha.2] - 2025-11-30
 
 ### Fixed
