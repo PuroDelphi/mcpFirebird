@@ -71,13 +71,13 @@ export const listTriggers = async (config?: ConfigOptions): Promise<TriggerInfo[
         logger.info('Getting list of triggers');
 
         const sql = `
-            SELECT 
+            SELECT
                 TRIM(RDB$TRIGGER_NAME) AS NAME,
                 TRIM(RDB$RELATION_NAME) AS TABLE_NAME,
                 RDB$TRIGGER_TYPE AS TRIGGER_TYPE,
                 RDB$TRIGGER_SEQUENCE AS SEQUENCE,
                 RDB$TRIGGER_INACTIVE AS INACTIVE,
-                CAST(RDB$DESCRIPTION AS VARCHAR(500)) AS DESCRIPTION
+                RDB$DESCRIPTION AS DESCRIPTION
             FROM RDB$TRIGGERS
             WHERE RDB$SYSTEM_FLAG = 0
             ORDER BY RDB$RELATION_NAME, RDB$TRIGGER_SEQUENCE
@@ -85,7 +85,7 @@ export const listTriggers = async (config?: ConfigOptions): Promise<TriggerInfo[
 
         const triggers = await executeQuery(sql, [], config);
         logger.info(`Found ${triggers.length} triggers`);
-        
+
         return triggers.map((t: any) => ({
             name: t.NAME,
             tableName: t.TABLE_NAME || 'DATABASE',
@@ -93,7 +93,7 @@ export const listTriggers = async (config?: ConfigOptions): Promise<TriggerInfo[
             sequence: t.SEQUENCE,
             inactive: t.INACTIVE === 1,
             source: '', // Will be loaded separately
-            description: t.DESCRIPTION
+            description: t.DESCRIPTION || undefined
         }));
     } catch (error: any) {
         const errorMessage = `Error listing triggers: ${error.message || error}`;
@@ -123,8 +123,8 @@ export const describeTrigger = async (triggerName: string, config?: ConfigOption
                 RDB$TRIGGER_TYPE AS TRIGGER_TYPE,
                 RDB$TRIGGER_SEQUENCE AS SEQUENCE,
                 RDB$TRIGGER_INACTIVE AS INACTIVE,
-                CAST(RDB$TRIGGER_SOURCE AS VARCHAR(8000)) AS SOURCE,
-                CAST(RDB$DESCRIPTION AS VARCHAR(500)) AS DESCRIPTION
+                RDB$TRIGGER_SOURCE AS SOURCE,
+                RDB$DESCRIPTION AS DESCRIPTION
             FROM RDB$TRIGGERS
             WHERE RDB$TRIGGER_NAME = ?
         `;
@@ -145,7 +145,7 @@ export const describeTrigger = async (triggerName: string, config?: ConfigOption
             sequence: trigger.SEQUENCE,
             inactive: trigger.INACTIVE === 1,
             source: trigger.SOURCE || '',
-            description: trigger.DESCRIPTION
+            description: trigger.DESCRIPTION || undefined
         };
     } catch (error: any) {
         if (error instanceof FirebirdError) {
@@ -171,7 +171,7 @@ export const listProcedures = async (config?: ConfigOptions): Promise<ProcedureI
                 TRIM(RDB$PROCEDURE_NAME) AS NAME,
                 RDB$PROCEDURE_INPUTS AS INPUT_PARAMS,
                 RDB$PROCEDURE_OUTPUTS AS OUTPUT_PARAMS,
-                CAST(RDB$DESCRIPTION AS VARCHAR(500)) AS DESCRIPTION,
+                RDB$DESCRIPTION AS DESCRIPTION,
                 RDB$VALID_BLR AS VALID_BLR
             FROM RDB$PROCEDURES
             WHERE RDB$SYSTEM_FLAG = 0
@@ -186,7 +186,7 @@ export const listProcedures = async (config?: ConfigOptions): Promise<ProcedureI
             inputParams: p.INPUT_PARAMS || 0,
             outputParams: p.OUTPUT_PARAMS || 0,
             source: '', // Will be loaded separately
-            description: p.DESCRIPTION,
+            description: p.DESCRIPTION || undefined,
             validBlr: p.VALID_BLR === 1
         }));
     } catch (error: any) {
@@ -215,8 +215,8 @@ export const describeProcedure = async (procedureName: string, config?: ConfigOp
                 TRIM(RDB$PROCEDURE_NAME) AS NAME,
                 RDB$PROCEDURE_INPUTS AS INPUT_PARAMS,
                 RDB$PROCEDURE_OUTPUTS AS OUTPUT_PARAMS,
-                CAST(RDB$PROCEDURE_SOURCE AS VARCHAR(8000)) AS SOURCE,
-                CAST(RDB$DESCRIPTION AS VARCHAR(500)) AS DESCRIPTION,
+                RDB$PROCEDURE_SOURCE AS SOURCE,
+                RDB$DESCRIPTION AS DESCRIPTION,
                 RDB$VALID_BLR AS VALID_BLR
             FROM RDB$PROCEDURES
             WHERE RDB$PROCEDURE_NAME = ?
@@ -236,7 +236,7 @@ export const describeProcedure = async (procedureName: string, config?: ConfigOp
             inputParams: proc.INPUT_PARAMS || 0,
             outputParams: proc.OUTPUT_PARAMS || 0,
             source: proc.SOURCE || '',
-            description: proc.DESCRIPTION,
+            description: proc.DESCRIPTION || undefined,
             validBlr: proc.VALID_BLR === 1
         };
     } catch (error: any) {
@@ -264,7 +264,7 @@ export const listFunctions = async (config?: ConfigOptions): Promise<FunctionInf
                 TRIM(RDB$MODULE_NAME) AS MODULE_NAME,
                 TRIM(RDB$ENTRYPOINT) AS ENTRY_POINT,
                 RDB$RETURN_ARGUMENT AS RETURN_ARGUMENT,
-                CAST(RDB$DESCRIPTION AS VARCHAR(500)) AS DESCRIPTION,
+                RDB$DESCRIPTION AS DESCRIPTION,
                 RDB$VALID_BLR AS VALID_BLR
             FROM RDB$FUNCTIONS
             WHERE RDB$SYSTEM_FLAG = 0
@@ -279,7 +279,7 @@ export const listFunctions = async (config?: ConfigOptions): Promise<FunctionInf
             moduleName: f.MODULE_NAME,
             entryPoint: f.ENTRY_POINT,
             returnArgument: f.RETURN_ARGUMENT || 0,
-            description: f.DESCRIPTION,
+            description: f.DESCRIPTION || undefined,
             validBlr: f.VALID_BLR === 1
         }));
     } catch (error: any) {
@@ -309,8 +309,8 @@ export const describeFunction = async (functionName: string, config?: ConfigOpti
                 TRIM(RDB$MODULE_NAME) AS MODULE_NAME,
                 TRIM(RDB$ENTRYPOINT) AS ENTRY_POINT,
                 RDB$RETURN_ARGUMENT AS RETURN_ARGUMENT,
-                CAST(RDB$FUNCTION_SOURCE AS VARCHAR(8000)) AS SOURCE,
-                CAST(RDB$DESCRIPTION AS VARCHAR(500)) AS DESCRIPTION,
+                RDB$FUNCTION_SOURCE AS SOURCE,
+                RDB$DESCRIPTION AS DESCRIPTION,
                 RDB$VALID_BLR AS VALID_BLR
             FROM RDB$FUNCTIONS
             WHERE RDB$FUNCTION_NAME = ?
@@ -330,8 +330,8 @@ export const describeFunction = async (functionName: string, config?: ConfigOpti
             moduleName: func.MODULE_NAME,
             entryPoint: func.ENTRY_POINT,
             returnArgument: func.RETURN_ARGUMENT || 0,
-            source: func.SOURCE,
-            description: func.DESCRIPTION,
+            source: func.SOURCE || undefined,
+            description: func.DESCRIPTION || undefined,
             validBlr: func.VALID_BLR === 1
         };
     } catch (error: any) {
@@ -356,7 +356,7 @@ export const listPackages = async (config?: ConfigOptions): Promise<PackageInfo[
         const sql = `
             SELECT
                 TRIM(RDB$PACKAGE_NAME) AS NAME,
-                CAST(RDB$DESCRIPTION AS VARCHAR(500)) AS DESCRIPTION,
+                RDB$DESCRIPTION AS DESCRIPTION,
                 RDB$VALID_BODY_FLAG AS VALID_BODY_FLAG
             FROM RDB$PACKAGES
             WHERE RDB$SYSTEM_FLAG = 0
@@ -370,7 +370,7 @@ export const listPackages = async (config?: ConfigOptions): Promise<PackageInfo[
             name: p.NAME,
             headerSource: '', // Will be loaded separately
             bodySource: undefined,
-            description: p.DESCRIPTION,
+            description: p.DESCRIPTION || undefined,
             validBodyFlag: p.VALID_BODY_FLAG === 1
         }));
     } catch (error: any) {
@@ -397,9 +397,9 @@ export const describePackage = async (packageName: string, config?: ConfigOption
         const sql = `
             SELECT
                 TRIM(RDB$PACKAGE_NAME) AS NAME,
-                CAST(RDB$PACKAGE_HEADER_SOURCE AS VARCHAR(8000)) AS HEADER_SOURCE,
-                CAST(RDB$PACKAGE_BODY_SOURCE AS VARCHAR(8000)) AS BODY_SOURCE,
-                CAST(RDB$DESCRIPTION AS VARCHAR(500)) AS DESCRIPTION,
+                RDB$PACKAGE_HEADER_SOURCE AS HEADER_SOURCE,
+                RDB$PACKAGE_BODY_SOURCE AS BODY_SOURCE,
+                RDB$DESCRIPTION AS DESCRIPTION,
                 RDB$VALID_BODY_FLAG AS VALID_BODY_FLAG
             FROM RDB$PACKAGES
             WHERE RDB$PACKAGE_NAME = ?
@@ -417,8 +417,8 @@ export const describePackage = async (packageName: string, config?: ConfigOption
         return {
             name: pkg.NAME,
             headerSource: pkg.HEADER_SOURCE || '',
-            bodySource: pkg.BODY_SOURCE,
-            description: pkg.DESCRIPTION,
+            bodySource: pkg.BODY_SOURCE || undefined,
+            description: pkg.DESCRIPTION || undefined,
             validBodyFlag: pkg.VALID_BODY_FLAG === 1
         };
     } catch (error: any) {

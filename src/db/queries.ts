@@ -16,6 +16,74 @@ import { withCorrectConfig } from './wrapper.js';
 
 const logger = createLogger('db:queries');
 
+/**
+ * Reads a BLOB field from a Firebird query result.
+ * Handles both node-firebird (pure JS) where BLOBs are callback functions
+ * returning EventEmitter streams, and node-firebird-driver-native where
+ * BLOBs are returned as Buffer objects.
+ */
+export function readBlobField(field: any): Promise<string | null> {
+    return new Promise((resolve, reject) => {
+        if (field == null) {
+            resolve(null);
+            return;
+        }
+        if (typeof field === 'string') {
+            resolve(field);
+            return;
+        }
+        if (Buffer.isBuffer(field)) {
+            resolve(field.toString('utf-8'));
+            return;
+        }
+        if (typeof field === 'function') {
+            field((err: Error | null, _name: string, event: any) => {
+                if (err) {
+                    reject(err);
+                    return;
+                }
+                const chunks: Buffer[] = [];
+                event.on('data', (chunk: Buffer) => chunks.push(chunk));
+                event.on('end', () => {
+                    resolve(Buffer.concat(chunks).toString('utf-8'));
+                });
+                event.on('error', (e: Error) => reject(e));
+            });
+            return;
+        }
+        resolve(String(field));
+    });
+}
+
+/**
+ * Resolves BLOB fields in query result rows while the connection is still open.
+ * Detects BLOB columns from the first row (function or Buffer values),
+ * then only resolves those columns. Returns rows unchanged if no BLOBs found.
+ */
+async function resolveBlobFields(rows: any[]): Promise<any[]> {
+    if (rows.length === 0) return rows;
+
+    // Detect which columns are BLOBs from the first row
+    const blobKeys: string[] = [];
+    for (const key of Object.keys(rows[0])) {
+        const val = rows[0][key];
+        if (typeof val === 'function' || Buffer.isBuffer(val)) {
+            blobKeys.push(key);
+        }
+    }
+
+    // No BLOBs? Return as-is, zero overhead
+    if (blobKeys.length === 0) return rows;
+
+    return Promise.all(rows.map(async (row) => {
+        const resolved = { ...row };
+        await Promise.all(blobKeys.map(key =>
+            readBlobField(row[key]).then(text => { resolved[key] = text; })
+        ));
+        return resolved;
+    }));
+}
+
 // Directorio de bases de datos
 export const DATABASE_DIR = process.env.FIREBIRD_DB_DIR || './databases';
 
@@ -97,7 +165,7 @@ export const executeQuery = async (sql: string, params: any[] = [], config = DEF
 
         db = await connectToDatabase(config);
         const result = await queryDatabase(db, sql, params);
-        return result;
+        return await resolveBlobFields(result);
     } catch (error: any) {
         // Propagar el error original si ya es un FirebirdError
         if (error instanceof FirebirdError) {
