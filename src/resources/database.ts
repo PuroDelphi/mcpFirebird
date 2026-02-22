@@ -219,7 +219,7 @@ export const setupDatabaseResources = (): Map<string, ResourceDefinition> => {
                         RDB$TRIGGER_TYPE AS TRIGGER_TYPE,
                         RDB$TRIGGER_SEQUENCE AS SEQUENCE,
                         RDB$TRIGGER_INACTIVE AS IS_INACTIVE,
-                        CAST(RDB$TRIGGER_SOURCE AS VARCHAR(8000)) AS SOURCE
+                        RDB$TRIGGER_SOURCE AS SOURCE
                     FROM RDB$TRIGGERS
                     WHERE RDB$RELATION_NAME = '${tableName.toUpperCase()}'
                     AND RDB$SYSTEM_FLAG = 0
@@ -233,7 +233,7 @@ export const setupDatabaseResources = (): Map<string, ResourceDefinition> => {
                         type: t.TRIGGER_TYPE,
                         sequence: t.SEQUENCE,
                         isActive: t.IS_INACTIVE === 0,
-                        source: t.SOURCE?.trim()
+                        source: (t.SOURCE || '').trim()
                     }))
                 };
             } catch (error: any) {
