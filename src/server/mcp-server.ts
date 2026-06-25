@@ -38,22 +38,26 @@ export async function startMcpServer() {
 
         // 2. Create MCP server instance with capabilities
         logger.info('Creating MCP server instance...');
-        const server = new McpServer({
-            name: pkg.name,
-            version: pkg.version,
-            capabilities: {
-                tools: {
-                    listChanged: true
-                },
-                prompts: {
-                    listChanged: true
-                },
-                resources: {
-                    listChanged: true,
-                    subscribe: false
+        const server = new McpServer(
+            {
+                name: pkg.name,
+                version: pkg.version
+            },
+            {
+                capabilities: {
+                    tools: {
+                        listChanged: true
+                    },
+                    prompts: {
+                        listChanged: true
+                    },
+                    resources: {
+                        listChanged: true,
+                        subscribe: false
+                    }
                 }
             }
-        });
+        );
         logger.info('MCP server instance created with capabilities.');
 
         // 3. Register tools, prompts and resources

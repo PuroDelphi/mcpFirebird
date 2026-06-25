@@ -93,10 +93,9 @@ export async function createServer() {
             },
             {
                 capabilities: {
-                    tools: { list: true, execute: true },
-                    prompts: { list: true, get: true, call: true },
-                    resources: { list: true, read: true },
-                    resourceTemplates: { list: true }
+                    tools: { },
+                    prompts: { },
+                    resources: { }
                 }
             }
         );
@@ -145,7 +144,7 @@ export async function createServer() {
             const prompts = Array.from(allPrompts.entries()).map(([name, prompt]) => ({
                 name,
                 description: prompt.description,
-                inputSchema: zodToJsonSchema(prompt.inputSchema)
+                inputSchema: zodToJsonSchema(prompt.inputSchema as any) as any
             }));
             return { prompts };
         });
@@ -163,7 +162,7 @@ export async function createServer() {
             return {
                 name,
                 description: prompt.description,
-                inputSchema: zodToJsonSchema(prompt.inputSchema)
+                inputSchema: zodToJsonSchema(prompt.inputSchema as any) as any
             };
         });
 

@@ -148,22 +148,26 @@ async function startHttpServer() {
             await initSecurity();
 
             // Create server with modern capabilities
-            const server = new McpServer({
-                name: pkg.name,
-                version: pkg.version,
-                capabilities: {
-                    tools: {
-                        listChanged: true
-                    },
-                    prompts: {
-                        listChanged: true
-                    },
-                    resources: {
-                        listChanged: true,
-                        subscribe: false
+            const server = new McpServer(
+                {
+                    name: pkg.name,
+                    version: pkg.version
+                },
+                {
+                    capabilities: {
+                        tools: {
+                            listChanged: true
+                        },
+                        prompts: {
+                            listChanged: true
+                        },
+                        resources: {
+                            listChanged: true,
+                            subscribe: false
+                        }
                     }
                 }
-            });
+            );
 
             // Register tools
             const registerTool = (name: string, toolDef: DbToolDefinition | MetaToolDefinition | SimpleToolDefinition) => {

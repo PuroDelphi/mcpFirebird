@@ -79,22 +79,26 @@ async function createMcpServerInstance(): Promise<any> {
 
     // Create MCP server instance
     const { McpServer } = await import("@modelcontextprotocol/sdk/server/mcp.js");
-    const server = new McpServer({
-        name: pkg.name,
-        version: pkg.version,
-        capabilities: {
-            tools: {
-                listChanged: true
-            },
-            prompts: {
-                listChanged: true
-            },
-            resources: {
-                listChanged: true,
-                subscribe: false
+    const server = new McpServer(
+        {
+            name: pkg.name,
+            version: pkg.version
+        },
+        {
+            capabilities: {
+                tools: {
+                    listChanged: true
+                },
+                prompts: {
+                    listChanged: true
+                },
+                resources: {
+                    listChanged: true,
+                    subscribe: false
+                }
             }
         }
-    });
+    );
 
     // Register tools, prompts and resources
     logger.debug('Registering tools, prompts and resources...');

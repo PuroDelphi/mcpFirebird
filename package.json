@@ -1,6 +1,6 @@
 {
   "name": "mcp-firebird",
-  "version": "2.7.0-alpha.3",
+  "version": "2.7.0-alpha.4",
   "description": "MCP server for Firebird database",
   "main": "dist/index.js",
   "module": "./src/smithery.ts",
@@ -39,14 +39,13 @@
     "typescript": "^5.4.2"
   },
   "dependencies": {
-    "@modelcontextprotocol/inspector": "latest",
-    "@modelcontextprotocol/sdk": "^1.13.2",
+    "@modelcontextprotocol/inspector": "^0.22.0",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "eventsource": "^2.0.2",
     "express": "^4.21.2",
     "glob": "^10.3.10",
-    "mcp-firebird": "^2.7.0-alpha.2",
     "minimist": "^1.2.8",
     "node-fetch": "^2.6.7",
     "node-firebird": "^1.1.5",
