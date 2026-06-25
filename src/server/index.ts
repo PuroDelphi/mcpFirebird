@@ -49,6 +49,7 @@ import { setupDatabasePrompts } from '../prompts/database.js';
 import { setupSqlPrompts } from '../prompts/sql.js';
 import { setupTemplatePrompts } from '../prompts/templates.js';
 import { setupAdvancedTemplatePrompts } from '../prompts/advanced-templates.js';
+import { setupEventResources, closeEventManager } from '../resources/events.js';
 import { initSecurity } from '../security/index.js';
 import { ConfigError } from '../utils/errors.js';
 import pkg from '../../package.json' with { type: 'json' };
@@ -94,7 +95,7 @@ async function createMcpServerInstance(): Promise<any> {
                 },
                 resources: {
                     listChanged: true,
-                    subscribe: false
+                    subscribe: true
                 }
             }
         }
@@ -191,8 +192,13 @@ async function createMcpServerInstance(): Promise<any> {
     }
 
     // Resources - temporarily disabled due to path-to-regexp compatibility issues
-    logger.info(`Skipping ${allResources.size} resources - Resource registration temporarily disabled in alpha version`);
-    // TODO: Re-enable resources once path-to-regexp issues are resolved
+    logger.info(`Skipping ${allResources.size} database resources - Resource registration temporarily disabled in alpha version`);
+    
+    // Register Event resources explicitly (these don't use the old pattern)
+    logger.debug('Registering Firebird event resources...');
+    setupEventResources(server);
+    
+    // TODO: Re-enable database resources once path-to-regexp issues are resolved
 
     logger.debug(`Server instance created with ${allTools.size} tools, ${allPrompts.size} prompts, ${allResources.size} resources`);
     return server;
@@ -225,6 +231,7 @@ export async function main() {
             // Setup cleanup for stdio
             const cleanup = async () => {
                 logger.info('Closing stdio transport...');
+                closeEventManager();
                 await server.close();
                 logger.info('Server closed successfully');
             };
@@ -268,11 +275,13 @@ export async function main() {
             // Setup cleanup for backwards compatible server
             process.on('SIGINT', async () => {
                 logger.info('Received SIGINT signal, cleaning up...');
+                closeEventManager();
                 process.exit(0);
             });
 
             process.on('SIGTERM', async () => {
                 logger.info('Received SIGTERM signal, cleaning up...');
+                closeEventManager();
                 process.exit(0);
             });
 

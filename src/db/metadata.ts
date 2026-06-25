@@ -462,3 +462,30 @@ function getTriggerTypeDescription(triggerType: number): string {
     return types[triggerType] || `UNKNOWN (${triggerType})`;
 }
 
+/**
+ * Lista los eventos disponibles en los triggers y procedimientos (aquellos que usan POST_EVENT)
+ */
+export async function listAvailableEvents(): Promise<{ name: string, type: string }[]> {
+    logger.debug('Retrieving available POST_EVENTs');
+    
+    const query = `
+        SELECT TRIM(RDB$TRIGGER_NAME) as NAME, 'TRIGGER' as TYPE 
+        FROM RDB$TRIGGERS 
+        WHERE RDB$TRIGGER_SOURCE LIKE '%POST_EVENT%' 
+        UNION ALL 
+        SELECT TRIM(RDB$PROCEDURE_NAME) as NAME, 'PROCEDURE' as TYPE 
+        FROM RDB$PROCEDURES 
+        WHERE RDB$PROCEDURE_SOURCE LIKE '%POST_EVENT%'
+    `;
+    
+    try {
+        const results = await executeQuery(query) as { NAME: string, TYPE: string }[];
+        return results.map(row => ({
+            name: row.NAME,
+            type: row.TYPE
+        }));
+    } catch (error) {
+        logger.error('Failed to retrieve events', { error });
+        throw new FirebirdError('Failed to retrieve available events', 'FIREBIRD_ERROR', error);
+    }
+}

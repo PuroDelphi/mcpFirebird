@@ -13,7 +13,8 @@ import {
     listFunctions,
     describeFunction,
     listPackages,
-    describePackage
+    describePackage,
+    listAvailableEvents
 } from '../db/metadata.js';
 import { checkAllowedOperation } from '../security/authorization.js';
 
@@ -227,6 +228,34 @@ export function setupMetadataTools(databaseTools: Map<string, any>): Map<string,
                     content: [{
                         type: 'text',
                         text: `Error en verificación de salud: ${error instanceof Error ? error.message : String(error)}`
+                    }],
+                    isError: true
+                };
+            }
+        }
+    });
+
+    // Herramienta para buscar eventos Firebird disponibles
+    tools.set('list-available-events', {
+        title: 'List Available Events',
+        description: 'Lista los eventos nativos (POST_EVENT) disponibles en los triggers y procedimientos de la base de datos',
+        inputSchema: z.object({}),
+        handler: async () => {
+            try {
+                checkAllowedOperation('EXECUTE');
+                const events = await listAvailableEvents();
+                return {
+                    content: [{
+                        type: 'text',
+                        text: `Eventos Firebird disponibles (POST_EVENT):\n\n${formatForClaude(events)}`
+                    }]
+                };
+            } catch (error) {
+                const errorResponse = wrapError(error);
+                return {
+                    content: [{
+                        type: "text",
+                        text: formatForClaude(errorResponse)
                     }],
                     isError: true
                 };
