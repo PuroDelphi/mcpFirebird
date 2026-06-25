@@ -1,6 +1,6 @@
 {
   "name": "mcp-firebird",
-  "version": "2.7.0-alpha.5",
+  "version": "2.7.0-alpha.6",
   "description": "MCP server for Firebird database",
   "main": "dist/index.js",
   "module": "./src/smithery.ts",
@@ -45,7 +45,7 @@
     "dotenv": "^16.4.7",
     "eventsource": "^2.0.2",
     "express": "^4.21.2",
-    "glob": "^10.3.10",
+
     "minimist": "^1.2.8",
     "node-fetch": "^2.6.7",
     "node-firebird": "^1.1.5",
