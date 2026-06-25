@@ -326,54 +326,59 @@ export async function main() {
 async function startBackwardsCompatibleServer(port: number): Promise<void> {
     const app = express();
 
-    // Configure CORS to allow web clients
+    // Configure CORS to allow web clients but with more restrictive settings if possible
+    // Defaulting to '*' for MCP compatibility, but can be restricted via env
+    const allowedOrigin = process.env.MCP_ALLOWED_ORIGIN || '*';
     app.use(cors({
-        origin: '*',
+        origin: allowedOrigin,
         methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
-        allowedHeaders: ['Content-Type', 'mcp-session-id', 'Cache-Control', 'Accept'],
+        allowedHeaders: ['Content-Type', 'mcp-session-id', 'Cache-Control', 'Accept', 'Authorization'],
         credentials: false
     }));
 
     app.use(express.json());
 
-    // Middleware to handle Smithery configuration via query parameters
-    // Smithery passes configuration as query params using dot-notation
-    // Example: ?host=localhost&port=3050&database=/path/to/db.fdb
-    app.use((req, res, next) => {
-        const queryParams = req.query;
+    // EMA Authentication Middleware for HTTP transports
+    const serverApiKey = process.env.FIREBIRD_API_KEY || process.env.FB_API_KEY;
+    if (serverApiKey) {
+        app.use((req, res, next) => {
+            // Allow OPTIONS requests to pass through for CORS preflight
+            if (req.method === 'OPTIONS') {
+                return next();
+            }
 
-        // Map Smithery query parameters to environment variables
-        if (queryParams.host && typeof queryParams.host === 'string') {
-            process.env.FIREBIRD_HOST = queryParams.host;
-            logger.debug(`Set FIREBIRD_HOST from query param: ${queryParams.host}`);
-        }
-        if (queryParams.port && typeof queryParams.port === 'string') {
-            process.env.FIREBIRD_PORT = queryParams.port;
-            logger.debug(`Set FIREBIRD_PORT from query param: ${queryParams.port}`);
-        }
-        if (queryParams.database && typeof queryParams.database === 'string') {
-            process.env.FIREBIRD_DATABASE = queryParams.database;
-            logger.debug(`Set FIREBIRD_DATABASE from query param: ${queryParams.database}`);
-        }
-        if (queryParams.user && typeof queryParams.user === 'string') {
-            process.env.FIREBIRD_USER = queryParams.user;
-            logger.debug(`Set FIREBIRD_USER from query param: ${queryParams.user}`);
-        }
-        if (queryParams.password && typeof queryParams.password === 'string') {
-            process.env.FIREBIRD_PASSWORD = queryParams.password;
-            logger.debug(`Set FIREBIRD_PASSWORD from query param: [REDACTED]`);
-        }
-        if (queryParams.useNativeDriver && typeof queryParams.useNativeDriver === 'string') {
-            process.env.USE_NATIVE_DRIVER = queryParams.useNativeDriver;
-            logger.debug(`Set USE_NATIVE_DRIVER from query param: ${queryParams.useNativeDriver}`);
-        }
-        if (queryParams.logLevel && typeof queryParams.logLevel === 'string') {
-            process.env.LOG_LEVEL = queryParams.logLevel;
-            logger.debug(`Set LOG_LEVEL from query param: ${queryParams.logLevel}`);
-        }
+            const authHeader = req.headers.authorization;
+            if (!authHeader || !authHeader.startsWith('Bearer ')) {
+                logger.warn(`Unauthorized access attempt from ${req.ip}`);
+                return res.status(401).json({
+                    jsonrpc: '2.0',
+                    error: {
+                        code: -32000,
+                        message: 'Unauthorized: Missing or invalid Bearer token'
+                    },
+                    id: null
+                });
+            }
 
-        next();
-    });
+            const token = authHeader.substring(7);
+            if (token !== serverApiKey) {
+                logger.warn(`Invalid API key attempt from ${req.ip}`);
+                return res.status(403).json({
+                    jsonrpc: '2.0',
+                    error: {
+                        code: -32000,
+                        message: 'Forbidden: Invalid API key'
+                    },
+                    id: null
+                });
+            }
+
+            next();
+        });
+        logger.info('EMA HTTP Authentication enabled (Bearer Token required)');
+    } else {
+        logger.warn('WARNING: Running HTTP server without FIREBIRD_API_KEY. Endpoints are exposed without authentication.');
+    }
 
     // Store transports for SSE (Streamable HTTP uses its own router)
     const transports = {
