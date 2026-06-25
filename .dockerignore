@@ -55,10 +55,7 @@ logs/
 tmp/
 temp/
 
-# Smithery specific (not needed in container)
-src/smithery.ts
-smithery.yaml
-smithery.config.js
+
 
 # CI/CD
 .gitlab-ci.yml

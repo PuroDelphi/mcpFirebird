@@ -2,8 +2,6 @@
 
 # MCP Firebird
 
-[![smithery badge](https://smithery.ai/badge/@PuroDelphi/mcpFirebird)](https://smithery.ai/server/@PuroDelphi/mcpFirebird)
-
 Implementation of Anthropic's MCP (Model Context Protocol) for Firebird databases.
 
 ## Example Usage
@@ -66,62 +64,7 @@ This is the classic method recommended only for personal use on the same machine
 - **Security**: Includes SQL query validation, EMA, and Connection Pooling.
 - **Dual Driver Support**: Choose between simple installation (default) or native driver with wire encryption support.
 
-## 🚀 Quick Start with Smithery (Recommended for Cloud Deployment)
 
-**Deploy MCP Firebird to the cloud in under 5 minutes!**
-
-[![smithery badge](https://smithery.ai/badge/@PuroDelphi/mcpFirebird)](https://smithery.ai/server/@PuroDelphi/mcpFirebird)
-
-[Smithery](https://smithery.ai) is the easiest way to deploy MCP Firebird to production:
-
-✅ **One-click deployment** - No infrastructure setup required
-✅ **Automatic scaling** - Handles traffic spikes automatically
-✅ **Built-in monitoring** - Track usage and performance
-✅ **Secure credentials** - Encrypted environment variables
-✅ **Auto-updates** - Always running the latest version
-✅ **Global CDN** - Low latency worldwide
-
-### How to Deploy on Smithery
-
-1. **Visit** [smithery.ai](https://smithery.ai)
-2. **Connect** your GitHub account
-3. **Select** the `mcpFirebird` repository
-4. **Configure** your Firebird database connection:
-   ```yaml
-   host: "your-firebird-server.com"
-   port: 3050
-   database: "/path/to/database.fdb"
-   user: "SYSDBA"
-   password: "your-secure-password"
-   useNativeDriver: true  # Enable wire encryption (optional)
-   logLevel: "info"
-   ```
-5. **Click Deploy** - Done! ✨
-
-Your MCP Firebird server will be available at:
-```
-https://server.smithery.ai/your-username/mcp-firebird
-```
-
-### Using with AI Clients
-
-```typescript
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-
-const transport = new StreamableHTTPClientTransport(
-  "https://server.smithery.ai/your-username/mcp-firebird"
-);
-
-const client = new Client({
-  name: "my-ai-app",
-  version: "1.0.0"
-});
-
-await client.connect(transport);
-```
-
-**📚 For detailed Smithery deployment instructions, see [SMITHERY_DEPLOYMENT.md](./SMITHERY_DEPLOYMENT.md)**
 
 ## 🔒 Wire Encryption Support
 
@@ -174,54 +117,9 @@ mcp-firebird --use-native-driver \
 **Why not npx?** When `npx` runs a package from its temporary cache, it cannot access globally installed modules like `node-firebird-driver-native`. Both packages must be installed globally in the same location.
 
 **📚 For detailed installation instructions, see:**
-- [Smithery CLI Installation Guide](./docs/smithery-cli-installation.md) - **⭐ Recommended for local setup**
 - [Native Driver Installation Guide](./docs/native-driver-installation.md) - **Step-by-step for Windows/Linux/macOS**
 - [Wire Encryption Guide](./docs/wire-encryption-limitation.md)
 - [Advanced Installation Guide](./docs/advanced-installation.md)
-
-## 🖥️ Local Installation with Smithery CLI
-
-**⭐ Recommended for local AI clients (Claude Desktop, Cursor, etc.)**
-
-The Smithery CLI provides the easiest way to install and configure MCP Firebird for local use:
-
-### Quick Install
-
-```bash
-# Interactive installation (prompts for configuration)
-npx -y @smithery/cli@latest install mcp-firebird --client claude
-
-# Pre-configured installation (skip prompts)
-npx -y @smithery/cli@latest install mcp-firebird --client claude --config '{
-  "database": "/path/to/database.fdb",
-  "user": "SYSDBA",
-  "password": "masterkey",
-  "useNativeDriver": false
-}'
-```
-
-### Features
-
-- ✅ **One-command installation** - No manual configuration needed
-- ✅ **Multiple clients** - Works with Claude Desktop, Cursor, and more
-- ✅ **Interactive setup** - Prompts for all required settings
-- ✅ **Auto-configuration** - Automatically configures your AI client
-- ✅ **Easy management** - List, inspect, and uninstall servers easily
-
-### Common Commands
-
-```bash
-# List installed servers
-npx @smithery/cli list servers --client claude
-
-# Inspect server configuration
-npx @smithery/cli inspect mcp-firebird
-
-# Uninstall server
-npx @smithery/cli uninstall mcp-firebird --client claude
-```
-
-**📖 Full Guide:** [Smithery CLI Installation Guide](./docs/smithery-cli-installation.md)
 
 ### Manual Installation
 
@@ -604,13 +502,7 @@ curl http://localhost:3003/health | jq
 curl http://localhost:3003/health | jq '.sessions'
 ```
 
-## Quick Installation via Smithery
 
-To install MCP Firebird for Claude Desktop automatically via [Smithery](https://smithery.ai/server/@PuroDelphi/mcpFirebird):
-
-```bash
-npx -y @smithery/cli install @PuroDelphi/mcpFirebird --client claude
-```
 
 
 ## Documentation

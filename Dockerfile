@@ -42,11 +42,10 @@ RUN npm ci --omit=dev
 # Copy built files from builder stage
 COPY --from=builder /app/dist ./dist
 
-# Expose port (Smithery will set PORT environment variable)
+# Expose port
 EXPOSE 3003
 
 # Default environment variables
-# These can be overridden by Smithery configuration
 ENV NODE_ENV=production
 ENV LOG_LEVEL=info
 ENV TRANSPORT_TYPE=http
@@ -66,6 +65,4 @@ RUN mkdir -p /firebird/data && \
 USER node
 
 # Start the MCP server in HTTP mode
-# Smithery will pass configuration via query parameters to /mcp endpoint
-# The PORT environment variable will be set by Smithery (default: 3003)
 CMD ["node", "dist/http-entry.js"]
