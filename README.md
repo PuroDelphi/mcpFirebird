@@ -17,8 +17,8 @@ MCP Firebird is a server that implements Anthropic's [Model Context Protocol (MC
 This server has been upgraded to support the latest enterprise standards in the MCP ecosystem:
 
 - ⚡ **Connection Pooling (Zero Latency):** Repetitive database queries now use persistent in-memory connections, completely bypassing handshake overhead and executing almost instantly.
-- 🔔 **Proactive Events (Triggers):** Native integration with Firebird's `POST_EVENT`. The server listens to database events in real-time and proactively notifies the AI client (e.g., Claude/n8n) without requiring continuous polling. [Read detailed guide and examples (ES)](docs/events-and-triggers.es.md).
-- 🔐 **Enterprise-Managed Authorization (EMA):** Don't want to expose your actual database password (`SYSDBA`) to the LLM client? Enable EMA to require an `--api-key` on incoming connections. The server intercepts this token and injects the real password securely under the hood. [Read detailed guide and examples (ES)](docs/ema-authorization.es.md).
+- 🔔 **Proactive Events (Triggers):** Native integration with Firebird's `POST_EVENT`. The server listens to database events in real-time and proactively notifies the AI client (e.g., Claude/n8n) without requiring continuous polling. [Read detailed guide and examples](docs/events-and-triggers.md).
+- 🔐 **Enterprise-Managed Authorization (EMA):** Don't want to expose your actual database password (`SYSDBA`) to the LLM client? Enable EMA to require an `--api-key` on incoming connections. The server intercepts this token and injects the real password securely under the hood. [Read detailed guide and examples](docs/ema-authorization.md).
 
 ---
 
