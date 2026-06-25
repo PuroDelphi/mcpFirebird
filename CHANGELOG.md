@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.8.1] - 2026-06-25
+
+### 🛡️ Security Hotfix
+- **Eliminación de Ejecución Dinámica (eval)**: Se eliminó el soporte de `rowFilters` (experimental) que usaba `new Function` para compilar SQL a JS en tiempo de ejecución, cerrando una grave brecha de seguridad de ejecución de código arbitrario.
+- **Autenticación Nativa EMA en HTTP**: Se implementó un middleware de seguridad estricto para rutas HTTP (`/mcp`, `/sse`, `/messages`) que exige el uso de tokens Bearer (`Authorization: Bearer <API_KEY>`) si `FIREBIRD_API_KEY` está configurada, protegiendo despliegues remotos.
+- **Limpieza de Middleware Inseguro (Smithery)**: Se borró por completo el middleware residual que modificaba `process.env` utilizando los parámetros (query strings) de la URL, eliminando el riesgo de envenenamiento de configuración (Global Secret/Config Poisoning).
+- **Restricción de CORS**: Se endurecieron las directivas CORS y ahora el origen puede ser restringido de forma segura mediante la variable `MCP_ALLOWED_ORIGIN`.
+- **Limpieza de Instalación**: Eliminación de script `postinstall` en el `package.json` para no desencadenar falsos positivos de riesgos de cadena de suministro (Supply Chain Risk).
+
 ## [2.8.0] - 2026-06-25
 
 ### 🚀 Novedades y Mejoras (Release Estable)
