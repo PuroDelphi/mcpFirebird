@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.8.0] - 2026-06-25
+
+### 🚀 Novedades y Mejoras (Release Estable)
+- **Documentación Renomada y Optimizada**: Toda la documentación ahora refleja los estándares MCP 2.7+.
+- **Modernización del Transporte (Streamable HTTP)**: Establecido como estándar preferido en todas las configuraciones Docker y CLI.
+- **Eventos Proactivos**: Soporte nativo para `POST_EVENT` de Firebird mediante driver nativo, posibilitando notificaciones en tiempo real al cliente.
+- **Autorización Gestionada (EMA)**: Implementación segura de autenticación mediante API Key para entornos expuestos o en la nube.
+- **Docker Optimizado**: El `Dockerfile` ahora incluye el soporte nativo compilado, permitiendo Wire Encryption y Eventos Proactivos fuera de la caja.
+
 ## [2.7.0] - 2026-06-25
 
 ### 🙏 Agradecimiento Especial
