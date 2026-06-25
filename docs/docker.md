@@ -41,8 +41,8 @@ ENV FIREBIRD_PORT=3050
 ENV FIREBIRD_USER=SYSDBA
 ENV FIREBIRD_PASSWORD=masterkey
 ENV FIREBIRD_DATABASE=/firebird/data/database.fdb
-ENV TRANSPORT_TYPE=sse
-ENV SSE_PORT=3003
+ENV TRANSPORT_TYPE=http
+ENV HTTP_PORT=3003
 ENV LOG_LEVEL=info
 # Add EMA protection by default (Change this in production!)
 ENV FIREBIRD_API_KEY=change_me_123
@@ -55,7 +55,7 @@ RUN mkdir -p /firebird/data && \
 USER node
 
 # Command to start the modern unified server
-CMD ["node", "dist/cli.js"]
+CMD ["node", "dist/cli.js", "--use-native-driver"]
 ```
 
 ## Docker Compose
@@ -91,8 +91,8 @@ services:
       FIREBIRD_USER: SYSDBA
       FIREBIRD_PASSWORD: masterkey
       FIREBIRD_DATABASE: /firebird/data/database.fdb
-      TRANSPORT_TYPE: sse
-      SSE_PORT: 3003
+      TRANSPORT_TYPE: http
+      HTTP_PORT: 3003
       # Secure the server with an API key
       FIREBIRD_API_KEY: my_super_secret_api_key
     ports:
@@ -101,7 +101,7 @@ services:
       - firebird-db
     networks:
       - mcp-network
-    command: node dist/cli.js
+    command: node dist/cli.js --use-native-driver
 
 networks:
   mcp-network:
@@ -172,8 +172,8 @@ FIREBIRD_PASSWORD=masterkey      # Database password
 FIREBIRD_DATABASE=/path/to/db    # Database file path
 
 # Transport Configuration
-TRANSPORT_TYPE=sse               # Recommended: sse (HTTP Streamable)
-SSE_PORT=3003                    # Port for SSE transport
+TRANSPORT_TYPE=http              # Recommended: http (HTTP Streamable)
+HTTP_PORT=3003                   # Port for HTTP transport
 
 # Security (EMA)
 FIREBIRD_API_KEY=token           # API Key for Enterprise Managed Authorization
