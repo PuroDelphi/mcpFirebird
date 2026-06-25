@@ -1,0 +1,15 @@
+src/
+__tests__/
+examples/
+docs/
+.github/
+.vscode/
+jest.config.js
+jest.integration.config.js
+tsconfig.json
+tsconfig.build.json
+.eslintrc.js
+.eslintrc.json
+.prettierrc
+.env.example
+run-inspector.cjs
