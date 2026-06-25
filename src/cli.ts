@@ -45,11 +45,11 @@ if (apiKeyParam) {
 
 // Create database configuration object directly from command line arguments
 export const dbConfig: ConfigOptions = {
-  host: hostParam || '127.0.0.1', // Use 127.0.0.1 instead of 'localhost'
-  port: portParam ? parseInt(String(portParam), 10) : 3050,
-  database: databaseParam ? normalizeDatabasePath(databaseParam) : normalizeDatabasePath(DEFAULT_DATABASE_PATH),
-  user: userParam || 'SYSDBA',
-  password: passwordParam || 'masterkey',
+  host: hostParam || process.env.FIREBIRD_HOST || '127.0.0.1', // Use 127.0.0.1 instead of 'localhost'
+  port: portParam ? parseInt(String(portParam), 10) : (process.env.FIREBIRD_PORT ? parseInt(process.env.FIREBIRD_PORT, 10) : 3050),
+  database: databaseParam ? normalizeDatabasePath(databaseParam) : (process.env.FIREBIRD_DATABASE ? normalizeDatabasePath(process.env.FIREBIRD_DATABASE) : normalizeDatabasePath(DEFAULT_DATABASE_PATH)),
+  user: userParam || process.env.FIREBIRD_USER || 'SYSDBA',
+  password: passwordParam || process.env.FIREBIRD_PASSWORD || 'masterkey',
   role: roleParam,
   pageSize: 4096,
   wireCrypt: wireCrypt

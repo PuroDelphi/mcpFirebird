@@ -265,14 +265,19 @@ class NativeDriver implements IFirebirdDriver {
                     // Start a transaction for the query
                     transaction = await attachment.startTransaction();
 
-                    // Execute query with transaction
-                    const resultSet = await attachment.executeQuery(transaction, sql, params);
-
-                    // Fetch all results
-                    const rows = await resultSet.fetchAsObject();
-
-                    // Close result set
-                    await resultSet.close();
+                    // Prepare the statement to check if it has a result set
+                    const statement = await attachment.prepare(transaction, sql);
+                    
+                    let rows: any[] = [];
+                    if (statement.hasResultSet) {
+                        const resultSet = await statement.executeQuery(transaction, params);
+                        rows = await resultSet.fetchAsObject();
+                        await resultSet.close();
+                    } else {
+                        await statement.execute(transaction, params);
+                    }
+                    
+                    await statement.dispose();
 
                     // Commit transaction
                     await transaction.commit();
