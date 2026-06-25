@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.7.0] - 2026-06-25
+
+### 🙏 Agradecimiento Especial
+- Un agradecimiento inmenso a **@arvanus** por su excelente contribución en el **PR #23**. Gracias a su trabajo, se ha solucionado el problema crítico de truncamiento de metadatos en campos BLOB leyendo dichos campos de manera nativa. ¡Gracias por ayudar a mejorar la compatibilidad del conector!
+
+### 🚀 Novedades y Mejoras
+- **Arquitectura Modular MCP:** Implementación de una nueva estructura modular compatible tanto con la capa de transporte tradicional **stdio** como con el nuevo **Streamable HTTP** (Preparando el terreno para MCP 2.3+).
+- **Reducción Extrema de Tamaño:** Se implementó un `.npmignore` estricto que excluye videos, archivos de desarrollo y código fuente de TypeScript. El peso del paquete se ha reducido drásticamente de **~23 MB a tan solo 170 KB**, permitiendo descargas ultrarrápidas.
+- **Limpieza de Dependencias Inseguras:** 
+  - Se movió `@modelcontextprotocol/inspector` a las dependencias de desarrollo (`devDependencies`), eliminando fugas de memoria reportadas en producción.
+  - Se removió por completo la librería antigua de `glob`, eliminando todas las advertencias de seguridad graves al momento de instalar el paquete.
+- **Solución al Timeout:** Al resolver los problemas de peso y dependencias obsoletas, se eliminó de raíz el error `context deadline exceeded` que afectaba a clientes como Claude Desktop y Antigravity en el primer arranque.
+
 ## [2.7.0-alpha.3] - 2025-12-04
 
 ### Fixed
