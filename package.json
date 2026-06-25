@@ -16,8 +16,7 @@
     "dev": "nodemon -e ts --watch src/ --exec \"npm run build:dev && npm run start\"",
     "sse": "nodemon -e ts --watch src/ --exec \"node dist/index.js\"",
     "inspector": "npm run build:dev && node run-inspector.cjs",
-    "inspector-sse": "npm run build:dev && npx @modelcontextprotocol/inspector http://localhost:3003",
-    "postinstall": "node -e \"try { require('node-firebird-driver-native'); console.log('✅ Native driver available'); } catch(e) { console.log('ℹ️  Native driver not installed. For wire encryption support, run: npm install node-firebird-driver-native'); }\""
+    "inspector-sse": "npm run build:dev && npx @modelcontextprotocol/inspector http://localhost:3003"
   },
   "author": "Jhonny Suárez - asistentesautonomos.com",
   "license": "MIT",
