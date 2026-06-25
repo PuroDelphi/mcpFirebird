@@ -52,6 +52,7 @@ import { setupAdvancedTemplatePrompts } from '../prompts/advanced-templates.js';
 import { setupEventResources, closeEventManager } from '../resources/events.js';
 import { initSecurity } from '../security/index.js';
 import { ConfigError } from '../utils/errors.js';
+import { closePool } from '../db/connection.js';
 import pkg from '../../package.json' with { type: 'json' };
 
 /**
@@ -232,6 +233,7 @@ export async function main() {
             const cleanup = async () => {
                 logger.info('Closing stdio transport...');
                 closeEventManager();
+                await closePool();
                 await server.close();
                 logger.info('Server closed successfully');
             };
@@ -276,12 +278,14 @@ export async function main() {
             process.on('SIGINT', async () => {
                 logger.info('Received SIGINT signal, cleaning up...');
                 closeEventManager();
+                await closePool();
                 process.exit(0);
             });
 
             process.on('SIGTERM', async () => {
                 logger.info('Received SIGTERM signal, cleaning up...');
                 closeEventManager();
+                await closePool();
                 process.exit(0);
             });
 

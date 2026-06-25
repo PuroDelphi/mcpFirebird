@@ -164,55 +164,167 @@ export const DEFAULT_CONFIG: ConfigOptions = {
 
 // FirebirdError is now imported from '../utils/errors.js'
 
+// Store pool instance globally to persist across requests
+let globalPool: ConnectionPool | null = null;
+
+export class ConnectionPool {
+    private pool: FirebirdDatabase[] = [];
+    private activeCount: number = 0;
+    private waiting: Array<{resolve: (db: FirebirdDatabase) => void, reject: (err: Error) => void}> = [];
+    private maxConnections: number;
+    private isDestroying: boolean = false;
+
+    constructor(private config: ConfigOptions, maxConnections: number = 5) {
+        this.maxConnections = maxConnections;
+    }
+
+    async acquire(): Promise<FirebirdDatabase> {
+        if (this.isDestroying) {
+            throw new FirebirdError('El pool de conexiones se está cerrando', ErrorTypes.DATABASE_CONNECTION);
+        }
+
+        if (this.pool.length > 0) {
+            logger.debug(`Reusando conexión del pool. Activas: ${this.activeCount}, En pool: ${this.pool.length - 1}`);
+            return this.pool.pop()!;
+        }
+
+        if (this.activeCount < this.maxConnections) {
+            this.activeCount++;
+            try {
+                logger.debug(`Creando nueva conexión. Activas: ${this.activeCount}/${this.maxConnections}`);
+                const driver = await DriverFactory.getDriver();
+                const db = await driver.attach(this.config);
+                
+                // Override detach to return to pool instead of closing
+                const originalDetach = db.detach;
+                
+                // Store a reference to real detach for destruction
+                (db as any)._realDetach = originalDetach;
+
+                db.detach = (callback) => {
+                    this.release(db, originalDetach, callback);
+                };
+                
+                return db;
+            } catch (error) {
+                this.activeCount--;
+                throw error;
+            }
+        }
+
+        // Wait for an available connection
+        logger.debug(`Esperando por conexión disponible. En cola: ${this.waiting.length + 1}`);
+        return new Promise((resolve, reject) => {
+            this.waiting.push({ resolve, reject });
+        });
+    }
+
+    private release(db: FirebirdDatabase, originalDetach: Function, callback?: (err: Error | null) => void): void {
+        if (this.isDestroying) {
+            this.activeCount--;
+            originalDetach.call(db, callback);
+            return;
+        }
+
+        if (this.waiting.length > 0) {
+            const next = this.waiting.shift()!;
+            next.resolve(db);
+            if (callback) callback(null);
+        } else if (this.pool.length < this.maxConnections) {
+            this.pool.push(db);
+            if (callback) callback(null);
+        } else {
+            // Pool is full, really detach
+            this.activeCount--;
+            originalDetach.call(db, callback);
+        }
+    }
+
+    async destroyAll(): Promise<void> {
+        this.isDestroying = true;
+        const currentPool = [...this.pool];
+        this.pool = [];
+        
+        // Reject all waiting queries
+        for (const waiting of this.waiting) {
+            waiting.reject(new FirebirdError('El servidor se está apagando', ErrorTypes.DATABASE_CONNECTION));
+        }
+        this.waiting = [];
+        
+        const promises = currentPool.map(db => {
+            return new Promise<void>((resolve) => {
+                const realDetach = (db as any)._realDetach || db.detach;
+                this.activeCount--;
+                realDetach.call(db, () => resolve());
+            });
+        });
+        
+        await Promise.all(promises);
+        this.activeCount = 0;
+        logger.info('Todas las conexiones del pool han sido cerradas');
+    }
+}
+
 /**
- * Establece conexión con la base de datos usando el driver apropiado
+ * Obtiene o crea el pool global de conexiones
+ */
+export const getPool = (config: ConfigOptions = getDefaultConfig()): ConnectionPool => {
+    if (!globalPool) {
+        logger.info('Inicializando Global Connection Pool', { maxConnections: 5 });
+        globalPool = new ConnectionPool(config, 5);
+    }
+    return globalPool;
+};
+
+/**
+ * Cierra todas las conexiones del pool global
+ */
+export const closePool = async (): Promise<void> => {
+    if (globalPool) {
+        await globalPool.destroyAll();
+        globalPool = null;
+    }
+};
+
+/**
+ * Establece conexión con la base de datos usando el driver apropiado y el pool
  * @param config - Configuración de conexión a la base de datos
  * @returns Objeto de conexión a la base de datos
  * @throws {FirebirdError} Error categorizado si la conexión falla
  */
 export const connectToDatabase = async (config = getDefaultConfig()): Promise<FirebirdDatabase> => {
-    logger.info(`Connecting to ${config.host}:${config.port}/${config.database}`);
-
     // Verify minimum parameters
     if (!config.database) {
-        // Si no hay base de datos configurada, usar una ruta predeterminada para pruebas
         console.error('No database specified in config, using hardcoded default path');
         config.database = 'F:/Proyectos/SAI/EMPLOYEE.FDB';
-        console.error(`Using default database path: ${config.database}`);
     }
 
-    // Log connection attempt with full details
-    console.error('Attempting to connect with the following configuration:');
-    console.error(`- Host: ${config.host}`);
-    console.error(`- Port: ${config.port}`);
-    console.error(`- Database: ${config.database}`);
-    console.error(`- User: ${config.user}`);
-    console.error(`- Role: ${config.role || 'Not specified'}`);
-    console.error(`- WireCrypt: ${config.wireCrypt || 'Not specified'}`);
+    // Enterprise-Managed Authorization (EMA) Logic
+    const serverApiKey = process.env.FIREBIRD_API_KEY || process.env.FB_API_KEY;
+    if (serverApiKey) {
+        // En modo EMA, se requiere que el cliente provea el token
+        // El cliente puede enviarlo vía la variable FIREBIRD_CLIENT_TOKEN (desde CLI --api-key),
+        // o si es HTTP (ej. n8n) inyectándolo en el campo password si no se dispone de cabecera.
+        const clientToken = process.env.FIREBIRD_CLIENT_TOKEN || config.password;
 
-    try {
-        // Get appropriate driver from factory
-        const driver = await DriverFactory.getDriver();
-        const driverInfo = await DriverFactory.getDriverInfo();
-
-        logger.info(`Using driver: ${driverInfo.current}`, {
-            supportsWireEncryption: driverInfo.supportsWireEncryption,
-            nativeAvailable: driverInfo.nativeAvailable
-        });
-
-        // Warn if wire encryption is requested but not supported
-        if (config.wireCrypt && config.wireCrypt !== 'Disabled' && !driverInfo.supportsWireEncryption) {
-            logger.warn(
-                'Wire encryption requested but current driver does not support it. ' +
-                'Use --use-native-driver flag to enable wire encryption support.'
+        if (clientToken !== serverApiKey) {
+            throw new FirebirdError(
+                'Acceso denegado: Token de autorización EMA (API Key) inválido o ausente.',
+                ErrorTypes.SECURITY_AUTHENTICATION
             );
         }
 
-        // Connect using the selected driver
-        const db = await driver.attach(config);
-        logger.info('Connection established successfully');
+        // Si la autorización pasa, inyectamos la verdadera contraseña de la BD desde el entorno del servidor
+        // Usamos FIREBIRD_REAL_PASSWORD o como fallback FIREBIRD_PASSWORD si no fue sobreescrito por el CLI
+        const realPassword = process.env.FIREBIRD_REAL_PASSWORD || process.env.FIREBIRD_PASSWORD || process.env.FB_PASSWORD || 'masterkey';
+        
+        config.password = realPassword;
+        logger.debug('Autorización EMA exitosa. Credenciales inyectadas de forma segura.');
+    }
 
-        return db;
+    try {
+        const pool = getPool(config);
+        return await pool.acquire();
     } catch (error) {
         // Categorize the error for better handling
         let errorType = ErrorTypes.DATABASE_CONNECTION;

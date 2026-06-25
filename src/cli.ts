@@ -5,7 +5,11 @@
  * This is the main entry point for the MCP Firebird server when run from the command line
  */
 
-// Process command line arguments first
+// Load environment variables from .env file first
+import dotenv from 'dotenv';
+dotenv.config();
+
+// Process command line arguments after env vars are loaded
 import minimist from 'minimist';
 import { normalizeDatabasePath, ConfigOptions } from './db/connection.js';
 import { DriverFactory } from './db/driver-factory.js';
@@ -26,12 +30,18 @@ const userParam = argv.user || argv.firebirdUser;
 const passwordParam = argv.password || argv.firebirdPassword;
 const roleParam = argv.role || argv.firebirdRole;
 const wireCryptParam = argv.wireCrypt || argv['wire-crypt'] || argv.firebirdWireCrypt;
+const apiKeyParam = argv.apiKey || argv['api-key'] || argv.firebirdApiKey;
 
 // Validate WireCrypt parameter
 const validWireCryptValues: Array<'Disabled' | 'Enabled' | 'Required'> = ['Disabled', 'Enabled', 'Required'];
 const wireCrypt = wireCryptParam && validWireCryptValues.includes(wireCryptParam as any)
   ? (wireCryptParam as 'Disabled' | 'Enabled' | 'Required')
   : 'Disabled';
+
+// Provide the client token if provided
+if (apiKeyParam) {
+  process.env.FIREBIRD_CLIENT_TOKEN = apiKeyParam;
+}
 
 // Create database configuration object directly from command line arguments
 export const dbConfig: ConfigOptions = {
@@ -136,9 +146,7 @@ console.error('Final environment variables:');
 console.error(`FIREBIRD_DATABASE: ${process.env.FIREBIRD_DATABASE}`);
 console.error(`FB_DATABASE: ${process.env.FB_DATABASE}`);
 
-// Load environment variables from .env file (will not override existing env vars)
-import dotenv from 'dotenv';
-dotenv.config();
+// .env is now loaded at the top of the file
 
 // Import stdout guard to prevent accidental writes to stdout
 import './utils/stdout-guard.js';

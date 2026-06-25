@@ -65,19 +65,7 @@ export default function ({ config }: { config: Config }) {
   // Create MCP server instance with modern capabilities
   const server = new McpServer({
     name: pkg.name,
-    version: pkg.version,
-    capabilities: {
-      tools: {
-        listChanged: true
-      },
-      prompts: {
-        listChanged: true
-      },
-      resources: {
-        listChanged: true,
-        subscribe: false
-      }
-    }
+    version: pkg.version
   });
 
   // Register tools
