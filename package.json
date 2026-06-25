@@ -1,6 +1,6 @@
 {
   "name": "mcp-firebird",
-  "version": "2.7.0-alpha.4",
+  "version": "2.7.0-alpha.5",
   "description": "MCP server for Firebird database",
   "main": "dist/index.js",
   "module": "./src/smithery.ts",
@@ -23,6 +23,7 @@
   "author": "Jhonny Suárez - asistentesautonomos.com",
   "license": "MIT",
   "devDependencies": {
+    "@modelcontextprotocol/inspector": "^0.22.0",
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.1",
     "@types/jest": "^29.5.14",
@@ -39,7 +40,6 @@
     "typescript": "^5.4.2"
   },
   "dependencies": {
-    "@modelcontextprotocol/inspector": "^0.22.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
