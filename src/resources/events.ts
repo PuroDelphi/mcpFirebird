@@ -3,6 +3,7 @@ import { createLogger } from '../utils/logger.js';
 import { FirebirdError } from '../utils/errors.js';
 import { DriverFactory, DriverType } from '../db/driver-factory.js';
 import { getDefaultConfig } from '../db/connection.js';
+import { ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
 
 const logger = createLogger('resources:events');
 
@@ -174,7 +175,7 @@ export function setupEventResources(server: any) {
         
         server.registerResource(
             "firebird-event",
-            "firebird://events/{eventName}",
+            new ResourceTemplate("firebird://events/{eventName}", { list: undefined }),
             {
                 title: "Firebird Event State",
                 description: "Real-time state and payload of a Firebird POST_EVENT trigger",
