@@ -1,76 +1,62 @@
-# Environment Managed Authorization (EMA)
+# Enterprise Managed Authorization (EMA)
 
-**Environment Managed Authorization** (or **EMA**) is a new feature designed to improve security when connecting the Firebird MCP server with interfaces that demand strict access controls, such as servers exposed via containers, automated flows (n8n), or secure local deployments.
+When you expose an MCP server on a network (for example, to connect it to a remote n8n workflow), a security issue arises: **you don't want your database credentials traveling over the network, nor do you want the LLM client to have direct access to the `SYSDBA` password.**
 
-Instead of requiring database passwords and MCP server configuration to be entered statically in the command line (where they are visible to other system processes), EMA abstracts this by asking only for an **API Key**.
+To solve this professionally, MCP Firebird introduces **Enterprise Managed Authorization (EMA)**.
 
----
+## What is EMA?
 
-## 1. How does EMA work?
+EMA allows the MCP server to act as a secure intermediary. The server stores the real database password locally and instead requires external clients to provide a simple `--api-key` or Bearer Token.
 
-When you start `mcp-firebird`, instead of passing the username, host, and database as flags, you only pass the `--api-key` flag.
+When the client connects by providing the correct API Key, the MCP server authorizes the connection and internally "injects" the real database password to execute queries. This way, the remote client never knows the actual database password.
 
-This key will be used by the server to verify that the client is allowed to connect and to securely inject the real Firebird credentials (`FIREBIRD_REAL_PASSWORD`, etc.) from your secure environment variable system (`.env` or Docker secrets).
+## How to Set Up EMA
 
-### Benefits
-- **Security**: Passwords never appear in the process registry (avoiding `ps -ef` type vulnerabilities).
-- **Centralized Control**: Secrets are handled through secure `.env` files.
-- **Transparent**: When invoking EMA mode via `--api-key`, the server automatically knows it should enforce the most secure connection mode possible (such as automatically enabling the Native Driver).
+### 1. Configure the Server
 
----
+Start the MCP Firebird server by defining two vital things:
+1. The REAL database password (using `--password` or `FIREBIRD_PASSWORD`).
+2. The secret API Key that external clients will use (using `--api-key` or `FIREBIRD_API_KEY`).
 
-## 2. EMA Configuration
-
-### Step 1: Set up the `.env` file
-Make sure you have a `.env` file in the directory where you run the server from (or have these variables configured in your container environment).
-
-```env
-# Your actual server configuration (Keep this secret)
-FIREBIRD_HOST=localhost
-FIREBIRD_PORT=3050
-FIREBIRD_DATABASE=C:\path\to\your\database.fdb
-FIREBIRD_USER=SYSDBA
-FIREBIRD_PASSWORD=your_super_secret
-FIREBIRD_ROLE=
-```
-
-### Step 2: Start the server using EMA
-
-Launch the `mcp-firebird` server using the `--api-key` flag and assign it a token. If you omit the value but provide the flag, the system will use the value of the `FIREBIRD_CLIENT_TOKEN` environment variable.
-
-**Example from local command line:**
 ```bash
-npx -y mcp-firebird --api-key="my-secret-token"
+# Recommended environment variables for secure deployments:
+export FIREBIRD_PASSWORD=TheRealSecretPassword
+export FIREBIRD_API_KEY=SuperSecureToken123
+
+# Start the server
+mcp-firebird --database /path/to/database.fdb --user SYSDBA
 ```
 
-**Example configuration in an MCP Client (Claude Desktop):**
-```json
-{
-  "mcpServers": {
-    "mcp-firebird": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "mcp-firebird",
-        "--api-key",
-        "my-secret-token"
-      ],
-      "env": {
-        "FIREBIRD_DATABASE": "F:\\Path\\to\\your\\db.FDB",
-        "FIREBIRD_PASSWORD": "your_real_password"
-      }
+If you prefer command line arguments:
+```bash
+mcp-firebird --database /path/to/database.fdb --user SYSDBA --password "TheRealSecretPassword" --api-key "SuperSecureToken123"
+```
+
+### 2. Configure the External Client
+
+Now, any client (n8n, a custom Python script, or another remote LLM) trying to connect to the server via HTTP/SSE will need to provide that token. They will not need the database password.
+
+If you use the TypeScript SDK with `StreamableHTTPClientTransport`, you can pass the headers directly:
+
+```typescript
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+
+// The client MUST send the Authorization header with the token
+const transport = new StreamableHTTPClientTransport(
+    new URL("http://SERVER_IP:3003/mcp"),
+    {
+        headers: {
+            "Authorization": "Bearer SuperSecureToken123"
+        }
     }
-  }
-}
+);
+
+// Connect normally
+const client = new Client(...);
+await client.connect(transport);
 ```
 
----
+### Network Security
 
-## 3. EMA and the Native Driver
-
-A major advantage of EMA is that `mcp-firebird` has been programmed to understand that if you pass an `api-key` from the CLI interface, **it prioritizes automatically enabling the Native Firebird Driver**.
-
-This is because EMA is intended for production environments, and the Native Driver is the only one that supports **Wire Encryption** (native network encryption in Firebird 3.0+) and reliable, robust handling of **Events and Triggers**.
-
-Therefore:
-> By invoking `--api-key`, you simultaneously enable both Managed Authorization and the database's Bidirectional Streaming capabilities.
+> [!CAUTION]
+> If you are going to expose your MCP server to the Internet or a Wide Area Network, you should **ALWAYS** place a reverse proxy (like Nginx or Caddy) with SSL/TLS encryption (HTTPS) in front of the MCP server. The API Key will travel in plain text if the connection is standard HTTP.

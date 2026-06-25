@@ -35,8 +35,7 @@ export function createStreamableHttpRouter(createServerInstance: () => Promise<M
     const SESSION_TIMEOUT_MS = parseInt(process.env.STREAMABLE_SESSION_TIMEOUT_MS || '1800000', 10); // 30 minutes
     const CLEANUP_INTERVAL_MS = 60000; // 1 minute
     // Default to stateless mode for better compatibility with MCP Inspector and most clients
-    // Set STREAMABLE_STATELESS_MODE=false to enable stateful mode (requires proper session management)
-    const STATELESS_MODE = process.env.STREAMABLE_STATELESS_MODE !== 'false';
+    const STATELESS_MODE = process.env.STREAMABLE_STATELESS_MODE === 'true';
 
     logger.info(`Streamable HTTP router initialized in ${STATELESS_MODE ? 'stateless' : 'stateful'} mode`);
 
@@ -117,6 +116,8 @@ export function createStreamableHttpRouter(createServerInstance: () => Promise<M
 
     // Handle GET requests for server-to-client notifications via SSE (stateful mode only)
     router.get('/mcp', async (req, res) => {
+        logger.debug('Received GET request to /mcp');
+        
         if (STATELESS_MODE) {
             logger.warn('GET request to /mcp in stateless mode');
             res.status(405).json({
@@ -131,7 +132,10 @@ export function createStreamableHttpRouter(createServerInstance: () => Promise<M
         }
 
         const sessionId = req.headers['mcp-session-id'] as string | undefined;
+        logger.debug(`GET /mcp sessionId=${sessionId}`);
+        
         if (!sessionId || !activeSessions[sessionId]) {
+            logger.warn('GET /mcp missing or invalid session ID');
             res.status(400).json({
                 jsonrpc: "2.0",
                 error: {
@@ -163,80 +167,7 @@ export function createStreamableHttpRouter(createServerInstance: () => Promise<M
         }
     });
 
-    // Main MCP endpoint - handles POST requests for client-to-server communication
-    router.post('/mcp', async (req, res) => {
-        logger.debug('Received POST request to /mcp');
 
-        try {
-            if (STATELESS_MODE) {
-                // Stateless mode: reuse server, create new transport per request
-                await handleStatelessRequest(req, res, getSharedServer);
-            } else {
-                // Stateful mode: manage sessions
-                await handleStatefulRequest(req, res, createServerInstance, activeSessions);
-            }
-        } catch (error) {
-            logger.error('Error handling MCP request:', { error });
-            if (!res.headersSent) {
-                res.status(500).json({
-                    jsonrpc: '2.0',
-                    error: {
-                        code: -32603,
-                        message: 'Internal server error',
-                    },
-                    id: null,
-                });
-            }
-        }
-    });
-
-    // Handle GET requests for server-to-client notifications via SSE (stateful mode only)
-    router.get('/mcp', async (req, res) => {
-        if (STATELESS_MODE) {
-            logger.warn('GET request to /mcp in stateless mode');
-            res.status(405).json({
-                jsonrpc: "2.0",
-                error: {
-                    code: -32000,
-                    message: "Method not allowed in stateless mode."
-                },
-                id: null
-            });
-            return;
-        }
-
-        const sessionId = req.headers['mcp-session-id'] as string | undefined;
-        if (!sessionId || !activeSessions[sessionId]) {
-            res.status(400).json({
-                jsonrpc: "2.0",
-                error: {
-                    code: -32602,
-                    message: "Invalid or missing session ID"
-                },
-                id: null
-            });
-            return;
-        }
-        
-        const sessionInfo = activeSessions[sessionId];
-        sessionInfo.lastActivity = new Date();
-        
-        try {
-            await sessionInfo.transport.handleRequest(req, res);
-        } catch (error) {
-            logger.error(`Error handling GET request for session ${sessionId}:`, { error });
-            if (!res.headersSent) {
-                res.status(500).json({
-                    jsonrpc: "2.0",
-                    error: {
-                        code: -32603,
-                        message: "Internal server error"
-                    },
-                    id: null
-                });
-            }
-        }
-    });
 
     // Handle DELETE requests for session termination (stateful mode only)
     router.delete('/mcp', async (req, res) => {

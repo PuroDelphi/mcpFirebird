@@ -17,8 +17,12 @@ MCP Firebird is a server that implements Anthropic's [Model Context Protocol (MC
 This server has been upgraded to support the latest enterprise standards in the MCP ecosystem:
 
 - ⚡ **Connection Pooling (Zero Latency):** Repetitive database queries now use persistent in-memory connections, completely bypassing handshake overhead and executing almost instantly.
-- 🔔 **Proactive Events (Triggers):** Native integration with Firebird's `POST_EVENT`. The server listens to database events in real-time and proactively notifies the AI client (e.g., Claude/n8n) without requiring continuous polling. [Read detailed guide and examples](docs/events-and-triggers.md).
-- 🔐 **Enterprise-Managed Authorization (EMA):** Don't want to expose your actual database password (`SYSDBA`) to the LLM client? Enable EMA to require an `--api-key` on incoming connections. The server intercepts this token and injects the real password securely under the hood. [Read detailed guide and examples](docs/ema-authorization.md).
+- 🎯 **Proactive Events (Triggers):** Native integration with Firebird's `POST_EVENT`. The server listens to database events in real-time and proactively notifies the AI client (e.g., Claude/n8n) without requiring continuous polling.
+  - *Quick Example:* Ask your agent to `subscribe_to_event` with `NEW_ORDER`. When Firebird runs `POST_EVENT 'NEW_ORDER'`, your agent gets instantly notified! [Read detailed guide and examples](docs/events-and-triggers.md).
+- 🛡️ **Enterprise-Managed Authorization (EMA):** Don't want to expose your actual database password (`SYSDBA`) to the LLM client? Enable EMA to require an `--api-key` on incoming connections. The server intercepts this token and injects the real password securely under the hood.
+  - *Quick Example:* Start the server with `--password "real_password" --api-key "my-secure-token"`. The remote client connects using `Authorization: Bearer my-secure-token`. The database password never leaves the server! [Read detailed guide and examples](docs/ema-authorization.md).
+- 🌊 **Bidirectional Streaming (Streamable HTTP / SSE):** Perfect for n8n or remote deployments. Provides real-time event streaming and stateful sessions across HTTP.
+  - *Quick Example:* Start the server with `TRANSPORT_TYPE=sse SSE_PORT=3003`. Configure your client (like n8n) to connect to `http://YOUR_SERVER:3003/mcp`. [Read detailed guide](docs/streaming-mcp-2.3.md).
 
 ---
 

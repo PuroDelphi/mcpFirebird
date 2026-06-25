@@ -1,76 +1,62 @@
-# Autorización Gestionada (EMA)
+# Autorización Gestionada Empresarial (EMA)
 
-La **Autorización Gestionada** (o **EMA** por sus siglas en inglés, Environment Managed Authorization) es una nueva característica diseñada para mejorar la seguridad al conectar el servidor MCP de Firebird con interfaces que exigen controles de acceso estrictos, tales como servidores expuestos mediante contenedores, flujos automatizados (n8n), o implementaciones locales seguras.
+Cuando expones un servidor MCP en una red (por ejemplo, para conectarlo a un flujo de trabajo en n8n remoto), se crea un problema de seguridad: **no quieres que las credenciales de tu base de datos viajen por la red ni que el cliente LLM tenga acceso directo a la contraseña `SYSDBA`.**
 
-En lugar de requerir que las contraseñas de las bases de datos y la configuración del servidor MCP se ingresen de forma estática en la línea de comandos (donde son visibles para otros procesos del sistema), EMA abstrae esto pidiendo solo una **Clave API**.
+Para solucionar esto de manera profesional, MCP Firebird introduce la **Autorización Gestionada (EMA)**.
 
----
+## ¿Qué es EMA?
 
-## 1. ¿Cómo Funciona EMA?
+EMA permite al servidor MCP actuar como un intermediario seguro. El servidor guarda la contraseña real de la base de datos de manera local y en su lugar exige a los clientes externos un simple `--api-key` o Token Bearer.
 
-Cuando inicias `mcp-firebird`, en lugar de pasarle el nombre de usuario, host, y base de datos como flags, le pasas únicamente el flag `--api-key`.
+Cuando el cliente se conecta proporcionando el API Key correcto, el servidor MCP autoriza la conexión e "inyecta" internamente la contraseña real de la base de datos para realizar las consultas. De esta manera, el cliente remoto jamás conoce la contraseña de la base de datos.
 
-Esta clave será utilizada por el servidor para verificar que el cliente tiene permitido conectarse y para inyectar, desde tu sistema de variables de entorno seguro (`.env` o secretos de Docker), los credenciales reales de Firebird (`FIREBIRD_REAL_PASSWORD`, etc.).
+## Cómo Configurar EMA
 
-### Beneficios
-- **Seguridad**: Las contraseñas nunca aparecen en el registro de procesos (evitando vulnerabilidades tipo `ps -ef`).
-- **Control centralizado**: Los secretos se manejan mediante archivos `.env` seguros.
-- **Transparente**: Al invocar el modo EMA mediante `--api-key`, el servidor sabe automáticamente que debe forzar el modo de conexión más seguro posible (como habilitar el Driver Nativo en automático).
+### 1. Configurar el Servidor
 
----
+Inicia el servidor MCP Firebird definiendo dos cosas vitales:
+1. La contraseña REAL de la base de datos (se usa `--password` o `FIREBIRD_PASSWORD`).
+2. El API Key secreto que usarán los clientes externos (se usa `--api-key` o `FIREBIRD_API_KEY`).
 
-## 2. Configuración de EMA
-
-### Paso 1: Configurar el archivo `.env`
-Asegúrate de contar con un archivo `.env` en el directorio desde donde ejecutas el servidor (o tener estas variables configuradas en tu entorno de contenedores).
-
-```env
-# Configuración real de tu servidor (Mantenla en secreto)
-FIREBIRD_HOST=localhost
-FIREBIRD_PORT=3050
-FIREBIRD_DATABASE=C:\camino\a\tu\base_datos.fdb
-FIREBIRD_USER=SYSDBA
-FIREBIRD_PASSWORD=tu_super_secreto
-FIREBIRD_ROLE=
-```
-
-### Paso 2: Iniciar el servidor usando EMA
-
-Lanza el servidor `mcp-firebird` usando el flag `--api-key` y asígnale un token, o si lo omites pero proporcionas el flag, el sistema utilizará el valor de la variable de entorno `FIREBIRD_CLIENT_TOKEN`.
-
-**Ejemplo desde línea de comandos local:**
 ```bash
-npx -y mcp-firebird --api-key="mi-token-secreto"
+# Variables de entorno recomendadas para despliegues seguros:
+export FIREBIRD_PASSWORD=LaContraseñaRealYSecreta
+export FIREBIRD_API_KEY=TokenSuperSeguro123
+
+# Iniciar servidor
+mcp-firebird --database /ruta/a/base.fdb --user SYSDBA
 ```
 
-**Ejemplo de configuración en un Cliente MCP (Claude Desktop):**
-```json
-{
-  "mcpServers": {
-    "mcp-firebird": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "mcp-firebird",
-        "--api-key",
-        "mi-token-secreto"
-      ],
-      "env": {
-        "FIREBIRD_DATABASE": "F:\\Ruta\\a\\tu\\bd.FDB",
-        "FIREBIRD_PASSWORD": "tu_password_real"
-      }
+Si prefieres línea de comandos:
+```bash
+mcp-firebird --database /ruta/a/base.fdb --user SYSDBA --password "LaContraseñaRealYSecreta" --api-key "TokenSuperSeguro123"
+```
+
+### 2. Configurar el Cliente Externo
+
+Ahora, cualquier cliente (n8n, un script custom de Python, u otro LLM remoto) que intente conectarse al servidor por HTTP/SSE necesitará proporcionar ese token. No necesitarán la contraseña de la base de datos.
+
+Si usas el SDK de TypeScript con `StreamableHTTPClientTransport`, puedes pasar las cabeceras directamente:
+
+```typescript
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+
+// El cliente DEBE enviar la cabecera Authorization con el token
+const transport = new StreamableHTTPClientTransport(
+    new URL("http://IP_DEL_SERVIDOR:3003/mcp"),
+    {
+        headers: {
+            "Authorization": "Bearer TokenSuperSeguro123"
+        }
     }
-  }
-}
+);
+
+// Conectar normalmente
+const client = new Client(...);
+await client.connect(transport);
 ```
 
----
+### Seguridad en Redes
 
-## 3. EMA y el Driver Nativo
-
-Una ventaja importante de EMA es que `mcp-firebird` ha sido programado para entender que, si pasas una `api-key` desde la interfaz CLI, **prioriza habilitar automáticamente el Driver Nativo de Firebird**. 
-
-Esto es así porque EMA está pensado para entornos de producción, y el Driver Nativo es el único que soporta **Wire Encryption** (encriptación nativa en red de Firebird 3.0+) y el manejo confiable y robusto de **Eventos y Triggers**.
-
-Por lo tanto:
-> Al invocar `--api-key`, habilitas tanto la Autorización Gestionada como las capacidades de Streaming Bidireccional de la base de datos de manera simultánea.
+> [!CAUTION]
+> Si vas a exponer tu servidor MCP a Internet o a una red de área amplia, **SIEMPRE** debes colocar un proxy inverso (como Nginx o Caddy) con cifrado SSL/TLS (HTTPS) delante del servidor MCP. El API Key viajará en texto plano si la conexión es HTTP básica.
