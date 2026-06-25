@@ -15,6 +15,7 @@ import { setupSqlPrompts } from '../prompts/sql.js';
 import { setupTemplatePrompts } from '../prompts/templates.js';
 import { setupAdvancedTemplatePrompts } from '../prompts/advanced-templates.js';
 import { setupDatabaseResources, type ResourceDefinition } from '../resources/database.js';
+import { setupEventResources, closeEventManager } from '../resources/events.js';
 import { initSecurity } from '../security/index.js';
 import { ConfigError } from '../utils/errors.js';
 import pkg from '../../package.json' with { type: 'json' };
@@ -146,6 +147,10 @@ export async function startMcpServer() {
 
         logger.info(`Registered ${databaseTools.size + metadataTools.size + simpleTools.size} tools in total.`);
 
+        // Setup event resources and tools
+        logger.info('Registering event resources and tools...');
+        setupEventResources(server);
+
         /**
          * Helper function to register a prompt with proper error handling
          * @param name - Prompt name
@@ -265,7 +270,9 @@ export async function startMcpServer() {
         logger.info(`Registered ${databaseResources.size} resources in total.`);
 
         // Setup cleanup stub and signal handler registration
-        const cleanup = async () => {};
+        const cleanup = async () => {
+            closeEventManager();
+        };
         function setupSignalHandlers(cleanupFn: () => Promise<void>) {
             process.on('SIGINT', async () => {
                 logger.info('Received SIGINT signal, cleaning up...');
