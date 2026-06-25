@@ -14,6 +14,48 @@ https://github.com/user-attachments/assets/e68e873f-f87b-4afd-874f-157086e223af
 
 MCP Firebird is a server that implements Anthropic's [Model Context Protocol (MCP)](https://github.com/anthropics/anthropic-cookbook/tree/main/model_context_protocol) for [Firebird SQL databases](https://firebirdsql.org/). It allows Large Language Models (LLMs) like Claude to access, analyze, and manipulate data in Firebird databases securely and in a controlled manner.
 
+## 🚀 What's New in MCP 2.3+ (Performance & Security)
+
+This server has been upgraded to support the latest enterprise standards in the MCP ecosystem:
+
+- ⚡ **Connection Pooling (Zero Latency):** Repetitive database queries now use persistent in-memory connections, completely bypassing handshake overhead and executing almost instantly.
+- 🔔 **Proactive Events (Triggers):** Native integration with Firebird's `POST_EVENT`. The server listens to database events in real-time and proactively notifies the AI client (e.g., Claude/n8n) without requiring continuous polling.
+- 🔐 **Enterprise-Managed Authorization (EMA):** Don't want to expose your actual database password (`SYSDBA`) to the LLM client? Enable EMA to require an `--api-key` on incoming connections. The server intercepts this token and injects the real password securely under the hood.
+
+---
+
+## 🏗️ Transport Modes & Architecture
+
+MCP Firebird supports multiple deployment architectures. We highly recommend using **Streamable HTTP (SSE)** for modern, enterprise, or remote deployments.
+
+### 1. [RECOMMENDED] Modern Transport (Streamable HTTP / SSE)
+Ideal for connecting n8n, cloud platforms, remote agents, or tools that don't reside on the same machine as your database.
+
+**Installation:**
+```bash
+npm install -g mcp-firebird
+```
+
+**Run the Server:**
+Set up your environment variables (or `.env` file):
+```bash
+export TRANSPORT_TYPE=sse
+export SSE_PORT=3003
+
+# Real database credentials protected on the server side:
+export FIREBIRD_PASSWORD=masterkey 
+# Enable EMA to protect external access:
+export FIREBIRD_API_KEY=my_secret_token_123
+
+mcp-firebird --database /path/to/database.fdb --user SYSDBA
+```
+
+**Client Connection:**
+Your AI client (e.g., MCP Inspector, n8n) connects to `http://localhost:3003` and, thanks to EMA, **only needs to provide the API KEY** instead of the actual database password.
+
+### 2. [LOCAL / LEGACY] Standard Transport (STDIO)
+This is the classic method recommended only for personal use on the same machine (e.g., Claude Desktop). Claude spawns its own MCP Firebird subprocess in the background.
+
 ## Key Features
 
 - **SQL Queries**: Execute SQL queries on Firebird databases
@@ -21,14 +63,8 @@ MCP Firebird is a server that implements Anthropic's [Model Context Protocol (MC
 - **Database Metadata**: Inspect triggers, stored procedures, functions, and packages with source code
 - **Database Management**: Perform backup, restore, and validation operations
 - **Performance Analysis**: Analyze query performance and suggest optimizations
-- **Multiple Transports**: Supports STDIO, SSE (Server-Sent Events), and Streamable HTTP transports
-- **Modern Protocol Support**: Full support for MCP Streamable HTTP (2025-03-26) and legacy SSE
-- **Unified Server**: Automatic protocol detection and backwards compatibility
-- **Claude Integration**: Works seamlessly with Claude Desktop and other MCP clients
-- **VSCode Integration**: Works with GitHub Copilot in Visual Studio Code
-- **Session Management**: Robust session handling with automatic cleanup and configurable timeouts
-- **Security**: Includes SQL query validation and security configuration options
-- **Dual Driver Support**: Choose between simple installation (default) or native driver with wire encryption support
+- **Security**: Includes SQL query validation, EMA, and Connection Pooling.
+- **Dual Driver Support**: Choose between simple installation (default) or native driver with wire encryption support.
 
 ## 🚀 Quick Start with Smithery (Recommended for Cloud Deployment)
 

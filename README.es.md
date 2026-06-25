@@ -14,81 +14,52 @@ MCP Firebird es un servidor que implementa el [Protocolo de Contexto de Modelo (
 
 Más abajo encontrarás casos y ejemplos de uso.
 
-## Instalación
+## 🚀 Novedades MCP 2.3+ (Rendimiento y Seguridad)
 
+Este servidor ha sido actualizado para soportar los últimos estándares empresariales del ecosistema MCP:
+
+- ⚡ **Connection Pooling (Cero Latencia):** Las consultas repetitivas a la base de datos ahora utilizan conexiones persistentes en memoria, eliminando el overhead de handshake y ejecutándose casi instantáneamente.
+- 🔔 **Eventos Proactivos (Triggers):** Integración nativa con `POST_EVENT` de Firebird. El servidor puede escuchar eventos de la base de datos en tiempo real y notificar proactivamente al cliente de IA sin necesidad de polling continuo.
+- 🔐 **Autorización Gestionada (EMA):** ¿No quieres guardar la contraseña de tu base de datos en el cliente LLM? Activa EMA para requerir un `--api-key` en las conexiones entrantes. El servidor interceptará este token e inyectará la contraseña real de forma segura y oculta.
+
+---
+
+## Modos de Transporte e Instalación
+
+MCP Firebird soporta múltiples arquitecturas de despliegue. Selecciona la que mejor se adapte a tu caso de uso.
+
+### 1. [RECOMENDADO] Transporte Moderno (Streamable HTTP / SSE)
+
+Ideal para conectar n8n, plataformas cloud, agentes remotos o herramientas que no residen en la misma máquina que la base de datos.
+
+**Instalación:**
 ```bash
-# Instalación global
 npm install -g mcp-firebird
-
-# Instalación en un proyecto
-npm install mcp-firebird
 ```
 
-## Configuración
-
-### Variables de entorno
-
-Puedes configurar el servidor usando variables de entorno:
-
+**Levantar el Servidor:**
+Configura el entorno en tu terminal o mediante un archivo `.env`:
 ```bash
-# Configuración básica
-export FIREBIRD_HOST=localhost
-export FIREBIRD_PORT=3050
-export FIREBIRD_DATABASE=/path/to/database.fdb
-export FIREBIRD_USER=SYSDBA
-export FIREBIRD_PASSWORD=masterkey
-export FIREBIRD_ROLE=undefined  # Opcional
+export TRANSPORT_TYPE=sse
+export SSE_PORT=3003
 
-# Configuración de directorio (alternativa)
-export FIREBIRD_DATABASE_DIR=/path/to/databases  # Directorio con bases de datos
+# Credenciales reales de la BD protegidas en el servidor:
+export FIREBIRD_PASSWORD=masterkey 
+# Activa EMA para proteger el acceso desde clientes externos:
+export FIREBIRD_API_KEY=mi_token_secreto_123
+
+# Inicia el servidor
+mcp-firebird --database /path/to/database.fdb --user SYSDBA
 ```
 
-### Uso con npx
+**Conexión desde el Cliente:**
+El cliente de IA (ej. el Inspector MCP o n8n) se conectará a `http://localhost:3003` y, gracias a EMA, **solo necesitará proveer el API KEY** en vez de la contraseña real de la base de datos.
 
-Puedes ejecutar el servidor directamente con npx:
+### 2. [LOCAL / LEGACY] Transporte Estándar (STDIO)
 
-```bash
-npx mcp-firebird --host localhost --port 3050 --database /path/to/database.fdb --user SYSDBA --password masterkey
-```
+Este es el método clásico. Es recomendado únicamente para uso personal en la misma máquina (ej. Claude Desktop). En este modo, Claude levanta su propio subproceso de MCP Firebird en segundo plano.
 
-### Uso con SSE (Server-Sent Events)
-
-El servidor MCP Firebird también soporta transporte SSE, que permite a los clientes conectarse a través de HTTP:
-
-```bash
-# Configura el tipo de transporte como SSE en tu archivo .env
-TRANSPORT_TYPE=sse
-SSE_PORT=3003
-
-# Ejecuta el servidor con transporte SSE
-npm run sse
-```
-
-Puedes conectarte al servidor usando el Inspector MCP:
-
-```bash
-npx @modelcontextprotocol/inspector http://localhost:3003
-```
-
-O usar el script proporcionado:
-
-```bash
-npm run inspector-sse
-```
-
-#### Ejemplos de clientes SSE
-
-Proporcionamos varios ejemplos de clientes que demuestran cómo conectarse al servidor MCP Firebird usando SSE:
-
-- **HTML/JavaScript**: Ver `examples/sse-client.html` para un cliente basado en navegador
-- **Node.js**: Ver `examples/sse-client.js` para un cliente Node.js
-- **Python**: Ver `examples/sse_client.py` para un cliente Python
-
-Para documentación detallada sobre el uso del transporte SSE, consulta `docs/sse-examples.md`.
-
-## Configuración con Claude Desktop
-
-Para usar el servidor MCP de Firebird con Claude Desktop:
+**Configuración para Claude Desktop:**
 
 <Tabs>
   <Tab title="MacOS/Linux">
@@ -111,19 +82,12 @@ Añade la siguiente configuración:
     "mcp-firebird": {
       "command": "npx",
       "args": [
+        "-y",
         "mcp-firebird",
-        "--host",
-        "localhost",
-        "--port",
-        "3050",
-        "--database",
-        "C:\\Databases\\example.fdb",
-        "--user",
-        "SYSDBA",
-        "--password",
-        "masterkey"
-      ],
-      "type": "stdio"
+        "--database", "C:\\Databases\\example.fdb",
+        "--user", "SYSDBA",
+        "--api-key", "mi_token_secreto_123" 
+      ]
     }
   }
 }
@@ -134,7 +98,7 @@ Añade la siguiente configuración:
 </Warning>
 
 <Note>
-  Después de guardar el archivo, necesitas reiniciar Claude Desktop completamente.
+  En este ejemplo estamos utilizando `--api-key` (EMA). Si en tu entorno local no te importa guardar la contraseña directamente en el JSON, puedes reemplazar `--api-key` por `--password`. Después de guardar, reinicia Claude Desktop completamente.
 </Note>
 
 ## Recursos y Funcionalidades
