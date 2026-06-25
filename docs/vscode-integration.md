@@ -16,10 +16,11 @@ This guide explains how to integrate MCP Firebird with Visual Studio Code and Gi
 
 ```json
 {
-  "servers": {
+  "mcpServers": {
     "mcp-firebird": {
       "command": "npx",
       "args": [
+        "-y",
         "mcp-firebird",
         "--database",
         "C:\\path\\to\\database.fdb",
@@ -27,14 +28,11 @@ This guide explains how to integrate MCP Firebird with Visual Studio Code and Gi
         "localhost",
         "--port",
         "3050",
-        "--database",
-        "/path/to/database.fdb",
         "--user",
         "SYSDBA",
         "--password",
         "masterkey"
-      ],
-      "type": "stdio"
+      ]
     }
   }
 }
@@ -58,7 +56,7 @@ Once configured, you can use GitHub Copilot to interact with your Firebird datab
 
 ## Troubleshooting
 
-If you encounter errors like `Failed to validate tool: Error: tool parameters array type must have items`, make sure you're using the latest version of MCP Firebird (2.0.7-alpha.7 or later).
+If you encounter errors like `Failed to validate tool: Error: tool parameters array type must have items`, make sure you're using the latest version of MCP Firebird.
 
 To update to the latest version:
 

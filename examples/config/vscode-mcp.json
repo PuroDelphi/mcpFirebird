@@ -3,7 +3,8 @@
     "firebird": {
       "command": "npx",
       "args": [
-        "mcp-firebird@alpha",
+        "-y",
+        "mcp-firebird",
         "--database",
         "F:\\Proyectos\\SAI\\EMPLOYEE.FDB",
         "--user",

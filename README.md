@@ -12,17 +12,17 @@ https://github.com/user-attachments/assets/e68e873f-f87b-4afd-874f-157086e223af
 
 MCP Firebird is a server that implements Anthropic's [Model Context Protocol (MCP)](https://github.com/anthropics/anthropic-cookbook/tree/main/model_context_protocol) for [Firebird SQL databases](https://firebirdsql.org/). It allows Large Language Models (LLMs) like Claude to access, analyze, and manipulate data in Firebird databases securely and in a controlled manner.
 
-## 🚀 What's New in MCP 2.3+ (Performance & Security)
+## 🚀 What's New in MCP 2.7+ (Performance & Security)
 
 This server has been upgraded to support the latest enterprise standards in the MCP ecosystem:
 
 - ⚡ **Connection Pooling (Zero Latency):** Repetitive database queries now use persistent in-memory connections, completely bypassing handshake overhead and executing almost instantly.
 - 🎯 **Proactive Events (Triggers):** Native integration with Firebird's `POST_EVENT`. The server listens to database events in real-time and proactively notifies the AI client (e.g., Claude/n8n) without requiring continuous polling.
-  - *Quick Example:* Ask your agent to `subscribe_to_event` with `NEW_ORDER`. When Firebird runs `POST_EVENT 'NEW_ORDER'`, your agent gets instantly notified! [Read detailed guide and examples](docs/events-and-triggers.md).
+  - *Quick Example:* Ask your agent to `subscribe_to_event` with `NEW_ORDER`. When Firebird runs `POST_EVENT 'NEW_ORDER'`, your agent gets instantly notified! [Read detailed guide and examples](docs/proactive-events.en.md).
 - 🛡️ **Enterprise-Managed Authorization (EMA):** Don't want to expose your actual database password (`SYSDBA`) to the LLM client? Enable EMA to require an `--api-key` on incoming connections. The server intercepts this token and injects the real password securely under the hood.
-  - *Quick Example:* Start the server with `--password "real_password" --api-key "my-secure-token"`. The remote client connects using `Authorization: Bearer my-secure-token`. The database password never leaves the server! [Read detailed guide and examples](docs/ema-authorization.md).
+  - *Quick Example:* Start the server with `--password "real_password" --api-key "my-secure-token"`. The remote client connects using `Authorization: Bearer my-secure-token`. The database password never leaves the server! [Read detailed guide in Security](docs/security.md).
 - 🌊 **Bidirectional Streaming (Streamable HTTP / SSE):** Perfect for n8n or remote deployments. Provides real-time event streaming and stateful sessions across HTTP.
-  - *Quick Example:* Start the server with `TRANSPORT_TYPE=sse SSE_PORT=3003`. Configure your client (like n8n) to connect to `http://YOUR_SERVER:3003/mcp`. [Read detailed guide](docs/streaming-mcp-2.3.md).
+  - *Quick Example:* Start the server with `TRANSPORT_TYPE=sse SSE_PORT=3003`. Configure your client (like n8n) to connect to `http://YOUR_SERVER:3003/mcp`. [Read detailed guide](docs/transport-types.md).
 
 ---
 
@@ -82,7 +82,7 @@ MCP Firebird supports **two driver options**:
 ### Quick Start (Default - No Wire Encryption)
 
 ```bash
-npx mcp-firebird@alpha --database=/path/to/database.fdb
+npx -y mcp-firebird --database=/path/to/database.fdb
 ```
 
 ### Advanced (With Wire Encryption Support)
@@ -105,7 +105,7 @@ WireCrypt = Required  # or Enabled
 # macOS: xcode-select --install && brew install firebird
 
 # Step 2: Install MCP Firebird globally
-npm install -g mcp-firebird@alpha
+npm install -g mcp-firebird
 
 # Step 3: Install native driver globally
 npm install -g node-firebird-driver-native
@@ -129,14 +129,11 @@ mcp-firebird --use-native-driver \
 
 #### Stable Version
 ```bash
-# Global installation (stable)
+# Global installation
 npm install -g mcp-firebird
 
 # Run the server
-npx mcp-firebird --database /path/to/database.fdb
-
-# Or use specific stable version
-npm install -g mcp-firebird@2.2.3
+npx -y mcp-firebird --database /path/to/database.fdb
 ```
 
 **Stable Features (v2.2.3):**
@@ -521,27 +518,20 @@ For more detailed information, check the following documents:
 - [Resources, Tools, and Prompts Reference](./docs/resources-tools-prompts.md) - Complete guide to all MCP capabilities
 
 ### Transport Protocols
-- [SSE Transport Configuration](./docs/sse-transport.md)
-- [Streamable HTTP Setup](./docs/streamable-http.md)
-- [Transport Comparison](./docs/transport-comparison.md)
+- [Transport Configuration](./docs/transport-types.md)
 
 ### Integration Guides
-- [Claude Desktop Integration](./docs/claude-integration.md)
 - [VSCode Integration](./docs/vscode-integration.md)
 - [Docker Configuration](./docs/docker.md)
 - [Usage from Different Languages](./docs/clients.md)
 
 ### Advanced Topics
-- [Session Management](./docs/session-management.md)
 - [Security](./docs/security.md)
-- [Performance Tuning](./docs/performance.md)
 - [Troubleshooting](./docs/troubleshooting.md)
-- [Wire Encryption Fix](./docs/wire-encryption-fix.md) - Firebird 3.0+ compatibility and Linux path fix
-- [SSE JSON Parsing Fix](./docs/sse-json-parsing-fix.md) - Details about the v2.3.0-alpha.1 bug fix
+- [Wire Encryption Fix](./docs/wire-encryption-limitation.md) - Firebird 3.0+ compatibility and Linux path fix
 
 ### Examples and Use Cases
 - [Use Cases and Examples](./docs/use-cases.md)
-- [MCP Updates Summary](./docs/mcp-updates-summary.md)
 
 
 ## Support the Project

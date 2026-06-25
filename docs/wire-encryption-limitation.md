@@ -35,7 +35,7 @@ The `--wire-crypt` parameter was added to `mcp-firebird` based on a misunderstan
 If you need wire encryption support, use the `--use-native-driver` flag:
 
 ```bash
-npx mcp-firebird@alpha --use-native-driver \
+npx -y mcp-firebird --use-native-driver \
   --database=/path/to/database.fdb \
   --host=localhost \
   --port=3050 \

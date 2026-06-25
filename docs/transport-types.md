@@ -50,7 +50,7 @@ FIREBIRD_PASSWORD=masterkey
 
 ```bash
 # Basic STDIO usage
-npx mcp-firebird@alpha \
+npx -y mcp-firebird \
   --transport-type stdio \
   --database /path/to/database.fdb \
   --host localhost \
@@ -59,7 +59,7 @@ npx mcp-firebird@alpha \
   --password masterkey
 
 # Windows example
-npx mcp-firebird@alpha ^
+npx -y mcp-firebird ^
   --transport-type stdio ^
   --database "F:\Proyectos\SAI\EMPLOYEE.FDB" ^
   --host localhost ^
@@ -68,7 +68,7 @@ npx mcp-firebird@alpha ^
   --password masterkey
 
 # Linux/Unix example
-npx mcp-firebird@alpha \
+npx -y mcp-firebird \
   --transport-type stdio \
   --database /var/lib/firebird/data/employee.fdb \
   --host localhost \
@@ -91,7 +91,7 @@ Add to your Claude Desktop configuration file:
     "mcp-firebird": {
       "command": "npx",
       "args": [
-        "mcp-firebird@alpha",
+        "mcp-firebird",
         "--transport-type", "stdio",
         "--database", "F:\\Proyectos\\SAI\\EMPLOYEE.FDB",
         "--host", "localhost",
@@ -120,7 +120,7 @@ npx @modelcontextprotocol/inspector node dist/index.js
 
 ```bash
 # Start the server
-npx mcp-firebird@alpha --transport-type stdio --database /path/to/db.fdb
+npx -y mcp-firebird --transport-type stdio --database /path/to/db.fdb
 
 # The server will communicate via STDIO
 # Claude Desktop or other MCP clients can now interact with it
@@ -191,23 +191,25 @@ FIREBIRD_PASSWORD=masterkey
 
 ```bash
 # Basic SSE server
-npx mcp-firebird@alpha \
+npx -y mcp-firebird \
   --transport-type sse \
   --sse-port 3003 \
   --database /path/to/database.fdb \
   --host localhost \
   --port 3050 \
   --user SYSDBA \
-  --password masterkey
+  --password masterkey \
+  --api-key your_super_secret_key
+
 
 # With custom port
-npx mcp-firebird@alpha \
+npx -y mcp-firebird \
   --transport-type sse \
   --sse-port 8080 \
   --database /path/to/database.fdb
 
 # Full configuration
-npx mcp-firebird@alpha \
+npx -y mcp-firebird \
   --transport-type sse \
   --sse-port 3003 \
   --host 192.168.1.100 \
@@ -367,13 +369,16 @@ FIREBIRD_PASSWORD=masterkey
 STREAMABLE_SESSION_TIMEOUT_MS=1800000  # 30 minutes (only for stateful mode)
 STREAMABLE_STATELESS_MODE=true         # Default: true (stateless mode)
                                        # Set to false for stateful mode
+                                       
+# EMA Authorization
+FIREBIRD_API_KEY=your_super_secret_key
 ```
 
 #### Command Line
 
 ```bash
 # Default mode: Stateless (works with MCP Inspector and most clients)
-npx mcp-firebird@alpha \
+npx -y mcp-firebird \
   --transport-type http \
   --http-port 3003 \
   --database /path/to/database.fdb \
@@ -381,7 +386,7 @@ npx mcp-firebird@alpha \
   --password masterkey
 
 # Windows example (Git Bash) - Stateless by default
-npx mcp-firebird@alpha \
+npx -y mcp-firebird \
   --transport-type http \
   --http-port 3012 \
   --database "F:\\Proyectos\\SAI\\EMPLOYEE.FDB" \
@@ -389,7 +394,7 @@ npx mcp-firebird@alpha \
   --password masterkey
 
 # Enable stateful mode (for custom clients with proper session management)
-STREAMABLE_STATELESS_MODE=false npx mcp-firebird@alpha \
+STREAMABLE_STATELESS_MODE=false npx -y mcp-firebird \
   --transport-type http \
   --http-port 3003 \
   --database /path/to/database.fdb \
@@ -399,7 +404,7 @@ STREAMABLE_STATELESS_MODE=false npx mcp-firebird@alpha \
   --password masterkey
 
 # Stateful mode with custom session timeout
-STREAMABLE_STATELESS_MODE=false STREAMABLE_SESSION_TIMEOUT_MS=600000 npx mcp-firebird@alpha \
+STREAMABLE_STATELESS_MODE=false STREAMABLE_SESSION_TIMEOUT_MS=600000 npx -y mcp-firebird \
   --transport-type http \
   --http-port 3003 \
   --database /path/to/database.fdb
@@ -417,7 +422,7 @@ STREAMABLE_STATELESS_MODE=false STREAMABLE_SESSION_TIMEOUT_MS=600000 npx mcp-fir
 
 ```bash
 # Start server (stateless by default - works with MCP Inspector)
-npx mcp-firebird@alpha \
+npx -y mcp-firebird \
   --transport-type http \
   --http-port 3003 \
   --database /path/to/database.fdb \
@@ -425,7 +430,7 @@ npx mcp-firebird@alpha \
   --password masterkey
 
 # Windows example (Git Bash)
-npx mcp-firebird@alpha \
+npx -y mcp-firebird \
   --transport-type http \
   --http-port 3012 \
   --database "F:\\Proyectos\\SAI\\EMPLOYEE.FDB" \
@@ -448,7 +453,8 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 
 // Create transport
 const transport = new StreamableHTTPClientTransport(
-  "http://localhost:3003/mcp"
+  new URL("http://localhost:3003/mcp"),
+  { headers: { Authorization: "Bearer your_super_secret_key" } }
 );
 
 // Create client
@@ -646,7 +652,7 @@ FIREBIRD_PASSWORD=masterkey
 
 ```bash
 # Start unified server (supports both SSE and HTTP Streamable)
-npx mcp-firebird@alpha \
+npx -y mcp-firebird \
   --transport-type unified \
   --http-port 3003 \
   --database /path/to/database.fdb \
@@ -1023,7 +1029,7 @@ Enable stateless mode manually:
 
 ```bash
 # Windows (Git Bash)
-STREAMABLE_STATELESS_MODE=true npx mcp-firebird@alpha \
+STREAMABLE_STATELESS_MODE=true npx -y mcp-firebird \
   --transport-type http \
   --http-port 3012 \
   --database "F:\\Proyectos\\SAI\\EMPLOYEE.FDB" \

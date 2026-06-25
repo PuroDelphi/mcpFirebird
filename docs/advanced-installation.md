@@ -16,6 +16,7 @@ MCP Firebird supports two drivers:
 Use the native driver if you need:
 
 - ✅ Wire encryption support (Firebird 3.0+)
+- ✅ Proactive Events Support (`POST_EVENT` triggers for real-time notifications)
 - ✅ Maximum performance
 - ✅ Full Firebird feature support
 - ✅ Enterprise-grade security
@@ -23,7 +24,7 @@ Use the native driver if you need:
 **Don't use it if:**
 - ❌ You just want to try MCP Firebird quickly
 - ❌ You don't have admin rights to install build tools
-- ❌ Wire encryption is not required
+- ❌ Wire encryption and proactive events are not required
 
 ## 🛠️ Installation Steps
 
@@ -125,7 +126,7 @@ If you see errors, verify that:
 ### Step 4: Use Native Driver with MCP Firebird
 
 ```bash
-npx mcp-firebird@alpha --use-native-driver \
+npx mcp-firebird --use-native-driver \
   --database=/path/to/database.fdb \
   --host=localhost \
   --port=3050 \
@@ -145,7 +146,8 @@ Add to your `claude_desktop_config.json`:
     "firebird": {
       "command": "npx",
       "args": [
-        "mcp-firebird@alpha",
+        "-y",
+        "mcp-firebird",
         "--use-native-driver",
         "--database=/path/to/database.fdb",
         "--host=localhost",
@@ -169,7 +171,7 @@ export FIREBIRD_PORT=3050
 export FIREBIRD_USER=SYSDBA
 export FIREBIRD_PASSWORD=masterkey
 
-npx mcp-firebird@alpha --use-native-driver
+npx -y mcp-firebird --use-native-driver
 ```
 
 ## 🐛 Troubleshooting
@@ -208,7 +210,7 @@ npm install -g node-firebird-driver-native
 **Solution**:
 ```bash
 # Add --use-native-driver flag
-npx mcp-firebird@alpha --use-native-driver ...
+npx mcp-firebird --use-native-driver ...
 ```
 
 ## 📊 Performance Comparison
@@ -250,7 +252,7 @@ According to Firebird documentation, `WireCrypt` is a **server-side parameter** 
 
 3. **Use the native driver** (which supports the wire encryption protocol):
    ```bash
-   npx mcp-firebird@alpha --use-native-driver \
+   npx mcp-firebird --use-native-driver \
      --database=/path/to/database.fdb \
      --host=localhost \
      --user=SYSDBA \
@@ -303,7 +305,7 @@ Once installed, you can use all MCP Firebird features with full wire encryption 
 
 ```bash
 # Test connection
-npx mcp-firebird@alpha --use-native-driver \
+npx mcp-firebird --use-native-driver \
   --database=/path/to/database.fdb \
   --host=localhost \
   --user=SYSDBA \
@@ -315,6 +317,5 @@ You should see:
 Using native Firebird driver (supports wire encryption)
 Conectando con node-firebird-driver-native (Native Client)...
 Conexión exitosa con node-firebird-driver-native
-MCP Firebird server running on stdio
 ```
 

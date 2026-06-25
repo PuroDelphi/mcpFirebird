@@ -284,6 +284,19 @@ Tools in MCP are actions that can be executed. They perform operations on the da
 
 ---
 
+### Proactive Event Tools
+
+#### `subscribe_to_event`
+**Description:** Subscribes the current MCP stream to a specific Firebird `POST_EVENT` trigger.
+*(Requires the server to be running in HTTP Streamable/SSE mode and using the native driver).*
+
+**Parameters:**
+- `eventName` (string, required) - Exact name of the event to subscribe to.
+
+**Use Case:** Receive real-time push notifications when data changes in the database without polling.
+
+---
+
 ### Analysis Tools
 
 #### `analyze-table-statistics`
@@ -523,27 +536,7 @@ Prompts in MCP are templates that guide the LLM to perform complex tasks. They a
 
 ---
 
-## Legacy Prompts (Compatibility)
 
-The following prompts are kept for backward compatibility with existing MCP clients. They execute actions directly instead of providing guidance templates.
-
-### Database Structure Prompts
-- `analyze-table` - Analyzes table structure
-- `list-tables` - Lists all tables
-- `analyze-table-relationships` - Analyzes table relationships
-- `database-schema-overview` - Provides schema overview
-- `analyze-table-data` - Analyzes table data statistics
-
-### SQL Prompts
-- `query-data` - Executes and analyzes SQL queries
-- `optimize-query` - Analyzes and suggests query optimizations
-- `generate-sql` - Generates SQL based on requirements
-- `explain-sql` - Explains SQL query functionality
-- `sql-tutorial` - Provides SQL tutorials
-
-**Note:** These legacy prompts will continue to work but it's recommended to use the new template prompts combined with appropriate tools for better results.
-
----
 
 ## Best Practices
 
@@ -605,9 +598,8 @@ The following prompts are kept for backward compatibility with existing MCP clie
 ## Summary
 
 - **9 Resources** - Static database metadata
-- **18+ Tools** - Executable database operations
+- **19+ Tools** - Executable database operations
 - **5 Template Prompts** - Structured guidance for complex tasks
-- **10 Legacy Prompts** - Backward compatibility
 
 All components work together to provide comprehensive database management capabilities through the Model Context Protocol.
 

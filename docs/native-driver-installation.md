@@ -21,6 +21,7 @@ The native driver (`node-firebird-driver-native`) requires:
 
 **Benefits:**
 - ✅ Wire encryption support (when configured on server)
+- ✅ Proactive Events Support (`POST_EVENT` triggers for real-time notifications)
 - ✅ Better performance (2-3x faster)
 - ✅ Full Firebird feature support
 
@@ -31,7 +32,7 @@ The native driver (`node-firebird-driver-native`) requires:
 
 ### ⚠️ CRITICAL: NPX Does NOT Work with Native Driver
 
-**`npx mcp-firebird@alpha` CANNOT use the native driver**, even if `node-firebird-driver-native` is installed globally.
+**`npx -y mcp-firebird` CANNOT use the native driver**, even if `node-firebird-driver-native` is installed globally.
 
 **Why?** When `npx` runs a package, it downloads it to a temporary cache folder (`C:\Users\...\npm-cache\_npx\...`). Node.js module resolution (`require()` and `import()`) can only find modules in:
 1. The same `node_modules` folder as the running package
@@ -45,7 +46,7 @@ Global modules are installed in a completely different location (`C:\Users\...\A
 
 ```bash
 # Step 1: Install mcp-firebird globally
-npm install -g mcp-firebird@alpha
+npm install -g mcp-firebird
 
 # Step 2: Install native driver globally
 npm install -g node-firebird-driver-native
@@ -62,7 +63,7 @@ mcp-firebird --use-native-driver --database "path/to/database.fdb" --user SYSDBA
 
 ```powershell
 # Download and run the installation script
-Invoke-WebRequest -Uri "https://raw.githubusercontent.com/PuroDelphi/mcpFirebird/alpha/install-with-native-driver.ps1" -OutFile "install.ps1"
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/PuroDelphi/mcpFirebird/main/install-with-native-driver.ps1" -OutFile "install.ps1"
 .\install.ps1
 ```
 
@@ -337,7 +338,7 @@ After installation, verify everything works:
 node -e "try { require('node-firebird-driver-native'); console.log('✅ Module loaded'); } catch(e) { console.log('❌ Error:', e.message); }"
 
 # Test 2: Use with MCP Firebird
-npx mcp-firebird@alpha --use-native-driver \
+npx mcp-firebird --use-native-driver \
   --database=/path/to/test.fdb \
   --host=localhost \
   --user=SYSDBA \
@@ -349,7 +350,6 @@ npx mcp-firebird@alpha --use-native-driver \
 Using native Firebird driver (supports wire encryption)
 Conectando con node-firebird-driver-native (Native Client)...
 Conexión exitosa con node-firebird-driver-native
-MCP Firebird server running on stdio
 ```
 
 ---

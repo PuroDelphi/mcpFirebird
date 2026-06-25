@@ -160,9 +160,22 @@ Validates the integrity of the Firebird database.
 }
 ```
 
+## Proactive Event Tools
+
+### 13. subscribe_to_event
+
+Subscribes the current connection to a Firebird `POST_EVENT` trigger.
+*(Requires Streamable HTTP/SSE transport and the native Firebird driver).*
+
+```json
+{
+  "eventName": "NEW_ORDER"
+}
+```
+
 ## Utility Tools
 
-### 13. ping
+### 14. ping
 
 Tests connectivity to the MCP Firebird server.
 
@@ -170,7 +183,7 @@ Tests connectivity to the MCP Firebird server.
 {}
 ```
 
-### 14. echo
+### 15. echo
 
 Echoes back the input message.
 
@@ -180,7 +193,7 @@ Echoes back the input message.
 }
 ```
 
-### 15. get-methods
+### 16. get-methods
 
 Returns a description of all available MCP tools.
 
@@ -188,7 +201,7 @@ Returns a description of all available MCP tools.
 {}
 ```
 
-### 16. describe-method
+### 17. describe-method
 
 Returns a description of a specific MCP tool.
 

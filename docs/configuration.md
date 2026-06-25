@@ -18,6 +18,9 @@ export FIREBIRD_ROLE=undefined  # Optional
 # Directory configuration (alternative)
 export FIREBIRD_DATABASE_DIR=/path/to/databases  # Directory with databases
 
+# Enterprise Managed Authorization (EMA)
+export FIREBIRD_API_KEY=my_secret_token_123
+
 # Logging configuration
 export LOG_LEVEL=info  # Options: debug, info, warn, error
 ```
@@ -34,8 +37,11 @@ FIREBIRD_USER=SYSDBA
 FIREBIRD_PASSWORD=masterkey
 FIREBIRD_ROLE=
 
+# Enterprise Managed Authorization (EMA)
+FIREBIRD_API_KEY=my_secret_token_123
+
 # Transport configuration
-TRANSPORT_TYPE=stdio  # Options: stdio, sse
+TRANSPORT_TYPE=sse  # Recommended: sse (HTTP Streamable). Legacy: stdio
 SSE_PORT=3003
 ```
 
@@ -47,46 +53,46 @@ You can run the server directly with npx:
 npx mcp-firebird --host localhost --port 3050 --database /path/to/database.fdb --user SYSDBA --password masterkey
 ```
 
-## SSE (Server-Sent Events) Transport
+## Streamable HTTP (SSE) Transport [RECOMMENDED]
 
-MCP Firebird supports SSE transport for communication with web clients:
+MCP Firebird fully supports **Streamable HTTP (SSE)** for communication with network clients (like n8n or remote Claude deployments). This is the recommended transport mode.
 
 ```bash
-# Run with SSE transport
+# Run with Streamable HTTP transport
 export TRANSPORT_TYPE=sse
 export SSE_PORT=3003
-npx mcp-firebird
+npx -y mcp-firebird
 ```
 
 Or using command line parameters:
 
 ```bash
-npx mcp-firebird --transport-type sse --sse-port 3003 --database /path/to/database.fdb --host localhost --port 3050 --user SYSDBA --password masterkey
+npx -y mcp-firebird --transport-type sse --sse-port 3003 --database /path/to/database.fdb --host localhost --port 3050 --user SYSDBA --password masterkey --api-key my_secret_token_123
 ```
 
-### SSE Client Examples
+### HTTP Client Examples (EMA Authorization)
 
 ```javascript
-// JavaScript client
-const eventSource = new EventSource('http://localhost:3003');
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 
-eventSource.onmessage = (event) => {
-  const data = JSON.parse(event.data);
-  console.log('Received:', data);
-};
-
-// Send request
-fetch('http://localhost:3003', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({
-    id: '1',
-    method: 'execute-query',
-    params: {
-      sql: 'SELECT * FROM RDB$RELATIONS'
+// Connect using the Streamable HTTP protocol with EMA Bearer Token
+const transport = new StreamableHTTPClientTransport(
+    new URL("http://localhost:3003/mcp"),
+    {
+        headers: {
+            "Authorization": "Bearer my_secret_token_123"
+        }
     }
-  })
-});
+);
+
+const client = new Client(
+    { name: "my-client", version: "1.0.0" },
+    { capabilities: { resources: { subscribe: true } } }
+);
+
+await client.connect(transport);
+console.log("Successfully connected!");
 ```
 
 ## Configuration with Claude Desktop
@@ -111,6 +117,7 @@ Add the following configuration:
     "mcp-firebird": {
       "command": "npx",
       "args": [
+        "-y",
         "mcp-firebird",
         "--database",
         "C:\\path\\to\\database.fdb",
@@ -118,14 +125,11 @@ Add the following configuration:
         "localhost",
         "--port",
         "3050",
-        "--database",
-        "/path/to/database.fdb",
         "--user",
         "SYSDBA",
         "--password",
         "masterkey"
-      ],
-      "type": "stdio"
+      ]
     }
   }
 }

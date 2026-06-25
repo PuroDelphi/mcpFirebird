@@ -24,7 +24,11 @@ Facilitate migration between different Firebird versions or to other database sy
 
 Analyze database performance, identify bottlenecks, and suggest improvements in indexes or structure.
 
-### 6. Conversational Database Interface
+### 6. Real-time Workflow Automation (n8n/Make)
+
+Use `POST_EVENT` subscriptions via MCP to trigger external workflows the millisecond a record is updated or a business rule is violated in the database.
+
+### 7. Conversational Database Interface
 
 Create a chat interface that allows non-technical users to query and update data through natural language conversations.
 
@@ -98,10 +102,12 @@ const app = express();
 
 // Start MCP Firebird server
 const mcpServer = spawn('npx', [
+  '-y',
   'mcp-firebird',
   '--database', '/path/to/database.fdb',
   '--transport-type', 'sse',
-  '--sse-port', '3003'
+  '--sse-port', '3003',
+  '--api-key', 'your_secret_key'
 ]);
 
 // API endpoint that uses MCP Firebird
@@ -138,7 +144,7 @@ class McpFirebirdIntegration
     {
         mcpProcess = new Process();
         mcpProcess.StartInfo.FileName = "npx";
-        mcpProcess.StartInfo.Arguments = "mcp-firebird --database C:\\path\\to\\database.fdb";
+        mcpProcess.StartInfo.Arguments = "-y mcp-firebird --database C:\\path\\to\\database.fdb";
         mcpProcess.StartInfo.UseShellExecute = false;
         mcpProcess.Start();
     }

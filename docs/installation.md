@@ -7,12 +7,18 @@ This document provides detailed instructions for installing MCP Firebird and its
 MCP Firebird is available as an npm package that can be installed globally or as a project dependency:
 
 ```bash
-# Global installation
+# Global installation (Recommended)
 npm install -g mcp-firebird
 
 # Project installation
 npm install mcp-firebird
 ```
+
+### Unified Architecture (MCP 2.7+)
+
+Starting with version 2.7+, MCP Firebird uses a unified server architecture. This means a single entry point (`mcp-firebird` or `dist/cli.js`) handles both the legacy **STDIO** transport and the modern **Streamable HTTP (SSE)** transport.
+
+For network or remote deployments, you should configure it to use SSE by setting `TRANSPORT_TYPE=sse` and, if exposing over the network, secure it using **Enterprise Managed Authorization (EMA)** by passing `--api-key your_secret_token`.
 
 ## Firebird Client Tools
 

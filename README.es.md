@@ -13,13 +13,13 @@ MCP Firebird es un servidor que implementa el [Protocolo de Contexto de Modelo (
 
 Más abajo encontrarás casos y ejemplos de uso.
 
-## 🚀 Novedades MCP 2.3+ (Rendimiento y Seguridad)
+## 🚀 Novedades MCP 2.7+ (Rendimiento y Seguridad)
 
 Este servidor ha sido actualizado para soportar los últimos estándares empresariales del ecosistema MCP:
 
 - ⚡ **Connection Pooling (Cero Latencia):** Las consultas repetitivas a la base de datos ahora utilizan conexiones persistentes en memoria, eliminando el overhead de handshake y ejecutándose casi instantáneamente.
-- 🔔 **Eventos Proactivos (Triggers):** Integración nativa con `POST_EVENT` de Firebird. El servidor puede escuchar eventos de la base de datos en tiempo real y notificar proactivamente al cliente de IA sin necesidad de polling continuo. [Leer guía detallada y ejemplos de configuración](docs/events-and-triggers.es.md).
-- 🔐 **Autorización Gestionada (EMA):** ¿No quieres guardar la contraseña de tu base de datos en el cliente LLM? Activa EMA para requerir un `--api-key` en las conexiones entrantes. El servidor interceptará este token e inyectará la contraseña real de forma segura y oculta. [Leer guía detallada y ejemplos de configuración](docs/ema-authorization.es.md).
+- 🔔 **Eventos Proactivos (Triggers):** Integración nativa con `POST_EVENT` de Firebird. El servidor puede escuchar eventos de la base de datos en tiempo real y notificar proactivamente al cliente de IA sin necesidad de polling continuo. [Leer guía detallada y ejemplos de configuración](docs/proactive-events.md).
+- 🔐 **Autorización Gestionada (EMA):** ¿No quieres guardar la contraseña de tu base de datos en el cliente LLM? Activa EMA para requerir un `--api-key` en las conexiones entrantes. El servidor interceptará este token e inyectará la contraseña real de forma segura y oculta. [Leer guía detallada en Seguridad](docs/security.md).
 
 ---
 

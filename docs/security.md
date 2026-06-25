@@ -22,7 +22,28 @@ MCP Firebird incluye un sistema de seguridad completo con las siguientes capacid
 - **Filtrado de filas**: Aplica condiciones para limitar qué registros son visibles
 - **Límites de recursos**: Previene consultas que consumen demasiados recursos
 - **Integración con sistemas de autorización**: Soporte para OAuth2 y mapeo de roles a permisos
-- **Auditoría**: Registro detallado de operaciones para fines de seguridad
+- **Autorización Gestionada (EMA)**: Protege las conexiones de red HTTP/SSE con tokens Bearer.
+- **Auditoría**: Registro detallado de operaciones para fines de seguridad.
+
+## Autorización Gestionada (EMA)
+
+Para implementaciones en red (Streamable HTTP / SSE), la seguridad de acceso a nivel de transporte es crítica. MCP Firebird soporta EMA (Enterprise Managed Authorization) mediante claves de API estáticas.
+
+**Configuración en el servidor:**
+```bash
+export FIREBIRD_API_KEY=mi_super_secreto_123
+# O por argumento:
+npx -y mcp-firebird --transport-type sse --api-key mi_super_secreto_123 ...
+```
+
+**Conexión desde el cliente:**
+Los clientes deben enviar este token como un header `Authorization: Bearer`.
+```typescript
+const transport = new StreamableHTTPClientTransport(
+    new URL("http://localhost:3003/mcp"),
+    { headers: { "Authorization": "Bearer mi_super_secreto_123" } }
+);
+```
 
 ## Restricción de acceso a tablas y vistas
 
@@ -58,7 +79,7 @@ module.exports = {
 Para usar esta configuración:
 
 ```bash
-npx mcp-firebird --config ./config.js
+npx -y mcp-firebird --config ./config.js
 ```
 
 ## Limitación de operaciones SQL
@@ -412,12 +433,8 @@ export FIREBIRD_DATABASE=/path/to/database.fdb
 # Configuración de transporte seguro
 export TRANSPORT_TYPE=sse
 export SSE_PORT=3003
-export SSL_CERT=/path/to/cert.pem
-export SSL_KEY=/path/to/key.pem
-
-# Configuración de seguridad
-export SECURITY_CONFIG=/path/to/security-config.json
+export FIREBIRD_API_KEY=mi_super_secreto_123
 
 # Iniciar MCP Firebird
-npx mcp-firebird
+npx -y mcp-firebird
 ```

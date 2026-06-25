@@ -16,7 +16,7 @@ This document provides information for solving common problems with MCP Firebird
 
 ```bash
 # Verify the database connection
-npx mcp-firebird --database /path/to/database.fdb --user SYSDBA --password masterkey --test-connection
+npx -y mcp-firebird --database /path/to/database.fdb --user SYSDBA --password masterkey --test-connection
 ```
 
 ### Error "No database specified"
@@ -33,7 +33,7 @@ npx mcp-firebird --database /path/to/database.fdb --user SYSDBA --password maste
 export FIREBIRD_DATABASE=/path/to/database.fdb
 
 # Or provide the path as a parameter
-npx mcp-firebird --database /path/to/database.fdb
+npx -y mcp-firebird --database /path/to/database.fdb
 ```
 
 ### Error "gbak not found" during backup/restore
@@ -88,9 +88,18 @@ set PATH=%PATH%;C:\Program Files\Firebird\Firebird_3_0\bin
 3. Make sure the client is using the correct URL.
 
 ```bash
-# Start with SSE transport and CORS enabled
-npx mcp-firebird --transport-type sse --sse-port 3003 --cors-enabled
+# Start with HTTP Streamable transport and CORS enabled
+npx -y mcp-firebird --transport-type sse --sse-port 3003 --cors-enabled --api-key your_secret_key
 ```
+
+### EMA (API Key) Issues
+
+**Symptom**: Unauthorized or 401 errors when connecting over network.
+
+**Possible solutions**:
+1. Check that you provided the API Key using `--api-key` or `FIREBIRD_API_KEY`.
+2. Check that the client is sending `Authorization: Bearer <token>`.
+3. If using MCP Inspector locally, ensure you are starting the server WITHOUT an API key or adding the header to the Inspector UI (if supported).
 
 ## Debugging
 
@@ -100,7 +109,7 @@ Set the `LOG_LEVEL` environment variable to `debug` for more detailed logs:
 
 ```bash
 export LOG_LEVEL=debug
-npx mcp-firebird
+npx -y mcp-firebird
 ```
 
 ### Check Server Status
@@ -108,7 +117,7 @@ npx mcp-firebird
 Use the `ping` method to check if the server is responding:
 
 ```bash
-echo '{"id":1,"method":"ping","params":{}}' | npx mcp-firebird
+echo '{"id":1,"method":"ping","params":{}}' | npx -y mcp-firebird
 ```
 
 ### Inspect Database Schema
@@ -117,10 +126,10 @@ Use the `list-tables` and `describe-table` methods to inspect the database schem
 
 ```bash
 # List all tables
-echo '{"id":1,"method":"list-tables","params":{}}' | npx mcp-firebird
+echo '{"id":1,"method":"list-tables","params":{}}' | npx -y mcp-firebird
 
 # Describe a specific table
-echo '{"id":1,"method":"describe-table","params":{"tableName":"EMPLOYEES"}}' | npx mcp-firebird
+echo '{"id":1,"method":"describe-table","params":{"tableName":"EMPLOYEES"}}' | npx -y mcp-firebird
 ```
 
 ## Getting Help
