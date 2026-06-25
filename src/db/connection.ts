@@ -299,28 +299,6 @@ export const connectToDatabase = async (config = getDefaultConfig()): Promise<Fi
         config.database = 'F:/Proyectos/SAI/EMPLOYEE.FDB';
     }
 
-    // Enterprise-Managed Authorization (EMA) Logic
-    const serverApiKey = process.env.FIREBIRD_API_KEY || process.env.FB_API_KEY;
-    if (serverApiKey) {
-        // En modo EMA, se requiere que el cliente provea el token
-        // El cliente puede enviarlo vía la variable FIREBIRD_CLIENT_TOKEN (desde CLI --api-key),
-        // o si es HTTP (ej. n8n) inyectándolo en el campo password si no se dispone de cabecera.
-        const clientToken = process.env.FIREBIRD_CLIENT_TOKEN || config.password;
-
-        if (clientToken !== serverApiKey) {
-            throw new FirebirdError(
-                'Acceso denegado: Token de autorización EMA (API Key) inválido o ausente.',
-                ErrorTypes.SECURITY_AUTHENTICATION
-            );
-        }
-
-        // Si la autorización pasa, inyectamos la verdadera contraseña de la BD desde el entorno del servidor
-        // Usamos FIREBIRD_REAL_PASSWORD o como fallback FIREBIRD_PASSWORD si no fue sobreescrito por el CLI
-        const realPassword = process.env.FIREBIRD_REAL_PASSWORD || process.env.FIREBIRD_PASSWORD || process.env.FB_PASSWORD || 'masterkey';
-        
-        config.password = realPassword;
-        logger.debug('Autorización EMA exitosa. Credenciales inyectadas de forma segura.');
-    }
 
     try {
         const pool = getPool(config);

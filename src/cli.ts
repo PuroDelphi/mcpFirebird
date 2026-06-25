@@ -43,13 +43,28 @@ if (apiKeyParam) {
   process.env.FIREBIRD_CLIENT_TOKEN = apiKeyParam;
 }
 
+// EMA Authentication Logic
+let resolvedPassword = passwordParam || process.env.FIREBIRD_PASSWORD || 'masterkey';
+const serverApiKey = process.env.FIREBIRD_API_KEY || process.env.FB_API_KEY;
+
+if (serverApiKey) {
+  const clientToken = apiKeyParam || process.env.FIREBIRD_CLIENT_TOKEN || resolvedPassword;
+  if (clientToken !== serverApiKey) {
+    console.error('ERROR: Acceso denegado: Token de autorización EMA (API Key) inválido o ausente.');
+    process.exit(1);
+  }
+  // Authorization passed, inject real password
+  resolvedPassword = process.env.FIREBIRD_REAL_PASSWORD || process.env.FIREBIRD_PASSWORD || process.env.FB_PASSWORD || 'masterkey';
+  process.env.FIREBIRD_PASSWORD = resolvedPassword; // Ensure environment respects it too
+}
+
 // Create database configuration object directly from command line arguments
 export const dbConfig: ConfigOptions = {
   host: hostParam || process.env.FIREBIRD_HOST || '127.0.0.1', // Use 127.0.0.1 instead of 'localhost'
   port: portParam ? parseInt(String(portParam), 10) : (process.env.FIREBIRD_PORT ? parseInt(process.env.FIREBIRD_PORT, 10) : 3050),
   database: databaseParam ? normalizeDatabasePath(databaseParam) : (process.env.FIREBIRD_DATABASE ? normalizeDatabasePath(process.env.FIREBIRD_DATABASE) : normalizeDatabasePath(DEFAULT_DATABASE_PATH)),
   user: userParam || process.env.FIREBIRD_USER || 'SYSDBA',
-  password: passwordParam || process.env.FIREBIRD_PASSWORD || 'masterkey',
+  password: resolvedPassword,
   role: roleParam,
   pageSize: 4096,
   wireCrypt: wireCrypt
@@ -65,10 +80,14 @@ if (!process.env.FIREBIRD_DATABASE && !process.env.FB_DATABASE && !argv.database
 // Make the configuration globally available
 (global as any).MCP_FIREBIRD_CONFIG = dbConfig;
 
-// Configure driver based on --use-native-driver flag
-const useNativeDriver = argv['use-native-driver'] === true || argv['use-native-driver'] === 'true';
+// Configure driver based on --use-native-driver flag or EMA mode
+const useNativeDriver = argv['use-native-driver'] === true || argv['use-native-driver'] === 'true' || !!apiKeyParam;
 if (useNativeDriver) {
-  console.error('Using native Firebird driver (supports wire encryption)');
+  if (apiKeyParam && !argv['use-native-driver']) {
+    console.error('Using native Firebird driver (enabled automatically by EMA --api-key)');
+  } else {
+    console.error('Using native Firebird driver (supports wire encryption)');
+  }
   DriverFactory.setUseNativeDriver(true);
 } else {
   console.error('Using pure JavaScript Firebird driver (default, no wire encryption support)');
