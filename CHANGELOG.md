@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.8.2] - 2026-06-25
+
+### 🛡️ Security Hotfix
+- **Eliminación de Ejecución Dinámica (eval)**: Se reemplazó el uso de `new Function` por `import()` nativo en la carga dinámica del driver de base de datos (`driver-factory`), eliminando falsos positivos en el escaneo de seguridad y mitigando la alerta de ejecución dinámica (eval).
+
 ## [2.8.1] - 2026-06-25
 
 ### 🛡️ Security Hotfix
