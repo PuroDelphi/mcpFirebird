@@ -36,9 +36,6 @@ export type {
     ExecutionPlanResult
 } from './queries.js';
 
-// Exportar funciones de gestión de base de datos
-export * from './management.js';
-
 // Exportar funciones de esquema
 export * from './schema.js';
 
