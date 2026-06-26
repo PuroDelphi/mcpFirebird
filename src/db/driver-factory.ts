@@ -146,8 +146,7 @@ class NativeDriver implements IFirebirdDriver {
                     logger.warn('Failed to load via require, trying dynamic import...', { error: reqErrMsg });
 
                     // Second try: dynamic import (for ESM compatibility)
-                    const importModule = new Function('moduleName', 'return import(moduleName)');
-                    nativeModule = await importModule('node-firebird-driver-native');
+                    nativeModule = await import('node-firebird-driver-native');
                     loadMethod = 'dynamic import';
                     logger.info('✅ Native driver loaded via dynamic import');
                 }
@@ -372,8 +371,7 @@ export class DriverFactory {
         } catch {
             try {
                 // Fallback to dynamic import
-                const importModule = new Function('moduleName', 'return import(moduleName)');
-                await importModule('node-firebird-driver-native');
+                await import('node-firebird-driver-native');
                 return true;
             } catch {
                 return false;
