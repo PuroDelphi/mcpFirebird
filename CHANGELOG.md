@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.8.3] - 2026-06-25
+
+### 🛡️ Security Hotfix
+- **Eliminación de Módulo Vulnerable (`child_process`)**: Se eliminaron por completo las herramientas de gestión de backups y restore, las cuales dependían de ejecutar binarios externos mediante `child_process.spawn()`, mitigando así vulnerabilidades de "Acceso Shell" (Ejecución de Comandos del Sistema).
+
 ## [2.8.2] - 2026-06-25
 
 ### 🛡️ Security Hotfix
