@@ -12,14 +12,7 @@ import {
     describeBatchTables
 } from '../db/index.js';
 
-import {
-    backupDatabase,
-    restoreDatabase,
-    validateDatabase,
-    BackupOptions,
-    RestoreOptions,
-    ValidateOptions
-} from '../db/index.js';
+
 import { validateSql } from '../utils/security.js';
 import { createLogger } from '../utils/logger.js';
 import { stringifyCompact, wrapSuccess, wrapError, formatForClaude } from '../utils/jsonHelper.js';
@@ -46,35 +39,6 @@ export const GetExecutionPlanArgsSchema = z.object({
 
 export const AnalyzeMissingIndexesArgsSchema = z.object({
     sql: z.string().min(1).describe("SQL query to analyze for missing indexes")
-});
-
-export const BackupDatabaseArgsSchema = z.object({
-    backupPath: z.string().min(1).describe("Path where the backup file will be saved"),
-    options: z.object({
-        format: z.enum(['gbak', 'nbackup']).default('gbak').describe("Backup format: gbak (full backup) or nbackup (incremental)"),
-        compress: z.boolean().default(false).describe("Whether to compress the backup"),
-        metadata_only: z.boolean().default(false).describe("Whether to backup only metadata (no data)"),
-        verbose: z.boolean().default(false).describe("Whether to show detailed progress")
-    }).optional()
-});
-
-export const RestoreDatabaseArgsSchema = z.object({
-    backupPath: z.string().min(1).describe("Path to the backup file"),
-    targetPath: z.string().min(1).describe("Path where the database will be restored"),
-    options: z.object({
-        replace: z.boolean().default(false).describe("Whether to replace the target database if it exists"),
-        pageSize: z.number().int().min(1024).max(16384).default(4096).describe("Page size for the restored database"),
-        verbose: z.boolean().default(false).describe("Whether to show detailed progress")
-    }).optional()
-});
-
-export const ValidateDatabaseArgsSchema = z.object({
-    options: z.object({
-        checkData: z.boolean().default(true).describe("Whether to validate data integrity"),
-        checkIndexes: z.boolean().default(true).describe("Whether to validate indexes"),
-        fixErrors: z.boolean().default(false).describe("Whether to attempt to fix errors"),
-        verbose: z.boolean().default(false).describe("Whether to show detailed progress")
-    }).optional()
 });
 
 export const ListTablesArgsSchema = z.object({}); // No arguments
@@ -369,101 +333,6 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
         }
     });
 
-    // Add backup-database tool
-    tools.set("backup-database", {
-        name: "backup-database",
-        description: "Creates a backup of the Firebird database",
-        inputSchema: BackupDatabaseArgsSchema,
-        handler: async (request) => {
-            const { backupPath, options } = request;
-            logger.info(`Executing backup-database tool to: ${backupPath}`);
-
-            try {
-                const result = await backupDatabase(backupPath, options);
-
-                return {
-                    content: [{
-                        type: "text",
-                        text: formatForClaude(result)
-                    }]
-                };
-            } catch (error) {
-                const errorResponse = wrapError(error);
-                logger.error(`Error backing up database: ${errorResponse.error} [${errorResponse.errorType || 'UNKNOWN'}]`);
-
-                return {
-                    content: [{
-                        type: "text",
-                        text: formatForClaude(errorResponse)
-                    }]
-                };
-            }
-        }
-    });
-
-    // Add restore-database tool
-    tools.set("restore-database", {
-        name: "restore-database",
-        description: "Restores a Firebird database from a backup",
-        inputSchema: RestoreDatabaseArgsSchema,
-        handler: async (request) => {
-            const { backupPath, targetPath, options } = request;
-            logger.info(`Executing restore-database tool from: ${backupPath} to: ${targetPath}`);
-
-            try {
-                const result = await restoreDatabase(backupPath, targetPath, options);
-
-                return {
-                    content: [{
-                        type: "text",
-                        text: formatForClaude(result)
-                    }]
-                };
-            } catch (error) {
-                const errorResponse = wrapError(error);
-                logger.error(`Error restoring database: ${errorResponse.error} [${errorResponse.errorType || 'UNKNOWN'}]`);
-
-                return {
-                    content: [{
-                        type: "text",
-                        text: formatForClaude(errorResponse)
-                    }]
-                };
-            }
-        }
-    });
-
-    // Add validate-database tool
-    tools.set("validate-database", {
-        name: "validate-database",
-        description: "Validates the integrity of the Firebird database",
-        inputSchema: ValidateDatabaseArgsSchema,
-        handler: async (request) => {
-            const { options } = request;
-            logger.info(`Executing validate-database tool`);
-
-            try {
-                const result = await validateDatabase(options);
-
-                return {
-                    content: [{
-                        type: "text",
-                        text: formatForClaude(result)
-                    }]
-                };
-            } catch (error) {
-                const errorResponse = wrapError(error);
-                logger.error(`Error validating database: ${errorResponse.error} [${errorResponse.errorType || 'UNKNOWN'}]`);
-
-                return {
-                    content: [{
-                        type: "text",
-                        text: formatForClaude(errorResponse)
-                    }]
-                };
-            }
-        }
-    });
 
     // Add execute-batch-queries tool
     tools.set("execute-batch-queries", {
