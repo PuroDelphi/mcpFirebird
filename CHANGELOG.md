@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.8.4] - 2026-06-25
+
+### 🛡️ Security Hotfix
+- **Mitigación de Riesgo de Cadena de Suministro**: Se forzó la versión de `range-parser` a la `1.2.1` mediante overrides para evitar el uso de la versión `1.3.0` publicada por un nuevo colaborador, mitigando una posible vulnerabilidad o ataque de cadena de suministro.
+- **Actualización de dependencias internas**: Se actualizaron otras dependencias internas que presentaban vulnerabilidades mediante `npm audit fix`.
+
 ## [2.8.3] - 2026-06-25
 
 ### 🛡️ Security Hotfix
