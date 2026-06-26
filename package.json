@@ -57,5 +57,8 @@
   "resolutions": {
     "express": "^4.21.2",
     "path-to-regexp": "^0.1.12"
+  },
+  "overrides": {
+    "range-parser": "1.2.1"
   }
 }
