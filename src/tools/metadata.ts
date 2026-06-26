@@ -60,9 +60,7 @@ export function setupMetadataTools(databaseTools: Map<string, any>): Map<string,
                         features: [
                             'SQL query execution',
                             'Database schema inspection',
-                            'Performance analysis',
-                            'Backup and restore',
-                            'Database validation'
+                            'Performance analysis'
                         ]
                     },
                     runtime: {

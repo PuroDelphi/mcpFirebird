@@ -63,7 +63,7 @@ This is the classic method recommended only for personal use on the same machine
 - **SQL Queries**: Execute SQL queries on Firebird databases
 - **Schema Analysis**: Get detailed information about tables, columns, and relationships
 - **Database Metadata**: Inspect triggers, stored procedures, functions, and packages with source code
-- **Database Management**: Perform backup, restore, and validation operations
+
 - **Performance Analysis**: Analyze query performance and suggest optimizations
 - **Security**: Includes SQL query validation, EMA, and Connection Pooling.
 - **Dual Driver Support**: Choose between simple installation (default) or native driver with wire encryption support.
@@ -166,7 +166,7 @@ npm install -g mcp-firebird@2.4.0-alpha.0
 
 **Note**: The SSE JSON parsing bug fix is now available in stable v2.2.3
 
-For backup/restore operations, you'll need to install the Firebird client tools. See [Complete Installation](./docs/installation.md) for more details.
+
 
 For VSCode and GitHub Copilot integration, see [VSCode Integration](./docs/vscode-integration.md).
 
