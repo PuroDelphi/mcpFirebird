@@ -34,8 +34,24 @@ services:
       # We recommend HTTP Streamable as the standard modern transport
       TRANSPORT_TYPE: http
       HTTP_PORT: 3003
+      
+      # HTTP Streamable configuration
+      STREAMABLE_STATELESS_MODE: "true"
+      STREAMABLE_SESSION_TIMEOUT_MS: 1800000
+      
+      # Security configuration
+      SECURITY_CONFIG_PATH: ""
+      
+      # Advanced configuration
+      FIREBIRD_WIRECRYPT: Disabled
+      USE_NATIVE_DRIVER: "false"
+      PAGE_SIZE: 100
+      QUERY_TIMEOUT: 30000
+      MAX_CONNECTIONS: 50
+      
+      # Logging and legacy features
       LOG_LEVEL: debug
-      # Add timeout configuration for streaming sessions
+      SSE_PORT: 3012
       SSE_SESSION_TIMEOUT_MS: 1800000
     ports:
       - "3003:3003"
