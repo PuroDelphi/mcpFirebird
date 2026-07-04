@@ -5,6 +5,7 @@ import { createLogger } from '../utils/logger.js';
 import {
     connectToDatabase,
     queryDatabase,
+    getPool,
     DEFAULT_CONFIG,
     FirebirdDatabase,
     ConfigOptions,
@@ -154,6 +155,7 @@ export const executeQuery = async (sql: string, params: any[] = [], config = DEF
         config = globalConfig;
     }
     let db: FirebirdDatabase | null = null;
+    let succeeded = false;
     try {
         // Validar la consulta SQL para prevenir inyección
         if (!validateSql(sql)) {
@@ -165,7 +167,11 @@ export const executeQuery = async (sql: string, params: any[] = [], config = DEF
 
         db = await connectToDatabase(config);
         const result = await queryDatabase(db, sql, params);
-        return await resolveBlobFields(result);
+        // BLOBs must be resolved while the connection is still open, so keep the
+        // success flag off until this completes.
+        const resolved = await resolveBlobFields(result);
+        succeeded = true;
+        return resolved;
     } catch (error: any) {
         // Propagar el error original si ya es un FirebirdError
         if (error instanceof FirebirdError) {
@@ -177,19 +183,15 @@ export const executeQuery = async (sql: string, params: any[] = [], config = DEF
         logger.error(errorMessage);
         throw new FirebirdError(errorMessage, 'QUERY_ERROR', error);
     } finally {
-        // Cerrar la conexión en un bloque finally para asegurar que siempre se cierre
+        // Return the connection to the pool on success, or evict it on failure.
+        // A connection that hit an error may be poisoned/stale, so it must be
+        // destroyed rather than recycled into the pool.
         if (db) {
-            try {
-                await new Promise<void>((resolve) => {
-                    db?.detach((err) => {
-                        if (err) {
-                            logger.error(`Error al cerrar la conexión: ${err.message}`);
-                        }
-                        resolve();
-                    });
-                });
-            } catch (detachError: any) {
-                logger.error(`Error al cerrar la conexión: ${detachError.message}`);
+            const pool = getPool(config);
+            if (succeeded) {
+                pool.release(db);
+            } else {
+                pool.destroy(db);
             }
         }
     }
