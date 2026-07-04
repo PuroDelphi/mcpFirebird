@@ -260,23 +260,27 @@ class NativeDriver implements IFirebirdDriver {
         return {
             query: async (sql: string, params: any[], callback: (err: Error | null, results?: any[]) => void) => {
                 let transaction;
+                let statement;
+                let resultSet;
                 try {
                     // Start a transaction for the query
                     transaction = await attachment.startTransaction();
 
                     // Prepare the statement to check if it has a result set
-                    const statement = await attachment.prepare(transaction, sql);
-                    
+                    statement = await attachment.prepare(transaction, sql);
+
                     let rows: any[] = [];
                     if (statement.hasResultSet) {
-                        const resultSet = await statement.executeQuery(transaction, params);
+                        resultSet = await statement.executeQuery(transaction, params);
                         rows = await resultSet.fetchAsObject();
                         await resultSet.close();
+                        resultSet = undefined;
                     } else {
                         await statement.execute(transaction, params);
                     }
-                    
+
                     await statement.dispose();
+                    statement = undefined;
 
                     // Commit transaction
                     await transaction.commit();
@@ -293,6 +297,24 @@ class NativeDriver implements IFirebirdDriver {
                         }
                     }
                     callback(err as Error);
+                } finally {
+                    // Always release statement/result-set handles. On the error
+                    // path these were never freed before, leaking handles on the
+                    // (reused) attachment until every op on it failed.
+                    if (resultSet) {
+                        try {
+                            await resultSet.close();
+                        } catch (closeErr) {
+                            logger.error('Error closing result set', { error: closeErr });
+                        }
+                    }
+                    if (statement) {
+                        try {
+                            await statement.dispose();
+                        } catch (disposeErr) {
+                            logger.error('Error disposing statement', { error: disposeErr });
+                        }
+                    }
                 }
             },
             detach: (callback: (err: Error | null) => void) => {
