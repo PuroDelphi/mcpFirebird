@@ -167,15 +167,115 @@ export const DEFAULT_CONFIG: ConfigOptions = {
 // Store pool instance globally to persist across requests
 let globalPool: ConnectionPool | null = null;
 
+// Pool defaults (overridable via env). See .env.example.
+const DEFAULT_POOL_MAX = 5;
+const DEFAULT_POOL_IDLE_MS = 60000;   // reap pooled connections idle longer than this
+const PROBE_SQL = 'SELECT 1 FROM RDB$DATABASE';   // read-only liveness probe
+const PROBE_TIMEOUT_MS = 5000;
+
+/**
+ * Reads a positive-integer env var, falling back to a default.
+ */
+function readIntEnv(name: string, fallback: number): number {
+    const raw = process.env[name];
+    if (raw === undefined || raw === '') return fallback;
+    const parsed = parseInt(raw, 10);
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
+}
+
 export class ConnectionPool {
     private pool: FirebirdDatabase[] = [];
     private activeCount: number = 0;
     private waiting: Array<{resolve: (db: FirebirdDatabase) => void, reject: (err: Error) => void}> = [];
     private maxConnections: number;
+    private idleMs: number;
     private isDestroying: boolean = false;
 
-    constructor(private config: ConfigOptions, maxConnections: number = 5) {
+    constructor(private config: ConfigOptions, maxConnections: number = DEFAULT_POOL_MAX, idleMs: number = DEFAULT_POOL_IDLE_MS) {
         this.maxConnections = maxConnections;
+        this.idleMs = idleMs;
+    }
+
+    /**
+     * Opens a fresh physical connection and installs the pool's detach hook.
+     * db.detach() releases the connection back to the pool (healthy path);
+     * use destroy()/_hardDetach() to really close it. The real disconnect is
+     * always reachable via _realDetach.
+     */
+    private async _open(): Promise<FirebirdDatabase> {
+        const driver = await DriverFactory.getDriver();
+        const db = await driver.attach(this.config);
+
+        const originalDetach = db.detach;
+        (db as any)._realDetach = originalDetach;
+        (db as any)._lastUsed = Date.now();
+
+        db.detach = (callback) => {
+            this.release(db, callback);
+        };
+
+        return db;
+    }
+
+    /**
+     * Really disconnects a connection (fire-and-forget) and decrements the
+     * active count. Never routes back to the pool.
+     */
+    private _hardDetach(db: FirebirdDatabase): void {
+        this.activeCount = Math.max(0, this.activeCount - 1);
+        const realDetach: Function = (db as any)._realDetach || db.detach;
+        try {
+            realDetach.call(db, (err: Error | null) => {
+                if (err) logger.warn(`Error al cerrar conexión descartada: ${err.message}`);
+            });
+        } catch (err) {
+            logger.warn(`Error al cerrar conexión descartada: ${err instanceof Error ? err.message : String(err)}`);
+        }
+    }
+
+    /**
+     * Cheap read-only liveness probe. Resolves false on any error or timeout so
+     * a dead/stale socket is never handed back to a caller.
+     */
+    private _probe(db: FirebirdDatabase): Promise<boolean> {
+        return new Promise((resolve) => {
+            let settled = false;
+            const done = (ok: boolean) => {
+                if (settled) return;
+                settled = true;
+                resolve(ok);
+            };
+            const timer = setTimeout(() => {
+                logger.warn('Probe de conexión agotó el tiempo de espera, descartando conexión');
+                done(false);
+            }, PROBE_TIMEOUT_MS);
+            try {
+                db.query(PROBE_SQL, [], (err: Error | null) => {
+                    clearTimeout(timer);
+                    done(!err);
+                });
+            } catch (err) {
+                clearTimeout(timer);
+                done(false);
+            }
+        });
+    }
+
+    /**
+     * A slot just freed up while callers are waiting: open a fresh connection
+     * and hand it to the next waiter.
+     */
+    private async _serviceWaiterWithNewConnection(): Promise<void> {
+        const waiter = this.waiting.shift();
+        if (!waiter) return;
+        this.activeCount++;
+        try {
+            const db = await this._open();
+            waiter.resolve(db);
+        } catch (error) {
+            this.activeCount--;
+            waiter.reject(error instanceof Error ? error : new Error(String(error)));
+        }
     }
 
     async acquire(): Promise<FirebirdDatabase> {
@@ -183,29 +283,35 @@ export class ConnectionPool {
             throw new FirebirdError('El pool de conexiones se está cerrando', ErrorTypes.DATABASE_CONNECTION);
         }
 
-        if (this.pool.length > 0) {
-            logger.debug(`Reusando conexión del pool. Activas: ${this.activeCount}, En pool: ${this.pool.length - 1}`);
-            return this.pool.pop()!;
+        // Reuse a pooled connection, but only after validating it. Several
+        // pooled entries may be stale in a row (idle drops, server restart), so
+        // loop until we find a live one or the pool empties.
+        while (this.pool.length > 0) {
+            const db = this.pool.pop()!;
+
+            const lastUsed = (db as any)._lastUsed || 0;
+            if (this.idleMs > 0 && Date.now() - lastUsed > this.idleMs) {
+                logger.debug('Reciclando conexión inactiva (idle TTL superado)');
+                this._hardDetach(db);
+                continue;
+            }
+
+            const alive = await this._probe(db);
+            if (!alive) {
+                logger.warn('Conexión del pool no superó el probe, descartándola');
+                this._hardDetach(db);
+                continue;
+            }
+
+            logger.debug(`Reusando conexión del pool. Activas: ${this.activeCount}, En pool: ${this.pool.length}`);
+            return db;
         }
 
         if (this.activeCount < this.maxConnections) {
             this.activeCount++;
             try {
                 logger.debug(`Creando nueva conexión. Activas: ${this.activeCount}/${this.maxConnections}`);
-                const driver = await DriverFactory.getDriver();
-                const db = await driver.attach(this.config);
-                
-                // Override detach to return to pool instead of closing
-                const originalDetach = db.detach;
-                
-                // Store a reference to real detach for destruction
-                (db as any)._realDetach = originalDetach;
-
-                db.detach = (callback) => {
-                    this.release(db, originalDetach, callback);
-                };
-                
-                return db;
+                return await this._open();
             } catch (error) {
                 this.activeCount--;
                 throw error;
@@ -219,12 +325,18 @@ export class ConnectionPool {
         });
     }
 
-    private release(db: FirebirdDatabase, originalDetach: Function, callback?: (err: Error | null) => void): void {
+    /**
+     * Return a healthy connection to the pool. Called by the monkey-patched
+     * db.detach() and directly by executeQuery on the success path.
+     */
+    release(db: FirebirdDatabase, callback?: (err: Error | null) => void): void {
         if (this.isDestroying) {
-            this.activeCount--;
-            originalDetach.call(db, callback);
+            this._hardDetach(db);
+            if (callback) callback(null);
             return;
         }
+
+        (db as any)._lastUsed = Date.now();
 
         if (this.waiting.length > 0) {
             const next = this.waiting.shift()!;
@@ -235,22 +347,35 @@ export class ConnectionPool {
             if (callback) callback(null);
         } else {
             // Pool is full, really detach
-            this.activeCount--;
-            originalDetach.call(db, callback);
+            this._hardDetach(db);
+            if (callback) callback(null);
         }
+    }
+
+    /**
+     * Discard a connection that hit a connection-level error: really close it
+     * and never recycle it. If callers are waiting, open a fresh replacement so
+     * the freed slot doesn't strand them.
+     */
+    destroy(db: FirebirdDatabase, callback?: (err: Error | null) => void): void {
+        this._hardDetach(db);
+        if (!this.isDestroying && this.waiting.length > 0) {
+            void this._serviceWaiterWithNewConnection();
+        }
+        if (callback) callback(null);
     }
 
     async destroyAll(): Promise<void> {
         this.isDestroying = true;
         const currentPool = [...this.pool];
         this.pool = [];
-        
+
         // Reject all waiting queries
         for (const waiting of this.waiting) {
             waiting.reject(new FirebirdError('El servidor se está apagando', ErrorTypes.DATABASE_CONNECTION));
         }
         this.waiting = [];
-        
+
         const promises = currentPool.map(db => {
             return new Promise<void>((resolve) => {
                 const realDetach = (db as any)._realDetach || db.detach;
@@ -258,7 +383,7 @@ export class ConnectionPool {
                 realDetach.call(db, () => resolve());
             });
         });
-        
+
         await Promise.all(promises);
         this.activeCount = 0;
         logger.info('Todas las conexiones del pool han sido cerradas');
@@ -266,12 +391,15 @@ export class ConnectionPool {
 }
 
 /**
- * Obtiene o crea el pool global de conexiones
+ * Obtiene o crea el pool global de conexiones.
+ * Pool sizing is configurable via FIREBIRD_POOL_MAX and FIREBIRD_POOL_IDLE_MS.
  */
 export const getPool = (config: ConfigOptions = getDefaultConfig()): ConnectionPool => {
     if (!globalPool) {
-        logger.info('Inicializando Global Connection Pool', { maxConnections: 5 });
-        globalPool = new ConnectionPool(config, 5);
+        const maxConnections = readIntEnv('FIREBIRD_POOL_MAX', DEFAULT_POOL_MAX);
+        const idleMs = readIntEnv('FIREBIRD_POOL_IDLE_MS', DEFAULT_POOL_IDLE_MS);
+        logger.info('Inicializando Global Connection Pool', { maxConnections, idleMs });
+        globalPool = new ConnectionPool(config, maxConnections, idleMs);
     }
     return globalPool;
 };
