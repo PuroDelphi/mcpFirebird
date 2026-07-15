@@ -280,7 +280,7 @@ export class ConnectionPool {
 
     async acquire(): Promise<FirebirdDatabase> {
         if (this.isDestroying) {
-            throw new FirebirdError('El pool de conexiones se está cerrando', ErrorTypes.DATABASE_CONNECTION);
+            throw new FirebirdError('The connection pool is shutting down', ErrorTypes.DATABASE_CONNECTION);
         }
 
         // Reuse a pooled connection, but only after validating it. Several
@@ -372,7 +372,7 @@ export class ConnectionPool {
 
         // Reject all waiting queries
         for (const waiting of this.waiting) {
-            waiting.reject(new FirebirdError('El servidor se está apagando', ErrorTypes.DATABASE_CONNECTION));
+            waiting.reject(new FirebirdError('The server is shutting down', ErrorTypes.DATABASE_CONNECTION));
         }
         this.waiting = [];
 
@@ -495,7 +495,7 @@ export const queryDatabase = (db: FirebirdDatabase, sql: string, params: any[] =
 
                 // Crear un error más informativo
                 const error = new FirebirdError(
-                    `Error al ejecutar consulta: ${err.message}`,
+                    `Error executing query: ${err.message}`,
                     errorType,
                     err
                 );

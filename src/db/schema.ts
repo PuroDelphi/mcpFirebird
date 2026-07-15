@@ -16,7 +16,7 @@ const logger = createLogger('db:schema');
 export const getTableSchema = async (tableName: string, config = DEFAULT_CONFIG) => {
     try {
         if (!validateSql(tableName)) {
-            throw new FirebirdError(`Nombre de tabla inválido: ${tableName}`, 'VALIDATION_ERROR');
+            throw new FirebirdError(`Invalid table name: ${tableName}`, 'VALIDATION_ERROR');
         }
 
         // Consulta para obtener columnas y tipos
@@ -175,7 +175,7 @@ export const getTableSchema = async (tableName: string, config = DEFAULT_CONFIG)
             throw error;
         } else {
             throw new FirebirdError(
-                `Error inesperado obteniendo esquema para ${tableName}: ${(error as Error).message}`,
+                `Unexpected error getting schema for ${tableName}: ${(error as Error).message}`,
                 'SCHEMA_ERROR',
                 error
             );

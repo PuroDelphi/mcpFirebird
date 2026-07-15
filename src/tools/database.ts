@@ -127,7 +127,7 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
                 };
             } catch (error) {
                 const errorResponse = wrapError(error);
-                logger.error(`Error ejecutando consulta: ${errorResponse.error} [${errorResponse.errorType || 'UNKNOWN'}]`);
+                logger.error(`Error executing query: ${errorResponse.error} [${errorResponse.errorType || 'UNKNOWN'}]`);
 
                 return {
                     content: [{
@@ -158,7 +158,7 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
                 };
             } catch (error) {
                 const errorResponse = wrapError(error);
-                logger.error(`Error listando tablas: ${errorResponse.error} [${errorResponse.errorType || 'UNKNOWN'}]`);
+                logger.error(`Error listing tables: ${errorResponse.error} [${errorResponse.errorType || 'UNKNOWN'}]`);
 
                 return {
                     content: [{
@@ -190,7 +190,7 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
                 };
             } catch (error) {
                 const errorResponse = wrapError(error);
-                logger.error(`Error describiendo tabla ${tableName}: ${errorResponse.error} [${errorResponse.errorType || 'UNKNOWN'}]`);
+                logger.error(`Error describing table ${tableName}: ${errorResponse.error} [${errorResponse.errorType || 'UNKNOWN'}]`);
                 return {
                     content: [{
                         type: "text",
