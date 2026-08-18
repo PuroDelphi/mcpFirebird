@@ -122,7 +122,7 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
                 return {
                     content: [{
                         type: "text",
-                        text: formatForClaude(result)
+                        text: formatForClaude({ rows: result })
                     }]
                 };
             } catch (error) {
@@ -361,7 +361,7 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
                 return {
                     content: [{
                         type: "text",
-                        text: formatForClaude(results)
+                        text: formatForClaude({ results })
                     }]
                 };
             } catch (error) {
