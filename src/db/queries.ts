@@ -160,7 +160,7 @@ export const executeQuery = async (sql: string, params: any[] = [], config = DEF
         // Validar la consulta SQL para prevenir inyección
         if (!validateSql(sql)) {
             throw new FirebirdError(
-                `Consulta SQL potencialmente insegura: ${sql.substring(0, 100)}${sql.length > 100 ? '...' : ''}`,
+                `Potentially unsafe SQL query: ${sql.substring(0, 100)}${sql.length > 100 ? '...' : ''}`,
                 'SECURITY_ERROR'
             );
         }
@@ -179,7 +179,7 @@ export const executeQuery = async (sql: string, params: any[] = [], config = DEF
         }
 
         // Categorizar el error
-        const errorMessage = `Error ejecutando consulta: ${error.message || error}`;
+        const errorMessage = `Error executing query: ${error.message || error}`;
         logger.error(errorMessage);
         throw new FirebirdError(errorMessage, 'QUERY_ERROR', error);
     } finally {
@@ -221,7 +221,7 @@ export const getDatabases = (): DatabaseInfo[] => {
         logger.info(`Se encontraron ${databases.length} bases de datos`);
         return databases;
     } catch (error: any) {
-        const errorMessage = `Error al listar bases de datos: ${error.message || error}`;
+        const errorMessage = `Error listing databases: ${error.message || error}`;
         logger.error(errorMessage);
         return [];
     }
@@ -266,7 +266,7 @@ export const getTables = async (config = DEFAULT_CONFIG): Promise<TableInfo[]> =
             throw error;
         }
 
-        const errorMessage = `Error al listar tablas: ${error.message || error}`;
+        const errorMessage = `Error listing tables: ${error.message || error}`;
         logger.error(errorMessage);
         throw new FirebirdError(errorMessage, 'TABLE_LIST_ERROR', error);
     }
@@ -311,7 +311,7 @@ export const getViews = async (config = DEFAULT_CONFIG): Promise<TableInfo[]> =>
             throw error;
         }
 
-        const errorMessage = `Error al listar vistas: ${error.message || error}`;
+        const errorMessage = `Error listing views: ${error.message || error}`;
         logger.error(errorMessage);
         throw new FirebirdError(errorMessage, 'VIEW_LIST_ERROR', error);
     }
@@ -349,7 +349,7 @@ export const getProcedures = async (config = DEFAULT_CONFIG): Promise<TableInfo[
             throw error;
         }
 
-        const errorMessage = `Error al listar procedimientos: ${error.message || error}`;
+        const errorMessage = `Error listing procedures: ${error.message || error}`;
         logger.error(errorMessage);
         throw new FirebirdError(errorMessage, 'PROCEDURE_LIST_ERROR', error);
     }
@@ -374,7 +374,7 @@ export const getFieldDescriptions = async (tableName: string, config = DEFAULT_C
 
         if (!validateSql(tableName)) {
             throw new FirebirdError(
-                `Nombre de tabla inválido: ${tableName}`,
+                `Invalid table name: ${tableName}`,
                 'VALIDATION_ERROR'
             );
         }
@@ -409,7 +409,7 @@ export const getFieldDescriptions = async (tableName: string, config = DEFAULT_C
             throw error;
         }
 
-        const errorMessage = `Error obteniendo descripciones de campos para ${tableName}: ${error.message || error}`;
+        const errorMessage = `Error getting field descriptions for ${tableName}: ${error.message || error}`;
         logger.error(errorMessage);
         throw new FirebirdError(errorMessage, 'FIELD_DESCRIPTION_ERROR', error);
     }
@@ -434,7 +434,7 @@ export const describeTable = async (tableName: string, config = DEFAULT_CONFIG):
 
         if (!validateSql(tableName)) {
             throw new FirebirdError(
-                `Nombre de tabla inválido: ${tableName}`,
+                `Invalid table name: ${tableName}`,
                 'VALIDATION_ERROR'
             );
         }
@@ -486,7 +486,7 @@ export const describeTable = async (tableName: string, config = DEFAULT_CONFIG):
         if (columns.length === 0) {
             logger.warn(`No se encontraron columnas para la tabla: ${tableName}`);
             throw new FirebirdError(
-                `No se encontraron columnas para la tabla: ${tableName}. Es posible que la tabla no exista.`,
+                `No columns found for table: ${tableName}. The table may not exist.`,
                 'TABLE_NOT_FOUND'
             );
         }
@@ -509,7 +509,7 @@ export const describeTable = async (tableName: string, config = DEFAULT_CONFIG):
             throw error;
         }
 
-        const errorMessage = `Error describiendo la tabla ${tableName}: ${error.message || error}`;
+        const errorMessage = `Error describing table ${tableName}: ${error.message || error}`;
         logger.error(errorMessage);
         throw new FirebirdError(errorMessage, 'TABLE_DESCRIBE_ERROR', error);
     }
@@ -552,7 +552,7 @@ export const listTables = async (config = DEFAULT_CONFIG): Promise<string[]> => 
             throw error;
         }
 
-        const errorMessage = `Error al listar tablas: ${error.message || error}`;
+        const errorMessage = `Error listing tables: ${error.message || error}`;
         logger.error(errorMessage);
         throw new FirebirdError(errorMessage, 'TABLE_LIST_ERROR', error);
     }

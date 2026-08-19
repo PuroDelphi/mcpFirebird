@@ -60,7 +60,7 @@ class PureJSDriver implements IFirebirdDriver {
             this.Firebird = null;
         } catch (error) {
             throw new FirebirdError(
-                'node-firebird no está instalado',
+                'node-firebird is not installed',
                 ErrorTypes.DATABASE_CONNECTION,
                 { originalError: error }
             );
@@ -100,7 +100,7 @@ class PureJSDriver implements IFirebirdDriver {
                 if (err) {
                     logger.error('Error al conectar con node-firebird', { error: err });
                     reject(new FirebirdError(
-                        `Error al conectar a la base de datos: ${err.message}`,
+                        `Error connecting to the database: ${err.message}`,
                         ErrorTypes.DATABASE_CONNECTION,
                         { originalError: err }
                     ));
@@ -163,8 +163,8 @@ class NativeDriver implements IFirebirdDriver {
                     loadMethod
                 });
                 throw new FirebirdError(
-                    'node-firebird-driver-native no está instalado o no se pudo cargar. ' +
-                    'Instálalo globalmente con: npm install -g node-firebird-driver-native\n' +
+                    'node-firebird-driver-native is not installed or could not be loaded. ' +
+                    'Install it globally with: npm install -g node-firebird-driver-native\n' +
                     `Error: ${errorMessage}`,
                     ErrorTypes.DATABASE_CONNECTION,
                     { originalError: error }
@@ -246,7 +246,7 @@ class NativeDriver implements IFirebirdDriver {
         } catch (error) {
             logger.error('Error al conectar con node-firebird-driver-native', { error });
             throw new FirebirdError(
-                `Error al conectar a la base de datos: ${error instanceof Error ? error.message : String(error)}`,
+                `Error connecting to the database: ${error instanceof Error ? error.message : String(error)}`,
                 ErrorTypes.DATABASE_CONNECTION,
                 { originalError: error }
             );

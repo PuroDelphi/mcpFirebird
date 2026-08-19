@@ -46,23 +46,21 @@ export function setupMetadataTools(databaseTools: Map<string, any>): Map<string,
     // Herramienta para obtener información del servidor
     tools.set('get-server-info', {
         title: 'Get Server Information',
-        description: 'Obtiene información sobre el servidor MCP Firebird y las herramientas disponibles',
+        description: 'Gets information about the Firebird MCP server and its available tools',
         inputSchema: z.object({}),
         handler: async () => {
             try {
                 const serverInfo = {
                     name: pkg.name || 'MCP Firebird Server',
                     version: pkg.version || '2.6.0-alpha.11',
-                    description: pkg.description || 'Servidor MCP para bases de datos Firebird',
+                    description: pkg.description || 'MCP server for Firebird databases',
                     capabilities: {
                         tools: Array.from(databaseTools.keys()),
                         totalTools: databaseTools.size,
                         features: [
                             'SQL query execution',
                             'Database schema inspection',
-                            'Performance analysis',
-                            'Backup and restore',
-                            'Database validation'
+                            'Performance analysis'
                         ]
                     },
                     runtime: {
@@ -76,7 +74,7 @@ export function setupMetadataTools(databaseTools: Map<string, any>): Map<string,
                 return {
                     content: [{
                         type: 'text',
-                        text: `Información del servidor MCP Firebird:\n\n${formatForClaude(serverInfo)}`
+                        text: `Firebird MCP server information:\n\n${formatForClaude(serverInfo)}`
                     }]
                 };
             } catch (error) {
@@ -84,7 +82,7 @@ export function setupMetadataTools(databaseTools: Map<string, any>): Map<string,
                 return {
                     content: [{
                         type: 'text',
-                        text: `Error obteniendo información del servidor: ${error instanceof Error ? error.message : String(error)}`
+                        text: `Error getting server information: ${error instanceof Error ? error.message : String(error)}`
                     }],
                     isError: true
                 };
@@ -95,9 +93,9 @@ export function setupMetadataTools(databaseTools: Map<string, any>): Map<string,
     // Herramienta para listar todas las herramientas disponibles
     tools.set('list-available-tools', {
         title: 'List Available Tools',
-        description: 'Lista todas las herramientas disponibles en el servidor MCP',
+        description: 'Lists all tools available on the MCP server',
         inputSchema: z.object({
-            category: z.string().optional().describe('Filtrar por categoría (database, metadata)')
+            category: z.string().optional().describe('Filter by category (database, metadata)')
         }),
         handler: async (args: { category?: string }) => {
             try {
@@ -122,7 +120,7 @@ export function setupMetadataTools(databaseTools: Map<string, any>): Map<string,
                 return {
                     content: [{
                         type: 'text',
-                        text: `Herramientas disponibles${args.category ? ` (categoría: ${args.category})` : ''}:\n\n${formatForClaude(toolsInfo)}`
+                        text: `Available tools${args.category ? ` (category: ${args.category})` : ''}:\n\n${formatForClaude(toolsInfo)}`
                     }]
                 };
             } catch (error) {
@@ -130,7 +128,7 @@ export function setupMetadataTools(databaseTools: Map<string, any>): Map<string,
                 return {
                     content: [{
                         type: 'text',
-                        text: `Error listando herramientas: ${error instanceof Error ? error.message : String(error)}`
+                        text: `Error listing tools: ${error instanceof Error ? error.message : String(error)}`
                     }],
                     isError: true
                 };
@@ -141,9 +139,9 @@ export function setupMetadataTools(databaseTools: Map<string, any>): Map<string,
     // Herramienta para obtener ayuda sobre una herramienta específica
     tools.set('get-tool-help', {
         title: 'Get Tool Help',
-        description: 'Obtiene información detallada sobre una herramienta específica',
+        description: 'Gets detailed information about a specific tool',
         inputSchema: z.object({
-            toolName: z.string().describe('Nombre de la herramienta sobre la que obtener ayuda')
+            toolName: z.string().describe('Name of the tool to get help for')
         }),
         handler: async (args: { toolName: string }) => {
             try {
@@ -154,7 +152,7 @@ export function setupMetadataTools(databaseTools: Map<string, any>): Map<string,
                     return {
                         content: [{
                             type: 'text',
-                            text: `Herramienta '${args.toolName}' no encontrada. Use 'list-available-tools' para ver las herramientas disponibles.`
+                            text: `Tool '${args.toolName}' not found. Use 'list-available-tools' to see the available tools.`
                         }],
                         isError: true
                     };
@@ -165,14 +163,14 @@ export function setupMetadataTools(databaseTools: Map<string, any>): Map<string,
                     title: tool.title || args.toolName,
                     description: tool.description,
                     category: databaseTools.has(args.toolName) ? 'database' : 'metadata',
-                    inputSchema: tool.inputSchema ? 'Disponible' : 'No definido',
-                    usage: `Para usar esta herramienta, llame a '${args.toolName}' con los parámetros apropiados.`
+                    inputSchema: tool.inputSchema ? 'Available' : 'Not defined',
+                    usage: `To use this tool, call '${args.toolName}' with the appropriate parameters.`
                 };
 
                 return {
                     content: [{
                         type: 'text',
-                        text: `Ayuda para la herramienta: ${args.toolName}\n\n${formatForClaude(helpInfo)}`
+                        text: `Help for tool: ${args.toolName}\n\n${formatForClaude(helpInfo)}`
                     }]
                 };
             } catch (error) {
@@ -180,7 +178,7 @@ export function setupMetadataTools(databaseTools: Map<string, any>): Map<string,
                 return {
                     content: [{
                         type: 'text',
-                        text: `Error obteniendo ayuda: ${error instanceof Error ? error.message : String(error)}`
+                        text: `Error getting tool help: ${error instanceof Error ? error.message : String(error)}`
                     }],
                     isError: true
                 };
@@ -191,7 +189,7 @@ export function setupMetadataTools(databaseTools: Map<string, any>): Map<string,
     // Herramienta para verificar el estado del sistema
     tools.set('system-health-check', {
         title: 'System Health Check',
-        description: 'Verifica el estado de salud del sistema y la conectividad de la base de datos',
+        description: 'Checks system health and database connectivity',
         inputSchema: z.object({}),
         handler: async () => {
             try {
@@ -219,7 +217,7 @@ export function setupMetadataTools(databaseTools: Map<string, any>): Map<string,
                 return {
                     content: [{
                         type: 'text',
-                        text: `Estado de salud del sistema:\n\n${formatForClaude(healthInfo)}`
+                        text: `System health status:\n\n${formatForClaude(healthInfo)}`
                     }]
                 };
             } catch (error) {
@@ -227,7 +225,7 @@ export function setupMetadataTools(databaseTools: Map<string, any>): Map<string,
                 return {
                     content: [{
                         type: 'text',
-                        text: `Error en verificación de salud: ${error instanceof Error ? error.message : String(error)}`
+                        text: `Error during health check: ${error instanceof Error ? error.message : String(error)}`
                     }],
                     isError: true
                 };
@@ -238,7 +236,7 @@ export function setupMetadataTools(databaseTools: Map<string, any>): Map<string,
     // Herramienta para buscar eventos Firebird disponibles
     tools.set('list-available-events', {
         title: 'List Available Events',
-        description: 'Lista los eventos nativos (POST_EVENT) disponibles en los triggers y procedimientos de la base de datos',
+        description: 'Lists native events (POST_EVENT) available in database triggers and procedures',
         inputSchema: z.object({}),
         handler: async () => {
             try {
@@ -247,7 +245,7 @@ export function setupMetadataTools(databaseTools: Map<string, any>): Map<string,
                 return {
                     content: [{
                         type: 'text',
-                        text: `Eventos Firebird disponibles (POST_EVENT):\n\n${formatForClaude(events)}`
+                        text: `Available Firebird events (POST_EVENT):\n\n${formatForClaude(events)}`
                     }]
                 };
             } catch (error) {
@@ -266,7 +264,7 @@ export function setupMetadataTools(databaseTools: Map<string, any>): Map<string,
     // Herramienta para listar triggers
     tools.set('list-triggers', {
         title: 'List Triggers',
-        description: 'Lista todos los triggers en la base de datos con información sobre tabla asociada, tipo de trigger y estado',
+        description: 'Lists all database triggers with their associated table, trigger type, and status',
         inputSchema: z.object({}),
         handler: async () => {
             logger.info('Listing triggers');
@@ -281,7 +279,7 @@ export function setupMetadataTools(databaseTools: Map<string, any>): Map<string,
                 return {
                     content: [{
                         type: "text",
-                        text: `Triggers en la base de datos:\n\n${formatForClaude({
+                        text: `Database triggers:\n\n${formatForClaude({
                             totalTriggers: triggers.length,
                             triggers: triggers
                         })}`
@@ -305,9 +303,9 @@ export function setupMetadataTools(databaseTools: Map<string, any>): Map<string,
     // Herramienta para describir un trigger específico
     tools.set('describe-trigger', {
         title: 'Describe Trigger',
-        description: 'Obtiene información detallada sobre un trigger específico incluyendo su código fuente, tipo, secuencia y estado',
+        description: 'Gets detailed information about a specific trigger, including its source code, type, sequence, and status',
         inputSchema: z.object({
-            triggerName: z.string().describe('Nombre del trigger a describir')
+            triggerName: z.string().describe('Name of the trigger to describe')
         }),
         handler: async (args: { triggerName: string }) => {
             const { triggerName } = args;
@@ -323,7 +321,7 @@ export function setupMetadataTools(databaseTools: Map<string, any>): Map<string,
                 return {
                     content: [{
                         type: "text",
-                        text: `Detalles del trigger '${triggerName}':\n\n${formatForClaude(trigger)}`
+                        text: `Details for trigger '${triggerName}':\n\n${formatForClaude(trigger)}`
                     }]
                 };
             } catch (error) {
@@ -344,7 +342,7 @@ export function setupMetadataTools(databaseTools: Map<string, any>): Map<string,
     // Herramienta para listar procedimientos almacenados
     tools.set('list-procedures', {
         title: 'List Stored Procedures',
-        description: 'Lista todos los procedimientos almacenados en la base de datos con información sobre parámetros de entrada/salida',
+        description: 'Lists all stored procedures in the database with input and output parameter information',
         inputSchema: z.object({}),
         handler: async () => {
             logger.info('Listing stored procedures');
@@ -359,7 +357,7 @@ export function setupMetadataTools(databaseTools: Map<string, any>): Map<string,
                 return {
                     content: [{
                         type: "text",
-                        text: `Procedimientos almacenados en la base de datos:\n\n${formatForClaude({
+                        text: `Stored procedures in the database:\n\n${formatForClaude({
                             totalProcedures: procedures.length,
                             procedures: procedures
                         })}`
@@ -383,9 +381,9 @@ export function setupMetadataTools(databaseTools: Map<string, any>): Map<string,
     // Herramienta para describir un procedimiento almacenado específico
     tools.set('describe-procedure', {
         title: 'Describe Stored Procedure',
-        description: 'Obtiene información detallada sobre un procedimiento almacenado específico incluyendo su código fuente y parámetros',
+        description: 'Gets detailed information about a specific stored procedure, including its source code and parameters',
         inputSchema: z.object({
-            procedureName: z.string().describe('Nombre del procedimiento almacenado a describir')
+            procedureName: z.string().describe('Name of the stored procedure to describe')
         }),
         handler: async (args: { procedureName: string }) => {
             const { procedureName } = args;
@@ -401,7 +399,7 @@ export function setupMetadataTools(databaseTools: Map<string, any>): Map<string,
                 return {
                     content: [{
                         type: "text",
-                        text: `Detalles del procedimiento '${procedureName}':\n\n${formatForClaude(procedure)}`
+                        text: `Details for procedure '${procedureName}':\n\n${formatForClaude(procedure)}`
                     }]
                 };
             } catch (error) {
@@ -422,7 +420,7 @@ export function setupMetadataTools(databaseTools: Map<string, any>): Map<string,
     // Herramienta para listar funciones
     tools.set('list-functions', {
         title: 'List Functions',
-        description: 'Lista todas las funciones en la base de datos (UDFs y PSQL functions)',
+        description: 'Lists all functions in the database (UDFs and PSQL functions)',
         inputSchema: z.object({}),
         handler: async () => {
             logger.info('Listing functions');
@@ -437,7 +435,7 @@ export function setupMetadataTools(databaseTools: Map<string, any>): Map<string,
                 return {
                     content: [{
                         type: "text",
-                        text: `Funciones en la base de datos:\n\n${formatForClaude({
+                        text: `Functions in the database:\n\n${formatForClaude({
                             totalFunctions: functions.length,
                             functions: functions
                         })}`
@@ -461,9 +459,9 @@ export function setupMetadataTools(databaseTools: Map<string, any>): Map<string,
     // Herramienta para describir una función específica
     tools.set('describe-function', {
         title: 'Describe Function',
-        description: 'Obtiene información detallada sobre una función específica incluyendo su código fuente (si es PSQL function)',
+        description: 'Gets detailed information about a specific function, including its source code (for PSQL functions)',
         inputSchema: z.object({
-            functionName: z.string().describe('Nombre de la función a describir')
+            functionName: z.string().describe('Name of the function to describe')
         }),
         handler: async (args: { functionName: string }) => {
             const { functionName } = args;
@@ -479,7 +477,7 @@ export function setupMetadataTools(databaseTools: Map<string, any>): Map<string,
                 return {
                     content: [{
                         type: "text",
-                        text: `Detalles de la función '${functionName}':\n\n${formatForClaude(func)}`
+                        text: `Details for function '${functionName}':\n\n${formatForClaude(func)}`
                     }]
                 };
             } catch (error) {
@@ -500,7 +498,7 @@ export function setupMetadataTools(databaseTools: Map<string, any>): Map<string,
     // Herramienta para listar paquetes
     tools.set('list-packages', {
         title: 'List Packages',
-        description: 'Lista todos los paquetes en la base de datos (disponible en Firebird 3.0+)',
+        description: 'Lists all packages in the database (available in Firebird 3.0+)',
         inputSchema: z.object({}),
         handler: async () => {
             logger.info('Listing packages');
@@ -515,7 +513,7 @@ export function setupMetadataTools(databaseTools: Map<string, any>): Map<string,
                 return {
                     content: [{
                         type: "text",
-                        text: `Paquetes en la base de datos:\n\n${formatForClaude({
+                        text: `Packages in the database:\n\n${formatForClaude({
                             totalPackages: packages.length,
                             packages: packages
                         })}`
@@ -539,9 +537,9 @@ export function setupMetadataTools(databaseTools: Map<string, any>): Map<string,
     // Herramienta para describir un paquete específico
     tools.set('describe-package', {
         title: 'Describe Package',
-        description: 'Obtiene información detallada sobre un paquete específico incluyendo su header y body source',
+        description: 'Gets detailed information about a specific package, including its header and body source',
         inputSchema: z.object({
-            packageName: z.string().describe('Nombre del paquete a describir')
+            packageName: z.string().describe('Name of the package to describe')
         }),
         handler: async (args: { packageName: string }) => {
             const { packageName } = args;
@@ -557,7 +555,7 @@ export function setupMetadataTools(databaseTools: Map<string, any>): Map<string,
                 return {
                     content: [{
                         type: "text",
-                        text: `Detalles del paquete '${packageName}':\n\n${formatForClaude(pkg)}`
+                        text: `Details for package '${packageName}':\n\n${formatForClaude(pkg)}`
                     }]
                 };
             } catch (error) {

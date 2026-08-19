@@ -25,8 +25,8 @@ export const getConfig = (): ConfigOptions => {
 
         // Validación básica
         if (!config.database) { // Restore validation
-            logger.error('La variable de entorno FIREBIRD_DATABASE es obligatoria.');
-            throw new Error('Configuración de base de datos incompleta: falta FIREBIRD_DATABASE.');
+            logger.error('The FIREBIRD_DATABASE environment variable is required.');
+            throw new Error('Incomplete database configuration: FIREBIRD_DATABASE is missing.');
         }
         if (isNaN(config.port)) {
             logger.warn(`Puerto inválido (FIREBIRD_PORT=${process.env.FIREBIRD_PORT}), usando puerto por defecto ${DEFAULT_DB_CONFIG.port}`);

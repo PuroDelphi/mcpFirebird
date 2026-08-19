@@ -50,7 +50,7 @@ const serverApiKey = process.env.FIREBIRD_API_KEY || process.env.FB_API_KEY;
 if (serverApiKey) {
   const clientToken = apiKeyParam || process.env.FIREBIRD_CLIENT_TOKEN || resolvedPassword;
   if (clientToken !== serverApiKey) {
-    console.error('ERROR: Acceso denegado: Token de autorización EMA (API Key) inválido o ausente.');
+    console.error('ERROR: Access denied: Invalid or missing EMA authorization token (API key).');
     process.exit(1);
   }
   // Authorization passed, inject real password

@@ -2,6 +2,29 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.9.0] - 2026-08-19
+
+### Added
+- Native API-key authorization for HTTP transports when `FIREBIRD_API_KEY` is configured.
+- Configurable CORS restrictions through `MCP_ALLOWED_ORIGIN`.
+- Regression coverage for connection-pool recovery and MCP query output compatibility.
+
+### Changed
+- `execute-query` and `execute-batch-queries` now return object-shaped payloads (`rows` and `results`) for strict MCP clients such as Gemini CLI.
+- Database tool descriptions, resource responses, and propagated server errors are now consistently returned to LLM clients in English.
+- Streamable HTTP is prioritized in the example environment and Docker configuration.
+- The connection pool now validates reused connections, recycles idle connections, and recovers after failed connection attempts.
+- Native-driver connection handling now releases failed or discarded handles more reliably.
+
+### Security
+- Removed dynamic code execution and unsafe configuration mutation paths.
+- Removed backup and restore tools that depended on external shell commands.
+- Pinned `range-parser` to `1.2.1` as a supply-chain precaution.
+- Excluded local `.env` files from npm packages.
+
+### Fixed
+- Fixed MCP schema validation failures reported in [#29](https://github.com/PuroDelphi/mcpFirebird/issues/29). Thanks to @polina-lopatniuk for reporting and verifying the fix.
+
 ## [2.8.4] - 2026-06-25
 
 ### 🛡️ Security Hotfix

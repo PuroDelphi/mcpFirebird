@@ -24,15 +24,15 @@ export const setupDatabaseResources = (): Map<string, ResourceDefinition> => {
 
     // --- Definición del Recurso: Lista de Tablas --- (URI: /tables)
     const listTablesResource: ResourceDefinition = {
-        description: "Recurso que representa la lista de todas las tablas en la base de datos.",
+        description: "Resource representing the list of all tables in the database.",
         handler: async () => {
-            logger.info("Accediendo al recurso /tables");
+            logger.info("Accessing the /tables resource");
             try {
                 const tables = await listTables();
                 return { tables };
             } catch (error: any) {
-                logger.error(`Error al obtener la lista de tablas para el recurso /tables: ${error.message || error}`);
-                return { contents: [], error: "Error interno al listar tablas", details: error.message || String(error) };
+                logger.error(`Error getting the table list for the /tables resource: ${error.message || error}`);
+                return { contents: [], error: "Internal error listing tables", details: error.message || String(error) };
             }
         }
     };
@@ -40,20 +40,20 @@ export const setupDatabaseResources = (): Map<string, ResourceDefinition> => {
 
     // --- Definición del Recurso: Esquema de Tabla --- (URI: /tables/{tableName}/schema)
     const tableSchemaResource: ResourceDefinition = {
-        description: "Recurso que representa el esquema de una tabla específica.",
+        description: "Resource representing the schema of a specific table.",
         handler: async (params) => {
             const tableName = params.tableName;
             if (!tableName) {
-                logger.warn("Intento de acceso a /tables/{tableName}/schema sin tableName");
-                return { contents: [], error: "Falta el nombre de la tabla en la URI" };
+                logger.warn("Attempted to access /tables/{tableName}/schema without tableName");
+                return { contents: [], error: "The table name is missing from the URI" };
             }
-            logger.info(`Accediendo al recurso /tables/${tableName}/schema`);
+            logger.info(`Accessing the /tables/${tableName}/schema resource`);
             try {
                 const schema = await getTableSchema(tableName);
                 return schema;
             } catch (error: any) {
-                logger.error(`Error al obtener el esquema para el recurso /tables/${tableName}/schema: ${error.message || error}`);
-                return { contents: [], error: `Error interno al obtener esquema para ${tableName}`, details: error.message || String(error) };
+                logger.error(`Error getting the schema for the /tables/${tableName}/schema resource: ${error.message || error}`);
+                return { contents: [], error: `Internal error getting schema for ${tableName}`, details: error.message || String(error) };
             }
         }
     };
@@ -62,21 +62,21 @@ export const setupDatabaseResources = (): Map<string, ResourceDefinition> => {
 
     // --- Definición del Recurso: Descripción de Tabla (describeTable) --- (URI: /tables/{tableName}/description)
     const tableDescriptionResource: ResourceDefinition = {
-        description: "Recurso que representa la descripción detallada (columnas, tipos, etc.) de una tabla específica.",
+        description: "Resource representing the detailed description (columns, types, etc.) of a specific table.",
         handler: async (params) => {
             const tableName = params.tableName;
             if (!tableName) {
-                logger.warn("Intento de acceso a /tables/{tableName}/description sin tableName");
-                return { contents: [], error: "Falta el nombre de la tabla en la URI" };
+                logger.warn("Attempted to access /tables/{tableName}/description without tableName");
+                return { contents: [], error: "The table name is missing from the URI" };
             }
-            logger.info(`Accediendo al recurso /tables/${tableName}/description`);
+            logger.info(`Accessing the /tables/${tableName}/description resource`);
             try {
                 // Asumiendo que describeTable devuelve un objeto adecuado
                 const description = await describeTable(tableName);
                 return description;
             } catch (error: any) {
-                logger.error(`Error al obtener la descripción para el recurso /tables/${tableName}/description: ${error.message || error}`);
-                return { contents: [], error: `Error interno al obtener descripción para ${tableName}`, details: error.message || String(error) };
+                logger.error(`Error getting the description for the /tables/${tableName}/description resource: ${error.message || error}`);
+                return { contents: [], error: `Internal error getting description for ${tableName}`, details: error.message || String(error) };
             }
         }
     };
@@ -85,10 +85,10 @@ export const setupDatabaseResources = (): Map<string, ResourceDefinition> => {
     // --- Recurso: Esquema Completo de la Base de Datos --- (URI: /schema)
     const databaseSchemaResource: ResourceDefinition = {
         title: "Database Schema",
-        description: "Recurso que representa el esquema completo de la base de datos con todas las tablas y sus relaciones.",
+        description: "Resource representing the complete database schema with all tables and their relationships.",
         mimeType: "application/json",
         handler: async () => {
-            logger.info("Accediendo al recurso /schema");
+            logger.info("Accessing the /schema resource");
             try {
                 const tables = await listTables();
                 const schemas = await Promise.all(
@@ -97,7 +97,7 @@ export const setupDatabaseResources = (): Map<string, ResourceDefinition> => {
                             const schema = await getTableSchema(tableName);
                             return { tableName, schema };
                         } catch (error: any) {
-                            logger.warn(`Error al obtener esquema de ${tableName}: ${error.message}`);
+                            logger.warn(`Error getting schema for ${tableName}: ${error.message}`);
                             return { tableName, error: error.message };
                         }
                     })
@@ -108,8 +108,8 @@ export const setupDatabaseResources = (): Map<string, ResourceDefinition> => {
                     totalTables: tables.length
                 };
             } catch (error: any) {
-                logger.error(`Error al obtener esquema completo: ${error.message || error}`);
-                return { error: "Error interno al obtener esquema completo", details: error.message || String(error) };
+                logger.error(`Error getting the complete schema: ${error.message || error}`);
+                return { error: "Internal error getting the complete schema", details: error.message || String(error) };
             }
         }
     };
@@ -118,15 +118,15 @@ export const setupDatabaseResources = (): Map<string, ResourceDefinition> => {
     // --- Recurso: Índices de una Tabla --- (URI: /tables/{tableName}/indexes)
     const tableIndexesResource: ResourceDefinition = {
         title: "Table Indexes",
-        description: "Recurso que representa los índices de una tabla específica.",
+        description: "Resource representing the indexes of a specific table.",
         mimeType: "application/json",
         handler: async (params) => {
             const tableName = params.tableName;
             if (!tableName) {
-                logger.warn("Intento de acceso a /tables/{tableName}/indexes sin tableName");
-                return { error: "Falta el nombre de la tabla en la URI" };
+                logger.warn("Attempted to access /tables/{tableName}/indexes without tableName");
+                return { error: "The table name is missing from the URI" };
             }
-            logger.info(`Accediendo al recurso /tables/${tableName}/indexes`);
+            logger.info(`Accessing the /tables/${tableName}/indexes resource`);
             try {
                 const sql = `
                     SELECT
@@ -151,8 +151,8 @@ export const setupDatabaseResources = (): Map<string, ResourceDefinition> => {
                     }))
                 };
             } catch (error: any) {
-                logger.error(`Error al obtener índices para ${tableName}: ${error.message || error}`);
-                return { error: `Error interno al obtener índices para ${tableName}`, details: error.message || String(error) };
+                logger.error(`Error getting indexes for ${tableName}: ${error.message || error}`);
+                return { error: `Internal error getting indexes for ${tableName}`, details: error.message || String(error) };
             }
         }
     };
@@ -161,15 +161,15 @@ export const setupDatabaseResources = (): Map<string, ResourceDefinition> => {
     // --- Recurso: Constraints de una Tabla --- (URI: /tables/{tableName}/constraints)
     const tableConstraintsResource: ResourceDefinition = {
         title: "Table Constraints",
-        description: "Recurso que representa las restricciones (constraints) de una tabla específica.",
+        description: "Resource representing the constraints of a specific table.",
         mimeType: "application/json",
         handler: async (params) => {
             const tableName = params.tableName;
             if (!tableName) {
-                logger.warn("Intento de acceso a /tables/{tableName}/constraints sin tableName");
-                return { error: "Falta el nombre de la tabla en la URI" };
+                logger.warn("Attempted to access /tables/{tableName}/constraints without tableName");
+                return { error: "The table name is missing from the URI" };
             }
-            logger.info(`Accediendo al recurso /tables/${tableName}/constraints`);
+            logger.info(`Accessing the /tables/${tableName}/constraints resource`);
             try {
                 const sql = `
                     SELECT
@@ -192,8 +192,8 @@ export const setupDatabaseResources = (): Map<string, ResourceDefinition> => {
                     }))
                 };
             } catch (error: any) {
-                logger.error(`Error al obtener constraints para ${tableName}: ${error.message || error}`);
-                return { error: `Error interno al obtener constraints para ${tableName}`, details: error.message || String(error) };
+                logger.error(`Error getting constraints for ${tableName}: ${error.message || error}`);
+                return { error: `Internal error getting constraints for ${tableName}`, details: error.message || String(error) };
             }
         }
     };
@@ -202,15 +202,15 @@ export const setupDatabaseResources = (): Map<string, ResourceDefinition> => {
     // --- Recurso: Triggers de una Tabla --- (URI: /tables/{tableName}/triggers)
     const tableTriggersResource: ResourceDefinition = {
         title: "Table Triggers",
-        description: "Recurso que representa los triggers de una tabla específica.",
+        description: "Resource representing the triggers of a specific table.",
         mimeType: "application/json",
         handler: async (params) => {
             const tableName = params.tableName;
             if (!tableName) {
-                logger.warn("Intento de acceso a /tables/{tableName}/triggers sin tableName");
-                return { error: "Falta el nombre de la tabla en la URI" };
+                logger.warn("Attempted to access /tables/{tableName}/triggers without tableName");
+                return { error: "The table name is missing from the URI" };
             }
-            logger.info(`Accediendo al recurso /tables/${tableName}/triggers`);
+            logger.info(`Accessing the /tables/${tableName}/triggers resource`);
             try {
                 const sql = `
                     SELECT
@@ -237,8 +237,8 @@ export const setupDatabaseResources = (): Map<string, ResourceDefinition> => {
                     }))
                 };
             } catch (error: any) {
-                logger.error(`Error al obtener triggers para ${tableName}: ${error.message || error}`);
-                return { error: `Error interno al obtener triggers para ${tableName}`, details: error.message || String(error) };
+                logger.error(`Error getting triggers for ${tableName}: ${error.message || error}`);
+                return { error: `Internal error getting triggers for ${tableName}`, details: error.message || String(error) };
             }
         }
     };
@@ -247,10 +247,10 @@ export const setupDatabaseResources = (): Map<string, ResourceDefinition> => {
     // --- Recurso: Estadísticas de la Base de Datos --- (URI: /statistics)
     const databaseStatisticsResource: ResourceDefinition = {
         title: "Database Statistics",
-        description: "Recurso que representa estadísticas generales de la base de datos.",
+        description: "Resource representing general database statistics.",
         mimeType: "application/json",
         handler: async () => {
-            logger.info("Accediendo al recurso /statistics");
+            logger.info("Accessing the /statistics resource");
             try {
                 const tables = await listTables();
                 const tableStats = await Promise.all(
@@ -263,7 +263,7 @@ export const setupDatabaseResources = (): Map<string, ResourceDefinition> => {
                                 rowCount: result[0]?.ROW_COUNT || 0
                             };
                         } catch (error: any) {
-                            logger.warn(`Error al contar filas de ${tableName}: ${error.message}`);
+                            logger.warn(`Error counting rows in ${tableName}: ${error.message}`);
                             return { tableName, rowCount: 0, error: error.message };
                         }
                     })
@@ -277,8 +277,8 @@ export const setupDatabaseResources = (): Map<string, ResourceDefinition> => {
                     tables: tableStats
                 };
             } catch (error: any) {
-                logger.error(`Error al obtener estadísticas: ${error.message || error}`);
-                return { error: "Error interno al obtener estadísticas", details: error.message || String(error) };
+                logger.error(`Error getting statistics: ${error.message || error}`);
+                return { error: "Internal error getting statistics", details: error.message || String(error) };
             }
         }
     };
@@ -286,6 +286,6 @@ export const setupDatabaseResources = (): Map<string, ResourceDefinition> => {
 
     // Añadir más recursos aquí...
 
-    logger.info(`Definidos ${resources.size} recursos de base de datos.`);
+    logger.info(`Defined ${resources.size} database resources.`);
     return resources;
 };

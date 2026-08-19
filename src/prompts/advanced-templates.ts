@@ -88,8 +88,8 @@ ${params.migrationType === 'platform-migration' ? `
 ` : ''}
 
 ### 2.2 Backup Strategy
-- Use \`backup-database\` to create pre-migration backup
-- Verify backup integrity with \`validate-database\`
+- Create pre-migration backup using your preferred Firebird tools (e.g. gbak)
+- Verify backup integrity
 - Document backup location and retention
 - Test restore procedure
 
@@ -153,7 +153,7 @@ Define conditions that require rollback:
 
 ### 5.2 Rollback Procedure
 1. Stop all application access
-2. Use \`restore-database\` from backup
+2. Restore database from backup using external tools
 3. Verify restoration success
 4. Test critical functionality
 5. Resume normal operations
@@ -182,9 +182,6 @@ Define conditions that require rollback:
 ## Tools and Resources to Use
 
 **MCP Tools:**
-- \`backup-database\` - Create backups
-- \`restore-database\` - Restore from backup
-- \`validate-database\` - Verify integrity
 - \`execute-query\` - Run migration scripts
 - \`analyze-query-performance\` - Test performance
 - \`describe-table\` - Verify schema changes
@@ -288,14 +285,13 @@ ${scope.includes('access-control') || scope.includes('all') ? `
 
 ${scope.includes('data-protection') || scope.includes('all') ? `
 ### 3.1 Backup Security
-- Use \`backup-database\` to verify backup functionality
+- Verify backup functionality via external tools
 - Check backup encryption
 - Review backup storage security
 - Verify backup retention policies
 - Test restore procedures
 
 ### 3.2 Data Integrity
-- Use \`validate-database\` to check integrity
 - Review constraint definitions using \`/tables/{tableName}/constraints\`
 - Verify foreign key relationships
 - Check for orphaned records
@@ -400,8 +396,6 @@ Provide specific, actionable recommendations:
 **MCP Tools:**
 - \`verify-wire-encryption\` - Check encryption status
 - \`get-database-info\` - Database configuration
-- \`validate-database\` - Data integrity
-- \`backup-database\` - Backup functionality
 - \`describe-table\` - Schema review
 
 **MCP Resources:**

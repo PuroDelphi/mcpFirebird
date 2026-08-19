@@ -11,5 +11,6 @@ tsconfig.build.json
 .eslintrc.js
 .eslintrc.json
 .prettierrc
+.env
 .env.example
 run-inspector.cjs

@@ -75,7 +75,7 @@ async function loadMCPModules(): Promise<MCPModules> {
     } catch (error) {
         logger.error('Error al cargar módulos MCP');
         throw new FirebirdError(
-            `No se pudieron cargar los módulos MCP: ${error instanceof Error ? error.message : String(error)}`,
+            `Could not load the MCP modules: ${error instanceof Error ? error.message : String(error)}`,
             'MODULE_LOAD_ERROR',
             error
         );
