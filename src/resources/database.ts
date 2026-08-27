@@ -2,6 +2,7 @@
 import { createLogger } from '../utils/logger.js';
 import { listTables, describeTable, executeQuery } from '../db/queries.js';
 import { getTableSchema } from '../db/schema.js';
+import { ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
 
 const logger = createLogger('database'); // Provide string argument
 
@@ -9,6 +10,7 @@ const logger = createLogger('database'); // Provide string argument
  * Interfaz para definir un Recurso MCP.
  */
 export interface ResourceDefinition {
+    name: string;
     title?: string; // Título del recurso
     description: string; // Descripción del recurso
     mimeType?: string; // Tipo MIME del contenido
@@ -24,6 +26,8 @@ export const setupDatabaseResources = (): Map<string, ResourceDefinition> => {
 
     // --- Definición del Recurso: Lista de Tablas --- (URI: /tables)
     const listTablesResource: ResourceDefinition = {
+        name: "database-tables",
+        title: "Database Tables",
         description: "Resource representing the list of all tables in the database.",
         handler: async () => {
             logger.info("Accessing the /tables resource");
@@ -36,10 +40,12 @@ export const setupDatabaseResources = (): Map<string, ResourceDefinition> => {
             }
         }
     };
-    resources.set("/tables", listTablesResource); // Usar URI como clave
+    resources.set("firebird://tables", listTablesResource);
 
     // --- Definición del Recurso: Esquema de Tabla --- (URI: /tables/{tableName}/schema)
     const tableSchemaResource: ResourceDefinition = {
+        name: "table-schema",
+        title: "Table Schema",
         description: "Resource representing the schema of a specific table.",
         handler: async (params) => {
             const tableName = params.tableName;
@@ -58,10 +64,12 @@ export const setupDatabaseResources = (): Map<string, ResourceDefinition> => {
         }
     };
     // La clave podría ser la plantilla URI para que el handler en index.ts pueda hacer matching
-    resources.set("/tables/{tableName}/schema", tableSchemaResource);
+    resources.set("firebird://tables/{tableName}/schema", tableSchemaResource);
 
     // --- Definición del Recurso: Descripción de Tabla (describeTable) --- (URI: /tables/{tableName}/description)
     const tableDescriptionResource: ResourceDefinition = {
+        name: "table-description",
+        title: "Table Description",
         description: "Resource representing the detailed description (columns, types, etc.) of a specific table.",
         handler: async (params) => {
             const tableName = params.tableName;
@@ -80,10 +88,11 @@ export const setupDatabaseResources = (): Map<string, ResourceDefinition> => {
             }
         }
     };
-    resources.set("/tables/{tableName}/description", tableDescriptionResource);
+    resources.set("firebird://tables/{tableName}/description", tableDescriptionResource);
 
     // --- Recurso: Esquema Completo de la Base de Datos --- (URI: /schema)
     const databaseSchemaResource: ResourceDefinition = {
+        name: "database-schema",
         title: "Database Schema",
         description: "Resource representing the complete database schema with all tables and their relationships.",
         mimeType: "application/json",
@@ -113,10 +122,11 @@ export const setupDatabaseResources = (): Map<string, ResourceDefinition> => {
             }
         }
     };
-    resources.set("/schema", databaseSchemaResource);
+    resources.set("firebird://schema", databaseSchemaResource);
 
     // --- Recurso: Índices de una Tabla --- (URI: /tables/{tableName}/indexes)
     const tableIndexesResource: ResourceDefinition = {
+        name: "table-indexes",
         title: "Table Indexes",
         description: "Resource representing the indexes of a specific table.",
         mimeType: "application/json",
@@ -156,10 +166,11 @@ export const setupDatabaseResources = (): Map<string, ResourceDefinition> => {
             }
         }
     };
-    resources.set("/tables/{tableName}/indexes", tableIndexesResource);
+    resources.set("firebird://tables/{tableName}/indexes", tableIndexesResource);
 
     // --- Recurso: Constraints de una Tabla --- (URI: /tables/{tableName}/constraints)
     const tableConstraintsResource: ResourceDefinition = {
+        name: "table-constraints",
         title: "Table Constraints",
         description: "Resource representing the constraints of a specific table.",
         mimeType: "application/json",
@@ -197,10 +208,11 @@ export const setupDatabaseResources = (): Map<string, ResourceDefinition> => {
             }
         }
     };
-    resources.set("/tables/{tableName}/constraints", tableConstraintsResource);
+    resources.set("firebird://tables/{tableName}/constraints", tableConstraintsResource);
 
     // --- Recurso: Triggers de una Tabla --- (URI: /tables/{tableName}/triggers)
     const tableTriggersResource: ResourceDefinition = {
+        name: "table-triggers",
         title: "Table Triggers",
         description: "Resource representing the triggers of a specific table.",
         mimeType: "application/json",
@@ -242,10 +254,11 @@ export const setupDatabaseResources = (): Map<string, ResourceDefinition> => {
             }
         }
     };
-    resources.set("/tables/{tableName}/triggers", tableTriggersResource);
+    resources.set("firebird://tables/{tableName}/triggers", tableTriggersResource);
 
     // --- Recurso: Estadísticas de la Base de Datos --- (URI: /statistics)
     const databaseStatisticsResource: ResourceDefinition = {
+        name: "database-statistics",
         title: "Database Statistics",
         description: "Resource representing general database statistics.",
         mimeType: "application/json",
@@ -282,10 +295,56 @@ export const setupDatabaseResources = (): Map<string, ResourceDefinition> => {
             }
         }
     };
-    resources.set("/statistics", databaseStatisticsResource);
+    resources.set("firebird://statistics", databaseStatisticsResource);
 
     // Añadir más recursos aquí...
 
     logger.info(`Defined ${resources.size} database resources.`);
     return resources;
+};
+
+/**
+ * Registers database resources with the modern MCP SDK. Static URIs are
+ * exposed through resources/list, while parameterized URIs are exposed
+ * through resources/templates/list.
+ */
+export const registerDatabaseResources = (
+    server: any,
+    resources: Map<string, ResourceDefinition> = setupDatabaseResources()
+): number => {
+    for (const [uriPattern, resource] of resources.entries()) {
+        const uriOrTemplate = uriPattern.includes('{')
+            ? new ResourceTemplate(uriPattern, { list: undefined })
+            : uriPattern;
+
+        server.registerResource(
+            resource.name,
+            uriOrTemplate,
+            {
+                title: resource.title || resource.name,
+                description: resource.description,
+                mimeType: resource.mimeType || 'application/json'
+            },
+            async (uri: URL, variables: Record<string, string | string[]> = {}) => {
+                const params = Object.fromEntries(
+                    Object.entries(variables).map(([key, value]) => [
+                        key,
+                        Array.isArray(value) ? value[0] : value
+                    ])
+                );
+                const result = await resource.handler(params);
+
+                return {
+                    contents: [{
+                        uri: uri.href,
+                        mimeType: resource.mimeType || 'application/json',
+                        text: JSON.stringify(result, null, 2)
+                    }]
+                };
+            }
+        );
+        logger.info(`Registered database resource: ${uriPattern}`);
+    }
+
+    return resources.size;
 };
