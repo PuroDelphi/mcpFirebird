@@ -45,6 +45,66 @@ const transport = new StreamableHTTPClientTransport(
 );
 ```
 
+## Configuración de CORS
+
+CORS solo afecta a clientes ejecutados dentro de un navegador. Los clientes STDIO, Claude Desktop, n8n y otros clientes de servidor no dependen de CORS.
+
+Por compatibilidad, el valor predeterminado permite cualquier origen (`*`) y admite el encabezado `Authorization`. Las credenciales del navegador (cookies o autenticación HTTP automática) permanecen desactivadas, porque los navegadores no permiten combinar credenciales con un origen comodín.
+
+Para restringir el acceso a uno o varios sitios web:
+
+```bash
+# Un solo origen
+export MCP_ALLOWED_ORIGIN="https://app.example.com"
+
+# Varios orígenes separados por comas
+export MCP_ALLOWED_ORIGIN="https://app.example.com,https://admin.example.com"
+```
+
+En Windows PowerShell:
+
+```powershell
+$env:MCP_ALLOWED_ORIGIN="https://app.example.com,https://admin.example.com"
+```
+
+Los clientes deben enviar la clave mediante `Authorization: Bearer <token>`; no deben enviarla como cookie ni como parámetro de la URL.
+
+## Consultas SQL de escritura
+
+Las herramientas de consulta permiten `SELECT` y procedimientos autorizados de forma predeterminada. Las operaciones SQL directas de escritura o DDL (`INSERT`, `UPDATE`, `DELETE`, `CREATE`, etc.) están desactivadas para reducir el riesgo de que contenido no confiable induzca al LLM a modificar la base de datos.
+
+En una instalación controlada que necesite conservar las escrituras directas:
+
+```bash
+export ALLOW_RAW_SQL=true
+```
+
+En Windows PowerShell:
+
+```powershell
+$env:ALLOW_RAW_SQL="true"
+```
+
+Activa esta opción únicamente con un usuario Firebird de privilegios mínimos. La herramienta `get-table-data` no acepta cláusulas SQL libres: usa `filters` y `orderBy` estructurados para parametrizar valores y validar nombres de columnas.
+
+Ejemplo:
+
+```json
+{
+  "tableName": "CUSTOMERS",
+  "first": 100,
+  "filters": [
+    { "column": "ACTIVE", "operator": "eq", "value": 1 },
+    { "column": "NAME", "operator": "like", "value": "A%" }
+  ],
+  "orderBy": [
+    { "column": "NAME", "direction": "ASC" }
+  ]
+}
+```
+
+Operadores disponibles: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`, `like`, `in`, `isNull` e `isNotNull`.
+
 ## Restricción de acceso a tablas y vistas
 
 Puedes restringir qué tablas y vistas están disponibles para el servidor MCP usando filtros de inclusión y exclusión:

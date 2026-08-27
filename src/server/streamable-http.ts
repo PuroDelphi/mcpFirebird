@@ -80,10 +80,7 @@ export function createStreamableHttpRouter(createServerInstance: () => Promise<M
     // Health check endpoint
     router.get('/health', (req, res) => {
         res.json({
-            status: 'healthy',
-            mode: STATELESS_MODE ? 'stateless' : 'stateful',
-            activeSessions: STATELESS_MODE ? 'N/A' : Object.keys(activeSessions).length,
-            uptime: process.uptime()
+            status: 'healthy'
         });
     });
 
@@ -290,9 +287,7 @@ async function handleStatelessRequest(
         await transport.handleRequest(req, res, req.body);
     } catch (error) {
         logger.error('Error in stateless request handling:', {
-            error: error instanceof Error ? error.message : String(error),
-            stack: error instanceof Error ? error.stack : undefined,
-            body: req.body
+            error: error instanceof Error ? error.message : String(error)
         });
         throw error;
     }

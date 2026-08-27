@@ -3,6 +3,8 @@ import { createLogger } from '../utils/logger.js';
 import { listTables, describeTable, executeQuery } from '../db/queries.js';
 import { getTableSchema } from '../db/schema.js';
 import { ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { checkAllowedTable } from '../security/authorization.js';
+import { quoteIdentifier } from '../utils/security.js';
 
 const logger = createLogger('database'); // Provide string argument
 
@@ -36,7 +38,7 @@ export const setupDatabaseResources = (): Map<string, ResourceDefinition> => {
                 return { tables };
             } catch (error: any) {
                 logger.error(`Error getting the table list for the /tables resource: ${error.message || error}`);
-                return { contents: [], error: "Internal error listing tables", details: error.message || String(error) };
+                return { contents: [], error: "Internal error listing tables" };
             }
         }
     };
@@ -55,11 +57,12 @@ export const setupDatabaseResources = (): Map<string, ResourceDefinition> => {
             }
             logger.info(`Accessing the /tables/${tableName}/schema resource`);
             try {
+                checkAllowedTable(tableName);
                 const schema = await getTableSchema(tableName);
                 return schema;
             } catch (error: any) {
                 logger.error(`Error getting the schema for the /tables/${tableName}/schema resource: ${error.message || error}`);
-                return { contents: [], error: `Internal error getting schema for ${tableName}`, details: error.message || String(error) };
+                return { contents: [], error: `Internal error getting schema for ${tableName}` };
             }
         }
     };
@@ -79,12 +82,13 @@ export const setupDatabaseResources = (): Map<string, ResourceDefinition> => {
             }
             logger.info(`Accessing the /tables/${tableName}/description resource`);
             try {
+                checkAllowedTable(tableName);
                 // Asumiendo que describeTable devuelve un objeto adecuado
                 const description = await describeTable(tableName);
                 return description;
             } catch (error: any) {
                 logger.error(`Error getting the description for the /tables/${tableName}/description resource: ${error.message || error}`);
-                return { contents: [], error: `Internal error getting description for ${tableName}`, details: error.message || String(error) };
+                return { contents: [], error: `Internal error getting description for ${tableName}` };
             }
         }
     };
@@ -118,7 +122,7 @@ export const setupDatabaseResources = (): Map<string, ResourceDefinition> => {
                 };
             } catch (error: any) {
                 logger.error(`Error getting the complete schema: ${error.message || error}`);
-                return { error: "Internal error getting the complete schema", details: error.message || String(error) };
+                return { error: "Internal error getting the complete schema" };
             }
         }
     };
@@ -138,6 +142,7 @@ export const setupDatabaseResources = (): Map<string, ResourceDefinition> => {
             }
             logger.info(`Accessing the /tables/${tableName}/indexes resource`);
             try {
+                checkAllowedTable(tableName);
                 const sql = `
                     SELECT
                         RDB$INDEX_NAME AS INDEX_NAME,
@@ -146,11 +151,11 @@ export const setupDatabaseResources = (): Map<string, ResourceDefinition> => {
                         RDB$INDEX_TYPE AS INDEX_TYPE,
                         RDB$SEGMENT_COUNT AS SEGMENT_COUNT
                     FROM RDB$INDICES
-                    WHERE RDB$RELATION_NAME = '${tableName.toUpperCase()}'
+                    WHERE RDB$RELATION_NAME = ?
                     AND RDB$SYSTEM_FLAG = 0
                     ORDER BY RDB$INDEX_NAME
                 `;
-                const indexes = await executeQuery(sql);
+                const indexes = await executeQuery(sql, [tableName.toUpperCase()]);
                 return {
                     tableName,
                     indexes: indexes.map((idx: any) => ({
@@ -162,7 +167,7 @@ export const setupDatabaseResources = (): Map<string, ResourceDefinition> => {
                 };
             } catch (error: any) {
                 logger.error(`Error getting indexes for ${tableName}: ${error.message || error}`);
-                return { error: `Internal error getting indexes for ${tableName}`, details: error.message || String(error) };
+                return { error: `Internal error getting indexes for ${tableName}` };
             }
         }
     };
@@ -182,6 +187,7 @@ export const setupDatabaseResources = (): Map<string, ResourceDefinition> => {
             }
             logger.info(`Accessing the /tables/${tableName}/constraints resource`);
             try {
+                checkAllowedTable(tableName);
                 const sql = `
                     SELECT
                         RC.RDB$CONSTRAINT_NAME AS CONSTRAINT_NAME,
@@ -190,10 +196,10 @@ export const setupDatabaseResources = (): Map<string, ResourceDefinition> => {
                         I.RDB$INDEX_NAME AS INDEX_NAME
                     FROM RDB$RELATION_CONSTRAINTS RC
                     LEFT JOIN RDB$INDICES I ON RC.RDB$INDEX_NAME = I.RDB$INDEX_NAME
-                    WHERE RC.RDB$RELATION_NAME = '${tableName.toUpperCase()}'
+                    WHERE RC.RDB$RELATION_NAME = ?
                     ORDER BY RC.RDB$CONSTRAINT_NAME
                 `;
-                const constraints = await executeQuery(sql);
+                const constraints = await executeQuery(sql, [tableName.toUpperCase()]);
                 return {
                     tableName,
                     constraints: constraints.map((c: any) => ({
@@ -204,7 +210,7 @@ export const setupDatabaseResources = (): Map<string, ResourceDefinition> => {
                 };
             } catch (error: any) {
                 logger.error(`Error getting constraints for ${tableName}: ${error.message || error}`);
-                return { error: `Internal error getting constraints for ${tableName}`, details: error.message || String(error) };
+                return { error: `Internal error getting constraints for ${tableName}` };
             }
         }
     };
@@ -224,6 +230,7 @@ export const setupDatabaseResources = (): Map<string, ResourceDefinition> => {
             }
             logger.info(`Accessing the /tables/${tableName}/triggers resource`);
             try {
+                checkAllowedTable(tableName);
                 const sql = `
                     SELECT
                         RDB$TRIGGER_NAME AS TRIGGER_NAME,
@@ -233,11 +240,11 @@ export const setupDatabaseResources = (): Map<string, ResourceDefinition> => {
                         RDB$TRIGGER_INACTIVE AS IS_INACTIVE,
                         RDB$TRIGGER_SOURCE AS SOURCE
                     FROM RDB$TRIGGERS
-                    WHERE RDB$RELATION_NAME = '${tableName.toUpperCase()}'
+                    WHERE RDB$RELATION_NAME = ?
                     AND RDB$SYSTEM_FLAG = 0
                     ORDER BY RDB$TRIGGER_NAME
                 `;
-                const triggers = await executeQuery(sql);
+                const triggers = await executeQuery(sql, [tableName.toUpperCase()]);
                 return {
                     tableName,
                     triggers: triggers.map((t: any) => ({
@@ -250,7 +257,7 @@ export const setupDatabaseResources = (): Map<string, ResourceDefinition> => {
                 };
             } catch (error: any) {
                 logger.error(`Error getting triggers for ${tableName}: ${error.message || error}`);
-                return { error: `Internal error getting triggers for ${tableName}`, details: error.message || String(error) };
+                return { error: `Internal error getting triggers for ${tableName}` };
             }
         }
     };
@@ -269,7 +276,8 @@ export const setupDatabaseResources = (): Map<string, ResourceDefinition> => {
                 const tableStats = await Promise.all(
                     tables.map(async (tableName: string) => {
                         try {
-                            const countSql = `SELECT COUNT(*) as ROW_COUNT FROM "${tableName}"`;
+                            checkAllowedTable(tableName);
+                            const countSql = `SELECT COUNT(*) as ROW_COUNT FROM ${quoteIdentifier(tableName)}`;
                             const result = await executeQuery(countSql);
                             return {
                                 tableName,
@@ -291,7 +299,7 @@ export const setupDatabaseResources = (): Map<string, ResourceDefinition> => {
                 };
             } catch (error: any) {
                 logger.error(`Error getting statistics: ${error.message || error}`);
-                return { error: "Internal error getting statistics", details: error.message || String(error) };
+                return { error: "Internal error getting statistics" };
             }
         }
     };

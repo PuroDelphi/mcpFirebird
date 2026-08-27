@@ -26,13 +26,13 @@ export function createSseRouter(_createServerInstance?: () => Promise<any>): exp
 
     // Add JSON parsing middleware to the router
     // This is crucial for parsing POST request bodies correctly
-    router.use(express.json({ limit: '10mb' }));
+    router.use(express.json({ limit: '1mb' }));
 
     // Add text parsing for text/plain content type (fallback for some clients)
-    router.use(express.text({ limit: '10mb', type: 'text/plain' }));
+    router.use(express.text({ limit: '1mb', type: 'text/plain' }));
 
     // Add URL-encoded parsing for form data (optional but good practice)
-    router.use(express.urlencoded({ extended: true, limit: '10mb' }));
+    router.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
     // Custom middleware to handle different content types and parsing edge cases
     router.use('/messages', (req, res, next) => {
@@ -57,8 +57,7 @@ export function createSseRouter(_createServerInstance?: () => Promise<any>): exp
         if (req.method === 'POST' && (!req.body || typeof req.body !== 'object')) {
             logger.warn('POST request body is not a valid object after parsing', {
                 contentType,
-                bodyType: typeof req.body,
-                body: req.body
+                bodyType: typeof req.body
             });
         }
 
@@ -96,9 +95,7 @@ export function createSseRouter(_createServerInstance?: () => Promise<any>): exp
     // Health check endpoint
     router.get('/health', (req, res) => {
         res.json({
-            status: 'healthy',
-            activeSessions: Object.keys(activeSessions).length,
-            uptime: process.uptime()
+            status: 'healthy'
         });
     });
 
@@ -112,8 +109,8 @@ export function createSseRouter(_createServerInstance?: () => Promise<any>): exp
                 'Content-Type': 'text/event-stream',
                 'Cache-Control': 'no-cache',
                 'Connection': 'keep-alive',
-                'Access-Control-Allow-Origin': '*',
-                'Access-Control-Allow-Headers': 'Cache-Control'
+                'Access-Control-Allow-Origin': process.env.MCP_ALLOWED_ORIGIN || '*',
+                'Access-Control-Allow-Headers': 'Authorization, Content-Type, mcp-session-id, Cache-Control'
             });
 
             // Create SSE transport
@@ -243,7 +240,7 @@ export function createSseRouter(_createServerInstance?: () => Promise<any>): exp
                     jsonrpc: '2.0',
                     error: {
                         code: -32603,
-                        message: `Internal server error handling message: ${error instanceof Error ? error.message : String(error)}`
+                        message: 'Internal server error handling message'
                     },
                     id: null
                 });

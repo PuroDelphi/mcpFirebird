@@ -87,8 +87,7 @@ export function wrapError(error: unknown): MCPResponse<never> {
         return {
             success: false,
             error: error.message,
-            errorType: ErrorTypes.UNKNOWN,
-            errorDetails: { stack: error.stack }
+            errorType: ErrorTypes.UNKNOWN
         };
     } else {
         return {

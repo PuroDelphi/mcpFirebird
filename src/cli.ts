@@ -15,10 +15,6 @@ import { normalizeDatabasePath, ConfigOptions } from './db/connection.js';
 import { DriverFactory } from './db/driver-factory.js';
 const argv = minimist(process.argv.slice(2));
 
-// Debug: Log all command line arguments
-console.error('Command line arguments:', JSON.stringify(argv));
-console.error('Raw process.argv:', JSON.stringify(process.argv));
-
 // Default database path for testing
 const DEFAULT_DATABASE_PATH = 'F:/Proyectos/SAI/EMPLOYEE.FDB';
 
@@ -105,34 +101,14 @@ if (argv['http-port']) {
   process.env.HTTP_PORT = String(argv['http-port']);
 }
 
-// Process --env parameter if provided
-if (argv.env && typeof argv.env === 'string') {
-  try {
-    const envVars = JSON.parse(argv.env);
-    console.error('Processing --env parameter:', envVars);
-
-    // Apply environment variables from --env parameter
-    for (const [key, value] of Object.entries(envVars)) {
-      if (typeof value === 'string') {
-        process.env[key] = value;
-        console.error(`Setting environment variable ${key} from --env parameter`);
-      }
-    }
-  } catch (error) {
-    console.error('Error parsing --env parameter:', error);
-  }
-}
-
 // Also set environment variables for backward compatibility
 if (databaseParam) {
   process.env.FIREBIRD_DATABASE = databaseParam;
   process.env.FB_DATABASE = databaseParam;
-  console.error(`Setting FIREBIRD_DATABASE to ${databaseParam}`);
 }
 if (userParam) {
   process.env.FIREBIRD_USER = userParam;
   process.env.FB_USER = userParam;
-  console.error(`Setting FIREBIRD_USER to ${userParam}`);
 }
 if (passwordParam) {
   process.env.FIREBIRD_PASSWORD = passwordParam;
@@ -142,7 +118,6 @@ if (passwordParam) {
 if (hostParam) {
   process.env.FIREBIRD_HOST = hostParam;
   process.env.FB_HOST = hostParam;
-  console.error(`Setting FIREBIRD_HOST to ${hostParam}`);
 }
 if (portParam) {
   process.env.FIREBIRD_PORT = String(portParam);
@@ -159,11 +134,6 @@ if (wireCryptParam) {
   process.env.FB_WIRECRYPT = wireCrypt;
   console.error(`Setting FIREBIRD_WIRECRYPT to ${wireCrypt}`);
 }
-
-// Debug: Log final environment variables
-console.error('Final environment variables:');
-console.error(`FIREBIRD_DATABASE: ${process.env.FIREBIRD_DATABASE}`);
-console.error(`FB_DATABASE: ${process.env.FB_DATABASE}`);
 
 // .env is now loaded at the top of the file
 

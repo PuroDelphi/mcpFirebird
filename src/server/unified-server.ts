@@ -11,6 +11,7 @@ import { createSseRouter } from './sse.js';
 import { createStreamableHttpRouter } from './streamable-http.js';
 import { SessionManager } from '../utils/session-manager.js';
 import { createLogger } from '../utils/logger.js';
+import { buildCorsOptions, createBearerAuthMiddleware } from './http-security.js';
 
 const logger = createLogger('server:unified');
 
@@ -45,12 +46,7 @@ export class UnifiedMcpServer {
             port: config.port || 3003,
             enableSSE: config.enableSSE ?? true,
             enableStreamableHttp: config.enableStreamableHttp ?? true,
-            corsOptions: config.corsOptions || {
-                origin: '*',
-                methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
-                allowedHeaders: ['Content-Type', 'mcp-session-id', 'Cache-Control'],
-                credentials: false
-            },
+            corsOptions: config.corsOptions || buildCorsOptions(),
             sessionConfig: config.sessionConfig || {}
         };
 
@@ -70,29 +66,21 @@ export class UnifiedMcpServer {
         this.app.use(cors(this.config.corsOptions));
         
         // JSON parsing
-        this.app.use(express.json({ limit: '10mb' }));
+        this.app.use(express.json({ limit: '1mb' }));
+
+        const apiKey = process.env.FIREBIRD_API_KEY || process.env.FB_API_KEY;
+        this.app.use(createBearerAuthMiddleware(apiKey));
         
         // Request logging
         this.app.use((req, res, next) => {
-            logger.debug(`${req.method} ${req.path}`, {
-                headers: req.headers,
-                query: req.query
-            });
+            logger.debug(`${req.method} ${req.path}`);
             next();
         });
 
         // Health check middleware
         this.app.use('/health', (req, res) => {
-            const sessionMetrics = this.sessionManager.getMetrics();
             res.json({
-                status: 'healthy',
-                protocols: {
-                    sse: this.config.enableSSE,
-                    streamableHttp: this.config.enableStreamableHttp
-                },
-                sessions: sessionMetrics,
-                uptime: process.uptime(),
-                timestamp: new Date().toISOString()
+                status: 'healthy'
             });
         });
     }

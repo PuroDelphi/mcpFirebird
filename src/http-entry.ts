@@ -20,8 +20,9 @@ import { setupMetadataTools } from './tools/metadata.js';
 import { setupSimpleTools } from './tools/simple.js';
 import { setupDatabasePrompts } from './prompts/database.js';
 import { setupSqlPrompts } from './prompts/sql.js';
-import { setupDatabaseResources } from './resources/database.js';
+import { registerDatabaseResources } from './resources/database.js';
 import { initSecurity } from './security/index.js';
+import { buildCorsOptions, createBearerAuthMiddleware } from './server/http-security.js';
 import pkg from '../package.json' with { type: 'json' };
 import { z } from 'zod';
 import type { ToolDefinition as DbToolDefinition } from './tools/database.js';
@@ -29,48 +30,6 @@ import type { ToolDefinition as MetaToolDefinition } from './tools/metadata.js';
 import type { ToolDefinition as SimpleToolDefinition } from './tools/simple.js';
 
 const logger = createLogger('http-entry');
-
-/**
- * Parse configuration from query parameters (Smithery format)
- * Smithery passes config as query params in dot-notation
- * Example: ?host=localhost&port=3050&database=/path/to/db.fdb
- */
-function parseConfigFromQuery(query: any): void {
-    if (query.host) {
-        process.env.FIREBIRD_HOST = String(query.host);
-        logger.info(`Config from query: FIREBIRD_HOST=${query.host}`);
-    }
-    
-    if (query.port) {
-        process.env.FIREBIRD_PORT = String(query.port);
-        logger.info(`Config from query: FIREBIRD_PORT=${query.port}`);
-    }
-    
-    if (query.database) {
-        process.env.FIREBIRD_DATABASE = String(query.database);
-        logger.info(`Config from query: FIREBIRD_DATABASE=${query.database}`);
-    }
-    
-    if (query.user) {
-        process.env.FIREBIRD_USER = String(query.user);
-        logger.info(`Config from query: FIREBIRD_USER=${query.user}`);
-    }
-    
-    if (query.password) {
-        process.env.FIREBIRD_PASSWORD = String(query.password);
-        logger.info('Config from query: FIREBIRD_PASSWORD=***');
-    }
-    
-    if (query.useNativeDriver !== undefined) {
-        process.env.USE_NATIVE_DRIVER = String(query.useNativeDriver);
-        logger.info(`Config from query: USE_NATIVE_DRIVER=${query.useNativeDriver}`);
-    }
-    
-    if (query.logLevel) {
-        process.env.LOG_LEVEL = String(query.logLevel);
-        logger.info(`Config from query: LOG_LEVEL=${query.logLevel}`);
-    }
-}
 
 /**
  * Main function to start the HTTP server
@@ -89,27 +48,13 @@ async function startHttpServer() {
         const app = express();
         
         // Enable CORS for web clients
-        app.use(cors({
-            origin: '*',
-            methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
-            allowedHeaders: ['Content-Type', 'Authorization'],
-            credentials: true
-        }));
+        app.use(cors(buildCorsOptions()));
         
         // Parse JSON bodies
-        app.use(express.json());
+        app.use(express.json({ limit: '1mb' }));
         
-        // Parse URL-encoded bodies (for query parameters)
-        app.use(express.urlencoded({ extended: true }));
-        
-        // Middleware to parse config from query parameters (Smithery)
-        app.use((req, res, next) => {
-            if (Object.keys(req.query).length > 0) {
-                logger.debug('Parsing configuration from query parameters...');
-                parseConfigFromQuery(req.query);
-            }
-            next();
-        });
+        const serverApiKey = process.env.FIREBIRD_API_KEY || process.env.FB_API_KEY;
+        app.use(createBearerAuthMiddleware(serverApiKey, message => logger.warn(message)));
         
         // Root endpoint - health check
         app.get('/', (req, res) => {
@@ -117,24 +62,14 @@ async function startHttpServer() {
                 name: pkg.name,
                 version: pkg.version,
                 status: 'running',
-                protocol: 'Streamable HTTP',
-                endpoints: {
-                    mcp: '/mcp',
-                    health: '/health',
-                    sse: '/sse'
-                },
-                platform: process.platform,
-                nodeVersion: process.version
+                protocol: 'Streamable HTTP'
             });
         });
         
         // Health check endpoint
         app.get('/health', (req, res) => {
             res.json({
-                status: 'healthy',
-                uptime: process.uptime(),
-                memory: process.memoryUsage(),
-                version: pkg.version
+                status: 'healthy'
             });
         });
         
@@ -289,28 +224,7 @@ async function startHttpServer() {
             }
 
             // Register resources
-            const resources = setupDatabaseResources();
-            for (const [uri, resourceDef] of resources.entries()) {
-                server.registerResource(
-                    `resource-${uri}`,
-                    uri,
-                    {
-                        title: resourceDef.description || uri,
-                        description: resourceDef.description || '',
-                        mimeType: resourceDef.mimeType || 'application/json'
-                    },
-                    async (resourceUri: URL) => {
-                        const result = await resourceDef.handler({});
-                        return {
-                            contents: [{
-                                uri: resourceUri.href,
-                                mimeType: resourceDef.mimeType || 'application/json',
-                                text: typeof result === 'string' ? result : JSON.stringify(result, null, 2)
-                            }]
-                        };
-                    }
-                );
-            }
+            registerDatabaseResources(server);
 
             logger.info('MCP server instance created successfully');
             return server;
@@ -337,8 +251,7 @@ async function startHttpServer() {
             
             if (!res.headersSent) {
                 res.status(500).json({
-                    error: 'Internal server error',
-                    message: err.message
+                    error: 'Internal server error'
                 });
             }
         });

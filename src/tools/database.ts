@@ -13,7 +13,8 @@ import {
 } from '../db/index.js';
 
 
-import { validateSql } from '../utils/security.js';
+import { getSqlOperation, quoteIdentifier, validateSql } from '../utils/security.js';
+import { checkAllowedOperation, checkAllowedTable } from '../security/authorization.js';
 import { createLogger } from '../utils/logger.js';
 import { stringifyCompact, wrapSuccess, wrapError, formatForClaude } from '../utils/jsonHelper.js';
 import { FirebirdError } from '../utils/errors.js';
@@ -68,10 +69,20 @@ export const DescribeBatchTablesArgsSchema = z.object({
 
 export const GetTableDataArgsSchema = z.object({
     tableName: z.string().min(1).describe("Name of the table to retrieve data from"),
-    first: z.number().int().positive().optional().describe("Number of rows to retrieve (FIRST clause in Firebird)"),
-    skip: z.number().int().min(0).optional().describe("Number of rows to skip (SKIP clause in Firebird)"),
-    where: z.string().optional().describe("Optional WHERE clause (without the WHERE keyword)"),
-    orderBy: z.string().optional().describe("Optional ORDER BY clause (without the ORDER BY keyword)")
+    first: z.number().int().positive().max(1000).default(100).describe("Number of rows to retrieve (maximum: 1000)"),
+    skip: z.number().int().min(0).max(1000000).default(0).describe("Number of rows to skip"),
+    filters: z.array(z.object({
+        column: z.string().min(1),
+        operator: z.enum(['eq', 'ne', 'gt', 'gte', 'lt', 'lte', 'like', 'in', 'isNull', 'isNotNull']),
+        value: z.union([
+            z.string(), z.number(), z.boolean(), z.null(),
+            z.array(z.union([z.string(), z.number(), z.boolean()])).min(1).max(100)
+        ]).optional()
+    })).max(20).optional().describe("Structured filters; values are always parameterized"),
+    orderBy: z.array(z.object({
+        column: z.string().min(1),
+        direction: z.enum(['ASC', 'DESC']).default('ASC')
+    })).max(10).optional()
 });
 
 export const AnalyzeTableStatisticsArgsSchema = z.object({
@@ -93,6 +104,27 @@ export interface ToolDefinition {
     handler: (args: any) => Promise<{ content: { type: string; text: string }[] }>;
 }
 
+function assertSqlOperationAllowed(sql: string): void {
+    const operation = getSqlOperation(sql);
+    const normalizedOperation = operation === 'WITH' ? 'SELECT' : operation;
+
+    if (!normalizedOperation) {
+        throw new FirebirdError('Unable to determine SQL operation', 'SECURITY_ERROR');
+    }
+
+    if (!['SELECT', 'EXECUTE'].includes(normalizedOperation)) {
+        if (process.env.ALLOW_RAW_SQL !== 'true') {
+            throw new FirebirdError(
+                `SQL operation ${normalizedOperation} is disabled by default. Set ALLOW_RAW_SQL=true to enable trusted raw writes.`,
+                'SECURITY_ERROR'
+            );
+        }
+        return;
+    }
+
+    checkAllowedOperation(normalizedOperation);
+}
+
 /**
  * Sets up and returns the database tool definitions.
  * @returns {Map<string, ToolDefinition>} A map with the tool definitions.
@@ -106,15 +138,16 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
         inputSchema: ExecuteQueryArgsSchema,
         handler: async (args: z.infer<typeof ExecuteQueryArgsSchema>) => {
             const { sql, params = [] }: { sql: string; params?: (string | number | boolean | null)[] } = args;
-            logger.info(`Executing query: ${sql.substring(0, 100)}${sql.length > 100 ? '...' : ''}`);
+            logger.info('Executing database query');
 
             try {
                 if (typeof sql !== 'string' || !validateSql(sql)) {
                     throw new FirebirdError(
-                        `Potentially unsafe SQL query: ${sql.substring(0, 100)}${sql.length > 100 ? '...' : ''}`,
+                        'Potentially unsafe SQL query',
                         'SECURITY_ERROR'
                     );
                 }
+                assertSqlOperationAllowed(sql);
 
                 const result = await executeQuery(sql, params);
                 logger.info(`Query executed successfully, ${result.length} rows returned`);
@@ -179,6 +212,7 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
             logger.info(`Describing table: ${tableName}`);
 
             try {
+                checkAllowedTable(tableName);
                 const schema = await describeTable(tableName);
                 logger.info(`Schema obtained for table ${tableName}, ${schema.length} columns found`);
 
@@ -210,6 +244,7 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
             logger.info(`Getting field descriptions for table: ${tableName}`);
 
             try {
+                checkAllowedTable(tableName);
                 const fieldDescriptions = await getFieldDescriptions(tableName);
                 logger.info(`Descriptions obtained for ${fieldDescriptions.length} fields in table ${tableName}`);
 
@@ -240,9 +275,11 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
         inputSchema: AnalyzeQueryPerformanceArgsSchema,
         handler: async (request) => {
             const { sql, params, iterations } = request;
-            logger.info(`Executing analyze-query-performance tool for query: ${sql.substring(0, 50)}...`);
+            logger.info('Executing analyze-query-performance tool');
 
             try {
+                if (!validateSql(sql)) throw new FirebirdError('Potentially unsafe SQL query', 'SECURITY_ERROR');
+                assertSqlOperationAllowed(sql);
                 const result = await analyzeQueryPerformance(
                     sql,
                     params || [],
@@ -276,9 +313,11 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
         inputSchema: GetExecutionPlanArgsSchema,
         handler: async (request) => {
             const { sql, params } = request;
-            logger.info(`Executing get-execution-plan tool for query: ${sql.substring(0, 50)}...`);
+            logger.info('Executing get-execution-plan tool');
 
             try {
+                if (!validateSql(sql)) throw new FirebirdError('Potentially unsafe SQL query', 'SECURITY_ERROR');
+                assertSqlOperationAllowed(sql);
                 const result = await getExecutionPlan(sql, params || []);
 
                 return {
@@ -308,9 +347,11 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
         inputSchema: AnalyzeMissingIndexesArgsSchema,
         handler: async (request) => {
             const { sql } = request;
-            logger.info(`Executing analyze-missing-indexes tool for query: ${sql.substring(0, 50)}...`);
+            logger.info('Executing analyze-missing-indexes tool');
 
             try {
+                if (!validateSql(sql)) throw new FirebirdError('Potentially unsafe SQL query', 'SECURITY_ERROR');
+                assertSqlOperationAllowed(sql);
                 const result = await analyzeMissingIndexes(sql);
 
                 return {
@@ -348,10 +389,11 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
                 queries.forEach((query, index) => {
                     if (!validateSql(query.sql)) {
                         throw new FirebirdError(
-                            `Potentially unsafe SQL query at index ${index}: ${query.sql.substring(0, 100)}${query.sql.length > 100 ? '...' : ''}`,
+                            `Potentially unsafe SQL query at index ${index}`,
                             'SECURITY_ERROR'
                         );
                     }
+                    assertSqlOperationAllowed(query.sql);
                 });
 
                 const results = await executeBatchQueries(queries, undefined, maxConcurrent);
@@ -388,6 +430,7 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
             logger.info(`Describing batch of ${tableNames.length} tables with max concurrency ${maxConcurrent}`);
 
             try {
+                tableNames.forEach(checkAllowedTable);
                 const results = await describeBatchTables(tableNames, undefined, maxConcurrent);
 
                 logger.info(`Batch description completed: ${results.filter(r => r.schema !== null).length} succeeded, ${results.filter(r => r.schema === null).length} failed`);
@@ -419,25 +462,38 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
         description: "Retrieves data from a specific table with optional filtering, pagination, and ordering.",
         inputSchema: GetTableDataArgsSchema,
         handler: async (args: z.infer<typeof GetTableDataArgsSchema>) => {
-            const { tableName, first, skip, where, orderBy } = args;
+            const { tableName, first, skip, filters = [], orderBy = [] } = args;
             logger.info(`Getting data from table: ${tableName}`);
 
             try {
-                let sql = `SELECT * FROM "${tableName}"`;
+                checkAllowedOperation('SELECT');
+                checkAllowedTable(tableName);
+                const quotedTable = quoteIdentifier(tableName);
+                const params: (string | number | boolean | null)[] = [];
+                const operators: Record<string, string> = {
+                    eq: '=', ne: '<>', gt: '>', gte: '>=', lt: '<', lte: '<=', like: 'LIKE'
+                };
+                const clauses = filters.map(filter => {
+                    const column = quoteIdentifier(filter.column);
+                    if (filter.operator === 'isNull') return `${column} IS NULL`;
+                    if (filter.operator === 'isNotNull') return `${column} IS NOT NULL`;
+                    if (filter.operator === 'in') {
+                        if (!Array.isArray(filter.value)) throw new Error('The in operator requires an array value');
+                        params.push(...filter.value);
+                        return `${column} IN (${filter.value.map(() => '?').join(', ')})`;
+                    }
+                    if (filter.value === undefined || Array.isArray(filter.value)) {
+                        throw new Error(`The ${filter.operator} operator requires a scalar value`);
+                    }
+                    params.push(filter.value);
+                    return `${column} ${operators[filter.operator]} ?`;
+                });
+                const ordering = orderBy.map(order => `${quoteIdentifier(order.column)} ${order.direction}`);
+                let sql = `SELECT FIRST ${first} ${skip > 0 ? `SKIP ${skip} ` : ''}* FROM ${quotedTable}`;
+                if (clauses.length) sql += ` WHERE ${clauses.join(' AND ')}`;
+                if (ordering.length) sql += ` ORDER BY ${ordering.join(', ')}`;
 
-                if (where) {
-                    sql += ` WHERE ${where}`;
-                }
-
-                if (orderBy) {
-                    sql += ` ORDER BY ${orderBy}`;
-                }
-
-                if (first !== undefined) {
-                    sql = `SELECT FIRST ${first} ${skip ? `SKIP ${skip}` : ''} * FROM "${tableName}"${where ? ` WHERE ${where}` : ''}${orderBy ? ` ORDER BY ${orderBy}` : ''}`;
-                }
-
-                const result = await executeQuery(sql);
+                const result = await executeQuery(sql, params);
                 logger.info(`Retrieved ${result.length} rows from ${tableName}`);
 
                 return {
@@ -475,15 +531,18 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
             logger.info(`Analyzing statistics for table: ${tableName}`);
 
             try {
+                checkAllowedOperation('SELECT');
+                checkAllowedTable(tableName);
+                const quotedTable = quoteIdentifier(tableName);
                 // Get row count
-                const countResult = await executeQuery(`SELECT COUNT(*) as ROW_COUNT FROM "${tableName}"`);
+                const countResult = await executeQuery(`SELECT COUNT(*) as ROW_COUNT FROM ${quotedTable}`);
                 const rowCount = countResult[0]?.ROW_COUNT || 0;
 
                 // Get table schema
                 const schema = await describeTable(tableName);
 
                 // Get sample data for analysis
-                const sampleData = await executeQuery(`SELECT FIRST 100 * FROM "${tableName}"`);
+                const sampleData = await executeQuery(`SELECT FIRST 100 * FROM ${quotedTable}`);
 
                 const statistics = {
                     tableName,
@@ -573,12 +632,7 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
                 const tables = await listTables();
 
                 const info = {
-                    database: process.env.DB_NAME || 'unknown',
-                    host: process.env.DB_HOST || 'localhost',
-                    port: process.env.DB_PORT || 3050,
                     totalTables: tables.length,
-                    driverType: process.env.USE_NATIVE_DRIVER === 'true' ? 'native' : 'pure-js',
-                    wireEncryption: process.env.WIRE_CRYPT || 'Disabled',
                     tables: tables
                 };
 
