@@ -42,7 +42,7 @@ import { createStreamableHttpRouter } from './streamable-http.js';
 import { type ToolDefinition as DbToolDefinition } from '../tools/database.js';
 import { type ToolDefinition as MetaToolDefinition } from '../tools/metadata.js';
 import { type PromptDefinition } from '../prompts/types.js';
-import { setupDatabaseResources, type ResourceDefinition } from '../resources/database.js';
+import { setupDatabaseResources, registerDatabaseResources } from '../resources/database.js';
 import { setupDatabaseTools } from '../tools/database.js';
 import { setupMetadataTools } from '../tools/metadata.js';
 import { setupDatabasePrompts } from '../prompts/database.js';
@@ -69,8 +69,7 @@ async function createMcpServerInstance(): Promise<any> {
     const sqlPrompts = setupSqlPrompts();
     const templatePrompts = setupTemplatePrompts();
     const advancedTemplatePrompts = setupAdvancedTemplatePrompts();
-    // Temporarily disable resources due to path-to-regexp compatibility issues
-    const allResources: Map<string, ResourceDefinition> = new Map();
+    const allResources = setupDatabaseResources();
     const allPrompts = new Map<string, PromptDefinition>([
         ...databasePrompts,
         ...sqlPrompts,
@@ -192,15 +191,13 @@ async function createMcpServerInstance(): Promise<any> {
         );
     }
 
-    // Resources - temporarily disabled due to path-to-regexp compatibility issues
-    logger.info(`Skipping ${allResources.size} database resources - Resource registration temporarily disabled in alpha version`);
+    logger.debug('Registering database resources...');
+    registerDatabaseResources(server, allResources);
     
     // Register Event resources explicitly (these don't use the old pattern)
     logger.debug('Registering Firebird event resources...');
     setupEventResources(server);
     
-    // TODO: Re-enable database resources once path-to-regexp issues are resolved
-
     logger.debug(`Server instance created with ${allTools.size} tools, ${allPrompts.size} prompts, ${allResources.size} resources`);
     return server;
 }

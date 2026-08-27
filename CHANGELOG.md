@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.9.1] - 2026-08-27
+
+### Fixed
+- Restored all database resources in modern MCP server entry points.
+- Migrated resource identifiers to standard `firebird://` URIs.
+- Registered parameterized table resources with the MCP SDK `ResourceTemplate` API so they appear in `resources/templates/list` and can be read by strict MCP clients.
+- Added end-to-end MCP tests for static resource discovery, template discovery, and resource reads. Resolves [#30](https://github.com/PuroDelphi/mcpFirebird/issues/30).
+
 ## [2.9.0] - 2026-08-19
 
 ### Added

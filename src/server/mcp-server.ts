@@ -14,7 +14,7 @@ import { setupDatabasePrompts } from '../prompts/database.js';
 import { setupSqlPrompts } from '../prompts/sql.js';
 import { setupTemplatePrompts } from '../prompts/templates.js';
 import { setupAdvancedTemplatePrompts } from '../prompts/advanced-templates.js';
-import { setupDatabaseResources, type ResourceDefinition } from '../resources/database.js';
+import { registerDatabaseResources } from '../resources/database.js';
 import { setupEventResources, closeEventManager } from '../resources/events.js';
 import { initSecurity } from '../security/index.js';
 import { ConfigError } from '../utils/errors.js';
@@ -216,58 +216,9 @@ export async function startMcpServer() {
         const totalPrompts = databasePrompts.size + sqlPrompts.size + templatePrompts.size + advancedTemplatePrompts.size;
         logger.info(`Registered ${totalPrompts} prompts in total (${databasePrompts.size} database, ${sqlPrompts.size} SQL, ${templatePrompts.size} templates, ${advancedTemplatePrompts.size} advanced).`);
 
-        /**
-         * Helper function to register a resource with proper error handling
-         * @param uriTemplate - URI template for the resource
-         * @param resourceDef - Resource definition
-         */
-        const registerResource = (uriTemplate: string, resourceDef: ResourceDefinition) => {
-            server.registerResource(
-                `resource-${uriTemplate}`, // Resource name
-                uriTemplate, // URI pattern (simple string, not ResourceTemplate for static resources)
-                {
-                    title: resourceDef.description || uriTemplate,
-                    description: resourceDef.description || `Resource: ${uriTemplate}`,
-                    mimeType: "application/json"
-                },
-                async (uri) => {
-                    try {
-                        // Call the handler with empty parameters
-                        const result = await resourceDef.handler({});
-
-                        // Return the result in the expected format
-                        return {
-                            contents: [{
-                                uri: uri.href,
-                                mimeType: "application/json",
-                                text: typeof result === 'string' ? result : JSON.stringify(result, null, 2)
-                            }]
-                        };
-                    } catch (error) {
-                        // Log the error with detailed information
-                        logger.error(`Error accessing resource ${uriTemplate}: ${error instanceof Error ? error.message : String(error)}`, {
-                            error,
-                            stack: error instanceof Error ? error.stack : undefined
-                        });
-
-                        // Rethrow the error to be handled by the MCP framework
-                        throw error;
-                    }
-                }
-            );
-            logger.info(`Registered resource: ${uriTemplate}`);
-        };
-
-        // Register all resources
         logger.info('Registering resources...');
-        const databaseResources = setupDatabaseResources();
-
-        // Register all resources using the helper function
-        for (const [uriTemplate, resourceDef] of databaseResources.entries()) {
-            registerResource(uriTemplate, resourceDef);
-        }
-
-        logger.info(`Registered ${databaseResources.size} resources in total.`);
+        const databaseResourceCount = registerDatabaseResources(server);
+        logger.info(`Registered ${databaseResourceCount} database resources in total.`);
 
         // Setup cleanup stub and signal handler registration
         const cleanup = async () => {
