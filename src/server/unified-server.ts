@@ -210,7 +210,7 @@ export class UnifiedMcpServer {
      */
     private setupErrorHandling(): void {
         // 404 handler
-        this.app.use('*', (req, res) => {
+        this.app.use((req, res) => {
             res.status(404).json({
                 jsonrpc: '2.0',
                 error: {

@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Changed
+- Upgraded the HTTP runtime from Express 4 to Express 5 and removed the obsolete `array-flatten` dependency chain.
+- Removed unused direct dependencies on `winston`, `node-fetch`, and `eventsource`; logging already uses the internal stderr-safe logger.
+- Reduced the installed dependency tree by more than 100 packages without changing native-driver installation or behavior.
+
+### Security notes
+- `ajv`, `cross-spawn`, and `eventsource` remain transitive runtime dependencies of the official MCP SDK.
+- `node-gyp` remains part of the optional native Firebird driver, which is intentionally unchanged for compatibility.
+- Network-access findings are expected for HTTP/SSE transports and Firebird database connections; they are capabilities, not confirmed vulnerabilities.
+
 ## [2.9.2-alpha.2] - 2026-08-29
 
 ### Fixed
