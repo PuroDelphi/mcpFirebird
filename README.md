@@ -354,16 +354,16 @@ npx mcp-firebird --transport-type sse
 
 #### CORS Configuration
 
-For web applications, configure CORS settings:
+For browser applications, restrict access to one or more comma-separated origins. The default is `*` with browser credentials disabled, so existing STDIO and Bearer-token MCP clients remain compatible:
 
 ```bash
-# Allow specific origins
-export CORS_ORIGIN="https://myapp.com,https://localhost:3000"
-export CORS_METHODS="GET,POST,OPTIONS"
-export CORS_HEADERS="Content-Type,mcp-session-id"
+# Allow specific browser origins
+export MCP_ALLOWED_ORIGIN="https://myapp.com,https://localhost:3000"
 
 npx mcp-firebird --transport-type sse
 ```
+
+Raw SQL writes are disabled by default. Trusted deployments that require direct `INSERT`, `UPDATE`, `DELETE`, or DDL queries can set `ALLOW_RAW_SQL=true`. See the [security guide](./docs/security.md) for migration details and the structured `get-table-data` filter format.
 
 #### SSL/TLS Support
 

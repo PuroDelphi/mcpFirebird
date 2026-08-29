@@ -2,6 +2,34 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.9.2-alpha.2] - 2026-08-29
+
+### Fixed
+- Renamed the schema column alias from reserved keyword `POSITION` to `FIELD_POSITION` for Firebird 5 and Dialect 1 compatibility.
+- Renamed the statistics count alias from reserved context name `ROW_COUNT` to `TOTAL_ROWS`.
+- Converted trigger-source BLOB buffers to UTF-8 text before trimming them.
+- Added regression tests for the three database resource failures reported in [#30](https://github.com/PuroDelphi/mcpFirebird/issues/30).
+
+## [2.9.2-alpha.1] - 2026-08-27
+
+### Security
+- Replaced free-form `where` and `orderBy` input in `get-table-data` with structured filters, parameterized values, validated identifiers, and bounded pagination.
+- Raw `INSERT`, `UPDATE`, `DELETE`, and DDL queries are disabled by default. Trusted deployments can restore this behavior with `ALLOW_RAW_SQL=true`.
+- Removed HTTP query-string and CLI `--env` mutation of global environment configuration.
+- Added timing-safe Bearer-token validation to every HTTP server entry point.
+- Removed database connection details, request bodies, SQL text, stack traces, and internal error details from client responses and routine logs.
+- Limited HTTP request bodies to 1 MB and updated vulnerable transitive dependencies; `npm audit` now reports zero vulnerabilities.
+
+### Changed
+- CORS remains compatible with existing MCP clients by allowing all origins by default, but browser credentials are disabled. Set `MCP_ALLOWED_ORIGIN` to one or more comma-separated origins to restrict browser access.
+- Database metadata resources now use parameterized queries and enforce configured table authorization rules.
+
+### Migration notes
+- Existing STDIO and Bearer-token clients require no CORS changes.
+- Browser clients that use `Authorization: Bearer` continue to work with the default configuration.
+- Deployments that execute raw write queries must explicitly set `ALLOW_RAW_SQL=true`; using a restricted Firebird database user is strongly recommended.
+- The old `get-table-data.where` and string `get-table-data.orderBy` arguments must be migrated to `filters` and structured `orderBy` entries.
+
 ## [2.9.1] - 2026-08-27
 
 ### Fixed

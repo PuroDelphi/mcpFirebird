@@ -54,6 +54,7 @@ import { initSecurity } from '../security/index.js';
 import { ConfigError } from '../utils/errors.js';
 import { closePool } from '../db/connection.js';
 import pkg from '../../package.json' with { type: 'json' };
+import { buildCorsOptions, createBearerAuthMiddleware } from './http-security.js';
 
 /**
  * Factory function to create a configured MCP server instance
@@ -325,53 +326,14 @@ async function startBackwardsCompatibleServer(port: number): Promise<void> {
 
     // Configure CORS to allow web clients but with more restrictive settings if possible
     // Defaulting to '*' for MCP compatibility, but can be restricted via env
-    const allowedOrigin = process.env.MCP_ALLOWED_ORIGIN || '*';
-    app.use(cors({
-        origin: allowedOrigin,
-        methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
-        allowedHeaders: ['Content-Type', 'mcp-session-id', 'Cache-Control', 'Accept', 'Authorization'],
-        credentials: false
-    }));
+    app.use(cors(buildCorsOptions()));
 
-    app.use(express.json());
+    app.use(express.json({ limit: '1mb' }));
 
     // EMA Authentication Middleware for HTTP transports
     const serverApiKey = process.env.FIREBIRD_API_KEY || process.env.FB_API_KEY;
     if (serverApiKey) {
-        app.use((req, res, next) => {
-            // Allow OPTIONS requests to pass through for CORS preflight
-            if (req.method === 'OPTIONS') {
-                return next();
-            }
-
-            const authHeader = req.headers.authorization;
-            if (!authHeader || !authHeader.startsWith('Bearer ')) {
-                logger.warn(`Unauthorized access attempt from ${req.ip}`);
-                return res.status(401).json({
-                    jsonrpc: '2.0',
-                    error: {
-                        code: -32000,
-                        message: 'Unauthorized: Missing or invalid Bearer token'
-                    },
-                    id: null
-                });
-            }
-
-            const token = authHeader.substring(7);
-            if (token !== serverApiKey) {
-                logger.warn(`Invalid API key attempt from ${req.ip}`);
-                return res.status(403).json({
-                    jsonrpc: '2.0',
-                    error: {
-                        code: -32000,
-                        message: 'Forbidden: Invalid API key'
-                    },
-                    id: null
-                });
-            }
-
-            next();
-        });
+        app.use(createBearerAuthMiddleware(serverApiKey, message => logger.warn(`${message} from HTTP client`)));
         logger.info('EMA HTTP Authentication enabled (Bearer Token required)');
     } else {
         logger.warn('WARNING: Running HTTP server without FIREBIRD_API_KEY. Endpoints are exposed without authentication.');

@@ -11,12 +11,13 @@ jest.mock('../../db/schema.js', () => ({
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { listTables } from '../../db/queries.js';
+import { executeQuery, listTables } from '../../db/queries.js';
 import { getTableSchema } from '../../db/schema.js';
 import { registerDatabaseResources } from '../../resources/database.js';
 
 const mockedListTables = jest.mocked(listTables);
 const mockedGetTableSchema = jest.mocked(getTableSchema);
+const mockedExecuteQuery = jest.mocked(executeQuery);
 
 describe('database MCP resources', () => {
     let server: McpServer;
@@ -87,5 +88,38 @@ describe('database MCP resources', () => {
         expect('text' in content && JSON.parse(content.text as string)).toEqual([
             { name: 'ID', type: 'INTEGER' }
         ]);
+    });
+
+    it('converts trigger source buffers to text', async () => {
+        mockedExecuteQuery.mockResolvedValue([{
+            TRIGGER_NAME: 'ACCOUNT_BI',
+            TRIGGER_TYPE: 1,
+            SEQUENCE: 0,
+            IS_INACTIVE: 0,
+            SOURCE: Buffer.from('  AS BEGIN END  ')
+        }]);
+
+        const response = await client.readResource({
+            uri: 'firebird://tables/ACCOUNT/triggers'
+        });
+        const content = response.contents[0];
+        const result = 'text' in content ? JSON.parse(content.text as string) : null;
+
+        expect(result.triggers[0].source).toBe('AS BEGIN END');
+        expect(mockedExecuteQuery).toHaveBeenCalledWith(expect.stringContaining('RDB$RELATION_NAME = ?'), ['ACCOUNT']);
+    });
+
+    it('uses a non-reserved alias for statistics row counts', async () => {
+        mockedListTables.mockResolvedValue(['ACCOUNT']);
+        mockedExecuteQuery.mockResolvedValue([{ TOTAL_ROWS: 42 }]);
+
+        const response = await client.readResource({ uri: 'firebird://statistics' });
+        const content = response.contents[0];
+        const result = 'text' in content ? JSON.parse(content.text as string) : null;
+
+        expect(result.tables[0]).toMatchObject({ tableName: 'ACCOUNT', rowCount: 42 });
+        expect(mockedExecuteQuery).toHaveBeenCalledWith(
+            'SELECT COUNT(*) AS TOTAL_ROWS FROM "ACCOUNT"'
+        );
     });
 });

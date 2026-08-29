@@ -57,7 +57,10 @@ export function validateQuery(query: MCPQuery): MCPQuery {
 export function validateSql(sql: string): boolean {
   if (!sql) return false;
   
-  const sanitized = sql.trim();
+  const sanitized = sql.trim().replace(/;\s*$/, '');
+
+  // Never accept multiple statements. A single trailing terminator is allowed.
+  if (sanitized.includes(';')) return false;
   
   // Lista de palabras clave o patrones que podrían indicar un intento de inyección SQL
   const dangerousPatterns = [
@@ -106,4 +109,24 @@ export function validateSql(sql: string): boolean {
   }
   
   return true;
+}
+
+/** Firebird identifiers accepted by tools that construct SQL. */
+export function validateIdentifier(identifier: string): boolean {
+  return /^[A-Za-z_][A-Za-z0-9_$]*$/.test(identifier);
+}
+
+/** Quote an allow-listed Firebird identifier. */
+export function quoteIdentifier(identifier: string): string {
+  if (!validateIdentifier(identifier)) {
+    throw new Error(`Invalid Firebird identifier: ${identifier}`);
+  }
+  return `"${identifier}"`;
+}
+
+/** Return the leading SQL operation after trimming whitespace. */
+export function getSqlOperation(sql: string): string {
+  const normalized = sql.trim().replace(/^\(+\s*/, '');
+  const match = normalized.match(/^([A-Za-z]+)/);
+  return match?.[1]?.toUpperCase() || '';
 }
