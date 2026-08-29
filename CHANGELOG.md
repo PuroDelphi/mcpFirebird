@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## [2.9.3-alpha.1] - 2026-08-29
 
 ### Changed
 - Upgraded the HTTP runtime from Express 4 to Express 5 and removed the obsolete `array-flatten` dependency chain.
