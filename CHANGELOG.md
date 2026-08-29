@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.9.2] - 2026-08-29
+
+### Security
+- Replaced free-form `get-table-data` clauses with structured, parameterized filters, validated identifiers, and bounded pagination.
+- Disabled raw SQL writes by default; trusted deployments can opt in with `ALLOW_RAW_SQL=true`.
+- Added consistent timing-safe Bearer authentication and configurable CORS across HTTP transports.
+- Removed unsafe URL/CLI environment mutation and reduced sensitive information in responses and logs.
+- Updated vulnerable transitive dependencies; production dependency auditing reports zero vulnerabilities.
+
+### Fixed
+- Restored schema, trigger, and statistics resources for Firebird 5 and Dialect 1 by avoiding reserved aliases and decoding trigger-source BLOB buffers.
+- Applied table authorization and parameterized metadata queries to database resources.
+
+### Documentation
+- Documented `MCP_ALLOWED_ORIGIN`, `FIREBIRD_API_KEY`, `ALLOW_RAW_SQL`, browser compatibility, and the structured `get-table-data` migration format.
+
 ## [2.9.2-alpha.2] - 2026-08-29
 
 ### Fixed
