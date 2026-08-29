@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.9.2-alpha.2] - 2026-08-29
+
+### Fixed
+- Renamed the schema column alias from reserved keyword `POSITION` to `FIELD_POSITION` for Firebird 5 and Dialect 1 compatibility.
+- Renamed the statistics count alias from reserved context name `ROW_COUNT` to `TOTAL_ROWS`.
+- Converted trigger-source BLOB buffers to UTF-8 text before trimming them.
+- Added regression tests for the three database resource failures reported in [#30](https://github.com/PuroDelphi/mcpFirebird/issues/30).
+
 ## [2.9.2-alpha.1] - 2026-08-27
 
 ### Security

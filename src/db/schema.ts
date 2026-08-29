@@ -62,7 +62,7 @@ export const getTableSchema = async (tableName: string, config = DEFAULT_CONFIG)
                     ELSE 1
                 END AS nullable,
                 rf.RDB$DEFAULT_SOURCE AS default_value,
-                rf.RDB$FIELD_POSITION AS position
+                rf.RDB$FIELD_POSITION AS field_position
             FROM RDB$RELATION_FIELDS rf
             JOIN RDB$FIELDS f ON rf.RDB$FIELD_SOURCE = f.RDB$FIELD_NAME
             WHERE rf.RDB$RELATION_NAME = ?
@@ -128,7 +128,7 @@ export const getTableSchema = async (tableName: string, config = DEFAULT_CONFIG)
             type: col.FIELD_TYPE,
             nullable: col.NULLABLE === 1,
             defaultValue: col.DEFAULT_VALUE,
-            position: col.POSITION
+            position: col.FIELD_POSITION
         }));
 
         // Procesar clave primaria

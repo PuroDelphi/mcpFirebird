@@ -252,7 +252,9 @@ export const setupDatabaseResources = (): Map<string, ResourceDefinition> => {
                         type: t.TRIGGER_TYPE,
                         sequence: t.SEQUENCE,
                         isActive: t.IS_INACTIVE === 0,
-                        source: (t.SOURCE || '').trim()
+                        source: t.SOURCE == null
+                            ? ''
+                            : (Buffer.isBuffer(t.SOURCE) ? t.SOURCE.toString('utf8') : String(t.SOURCE)).trim()
                     }))
                 };
             } catch (error: any) {
@@ -277,11 +279,11 @@ export const setupDatabaseResources = (): Map<string, ResourceDefinition> => {
                     tables.map(async (tableName: string) => {
                         try {
                             checkAllowedTable(tableName);
-                            const countSql = `SELECT COUNT(*) as ROW_COUNT FROM ${quoteIdentifier(tableName)}`;
+                            const countSql = `SELECT COUNT(*) AS TOTAL_ROWS FROM ${quoteIdentifier(tableName)}`;
                             const result = await executeQuery(countSql);
                             return {
                                 tableName,
-                                rowCount: result[0]?.ROW_COUNT || 0
+                                rowCount: result[0]?.TOTAL_ROWS || 0
                             };
                         } catch (error: any) {
                             logger.warn(`Error counting rows in ${tableName}: ${error.message}`);
