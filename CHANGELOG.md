@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.9.3-alpha.2] - 2026-08-31
+
+### Fixed
+- Resolved native-driver BLOB objects through `openBlob` while their transaction is still active, returning UTF-8 text instead of driver internals.
+- Detect BLOB columns across all result rows, including when the first row contains `NULL`.
+- Prevent unresolved object values from being stringified and exposing native attachment details.
+- Added regression coverage for native BLOB streams, first-row `NULL` values, cleanup, and serialization safety. Resolves [#31](https://github.com/PuroDelphi/mcpFirebird/issues/31).
+
 ## [2.9.3-alpha.1] - 2026-08-29
 
 ### Changed

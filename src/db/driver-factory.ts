@@ -4,11 +4,13 @@
  */
 
 import { createLogger } from '../utils/logger.js';
+import { resolveNativeBlobFields } from './blob.js';
 import { FirebirdError, ErrorTypes } from '../utils/errors.js';
 import type { ConfigOptions, FirebirdDatabase } from './connection.js';
 import { createRequire } from 'module';
 
 const logger = createLogger('db:driver-factory');
+
 
 // Create require function for ES modules to load CommonJS modules
 const require = createRequire(import.meta.url);
@@ -273,6 +275,7 @@ class NativeDriver implements IFirebirdDriver {
                     if (statement.hasResultSet) {
                         resultSet = await statement.executeQuery(transaction, params);
                         rows = await resultSet.fetchAsObject();
+                        rows = await resolveNativeBlobFields(rows, transaction);
                         await resultSet.close();
                         resultSet = undefined;
                     } else {
