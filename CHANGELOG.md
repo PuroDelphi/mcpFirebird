@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.9.3] - 2026-08-31
+
+### Fixed
+- Resolved native-driver BLOB objects while their transaction is active, returning UTF-8 text instead of driver attachment internals.
+- Detect BLOB columns across all result rows, including when the first row contains `NULL`.
+- Close native BLOB streams reliably and prevent unresolved objects from being serialized. Resolves [#31](https://github.com/PuroDelphi/mcpFirebird/issues/31).
+
+### Changed
+- Upgraded the HTTP runtime from Express 4 to Express 5 and removed the obsolete `array-flatten` dependency chain.
+- Removed unused direct dependencies on `winston`, `node-fetch`, and `eventsource`, reducing the installed dependency tree by more than 100 packages.
+- Preserved the optional native Firebird driver and its installation behavior for compatibility.
+
+### Security
+- Prevented native attachment and connection details from leaking through BLOB serialization.
+- Production dependency auditing reports zero known vulnerabilities.
+
 ## [2.9.2] - 2026-08-29
 
 ### Security
@@ -17,6 +33,26 @@ All notable changes to this project will be documented in this file.
 
 ### Documentation
 - Documented `MCP_ALLOWED_ORIGIN`, `FIREBIRD_API_KEY`, `ALLOW_RAW_SQL`, browser compatibility, and the structured `get-table-data` migration format.
+
+## [2.9.3-alpha.2] - 2026-08-31
+
+### Fixed
+- Resolved native-driver BLOB objects through `openBlob` while their transaction is still active, returning UTF-8 text instead of driver internals.
+- Detect BLOB columns across all result rows, including when the first row contains `NULL`.
+- Prevent unresolved object values from being stringified and exposing native attachment details.
+- Added regression coverage for native BLOB streams, first-row `NULL` values, cleanup, and serialization safety. Resolves [#31](https://github.com/PuroDelphi/mcpFirebird/issues/31).
+
+## [2.9.3-alpha.1] - 2026-08-29
+
+### Changed
+- Upgraded the HTTP runtime from Express 4 to Express 5 and removed the obsolete `array-flatten` dependency chain.
+- Removed unused direct dependencies on `winston`, `node-fetch`, and `eventsource`; logging already uses the internal stderr-safe logger.
+- Reduced the installed dependency tree by more than 100 packages without changing native-driver installation or behavior.
+
+### Security notes
+- `ajv`, `cross-spawn`, and `eventsource` remain transitive runtime dependencies of the official MCP SDK.
+- `node-gyp` remains part of the optional native Firebird driver, which is intentionally unchanged for compatibility.
+- Network-access findings are expected for HTTP/SSE transports and Firebird database connections; they are capabilities, not confirmed vulnerabilities.
 
 ## [2.9.2-alpha.2] - 2026-08-29
 

@@ -252,9 +252,9 @@ export const setupDatabaseResources = (): Map<string, ResourceDefinition> => {
                         type: t.TRIGGER_TYPE,
                         sequence: t.SEQUENCE,
                         isActive: t.IS_INACTIVE === 0,
-                        source: t.SOURCE == null
-                            ? ''
-                            : (Buffer.isBuffer(t.SOURCE) ? t.SOURCE.toString('utf8') : String(t.SOURCE)).trim()
+                        source: typeof t.SOURCE === 'string'
+                            ? t.SOURCE.trim()
+                            : (Buffer.isBuffer(t.SOURCE) ? t.SOURCE.toString('utf8').trim() : '')
                     }))
                 };
             } catch (error: any) {
