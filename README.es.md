@@ -164,6 +164,29 @@ El servidor MCP Firebird ofrece:
    }
    ```
 
+8. **get-table-indexes**: Obtiene los índices y sus columnas ordenadas para una tabla
+   ```json
+   {
+     "tableName": "EMPLOYEES"
+   }
+   ```
+
+9. **get-table-constraints**: Obtiene claves primarias, foráneas, restricciones UNIQUE, NOT NULL y CHECK, incluidas sus relaciones
+   ```json
+   {
+     "tableName": "EMPLOYEES"
+   }
+   ```
+
+10. **get-table-triggers**: Obtiene únicamente los triggers asociados a una tabla
+    ```json
+    {
+      "tableName": "EMPLOYEES"
+    }
+    ```
+
+Estas tres herramientas reflejan los Resource Templates de metadatos equivalentes. Permiten que los clientes MCP que no leen recursos de forma autónoma consulten la misma información mediante herramientas normales.
+
 La herramienta **get-field-descriptions** es especialmente útil para los modelos de IA, ya que obtiene los comentarios de metadatos RDB$DESCRIPTION de Firebird, proporcionando contexto semántico adicional sobre el propósito de cada campo.
 
 Las herramientas de análisis de rendimiento (**analyze-query-performance**, **get-execution-plan** y **analyze-missing-indexes**) ayudan a optimizar las consultas de base de datos proporcionando información sobre el tiempo de ejecución, los planes de ejecución y las recomendaciones de índices.

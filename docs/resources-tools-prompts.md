@@ -104,7 +104,8 @@ Resources in MCP are static or semi-static data that LLMs can read. They provide
       "name": "IDX_EMP_NAME",
       "isUnique": false,
       "type": "ASCENDING",
-      "segmentCount": 1
+      "segmentCount": 1,
+      "columns": ["LAST_NAME"]
     }
   ]
 }
@@ -128,7 +129,18 @@ Resources in MCP are static or semi-static data that LLMs can read. They provide
     {
       "name": "PK_EMPLOYEES",
       "type": "PRIMARY KEY",
-      "indexName": "RDB$PRIMARY1"
+      "indexName": "RDB$PRIMARY1",
+      "columns": ["EMPLOYEE_ID"]
+    },
+    {
+      "name": "FK_EMP_DEPARTMENT",
+      "type": "FOREIGN KEY",
+      "indexName": "RDB$FOREIGN2",
+      "columns": ["DEPARTMENT_ID"],
+      "references": {
+        "table": "DEPARTMENTS",
+        "columns": ["DEPARTMENT_ID"]
+      }
     }
   ]
 }
@@ -154,7 +166,8 @@ Resources in MCP are static or semi-static data that LLMs can read. They provide
       "type": 1,
       "sequence": 0,
       "isActive": true,
-      "source": "BEGIN ... END"
+      "source": "BEGIN ... END",
+      "description": "Stores employee audit information"
     }
   ]
 }
@@ -281,6 +294,38 @@ Tools in MCP are actions that can be executed. They perform operations on the da
 - `tableName` (string, required) - Name of the table
 
 **Use Case:** Get human-readable field documentation.
+
+---
+
+#### `get-table-indexes`
+**Description:** Returns the indexes defined on one table so agents can inspect them without reading an MCP Resource Template.
+
+**Parameters:**
+- `tableName` (string, required) - Name of the table
+
+**Returns:** Index name, ordered columns, uniqueness, direction, and segment count.
+
+---
+
+#### `get-table-constraints`
+**Description:** Returns table constraints and relational details.
+
+**Parameters:**
+- `tableName` (string, required) - Name of the table
+
+**Returns:** PRIMARY KEY, FOREIGN KEY, UNIQUE, NOT NULL, and CHECK constraints with their columns, referenced table/columns, index name, and check source when applicable.
+
+---
+
+#### `get-table-triggers`
+**Description:** Returns only the triggers associated with one table.
+
+**Parameters:**
+- `tableName` (string, required) - Name of the table
+
+**Returns:** Trigger name, type, sequence, active state, source, and description.
+
+These tools mirror the corresponding `firebird://tables/{tableName}/...` Resource Templates for MCP clients that do not expose autonomous resource-reading to agents.
 
 ---
 

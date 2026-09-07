@@ -7,14 +7,22 @@ jest.mock('../../db/index.js', () => ({
     getExecutionPlan: jest.fn(),
     analyzeMissingIndexes: jest.fn(),
     executeBatchQueries: jest.fn(),
-    describeBatchTables: jest.fn()
+    describeBatchTables: jest.fn(),
+    getTableIndexes: jest.fn(),
+    getTableConstraints: jest.fn(),
+    getTableTriggers: jest.fn()
 }));
 
-import { executeQuery, executeBatchQueries } from '../../db/index.js';
+import {
+    executeQuery, executeBatchQueries, getTableIndexes, getTableConstraints, getTableTriggers
+} from '../../db/index.js';
 import { setupDatabaseTools } from '../../tools/database.js';
 
 const mockedExecuteQuery = jest.mocked(executeQuery);
 const mockedExecuteBatchQueries = jest.mocked(executeBatchQueries);
+const mockedGetTableIndexes = jest.mocked(getTableIndexes);
+const mockedGetTableConstraints = jest.mocked(getTableConstraints);
+const mockedGetTableTriggers = jest.mocked(getTableTriggers);
 
 describe('database tool output shape', () => {
     beforeEach(() => {
@@ -80,5 +88,18 @@ describe('database tool output shape', () => {
 
         expect(mockedExecuteQuery).not.toHaveBeenCalled();
         expect(JSON.parse(response.content[0].text)).toMatchObject({ success: false });
+    });
+
+    it.each([
+        ['get-table-indexes', mockedGetTableIndexes, { tableName: 'CUSTOMERS', indexes: [] }],
+        ['get-table-constraints', mockedGetTableConstraints, { tableName: 'CUSTOMERS', constraints: [] }],
+        ['get-table-triggers', mockedGetTableTriggers, { tableName: 'CUSTOMERS', triggers: [] }]
+    ])('exposes %s as an autonomous tool', async (toolName, operation, result) => {
+        operation.mockResolvedValue(result as never);
+
+        const response = await setupDatabaseTools().get(toolName)!.handler({ tableName: 'CUSTOMERS' });
+
+        expect(operation).toHaveBeenCalledWith('CUSTOMERS');
+        expect(JSON.parse(response.content[0].text)).toEqual(result);
     });
 });

@@ -5,6 +5,7 @@ import { getTableSchema } from '../db/schema.js';
 import { ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { checkAllowedTable } from '../security/authorization.js';
 import { quoteIdentifier } from '../utils/security.js';
+import { getTableConstraints, getTableIndexes, getTableTriggers } from '../db/table-metadata.js';
 
 const logger = createLogger('database'); // Provide string argument
 
@@ -142,29 +143,7 @@ export const setupDatabaseResources = (): Map<string, ResourceDefinition> => {
             }
             logger.info(`Accessing the /tables/${tableName}/indexes resource`);
             try {
-                checkAllowedTable(tableName);
-                const sql = `
-                    SELECT
-                        RDB$INDEX_NAME AS INDEX_NAME,
-                        RDB$RELATION_NAME AS TABLE_NAME,
-                        RDB$UNIQUE_FLAG AS IS_UNIQUE,
-                        RDB$INDEX_TYPE AS INDEX_TYPE,
-                        RDB$SEGMENT_COUNT AS SEGMENT_COUNT
-                    FROM RDB$INDICES
-                    WHERE RDB$RELATION_NAME = ?
-                    AND RDB$SYSTEM_FLAG = 0
-                    ORDER BY RDB$INDEX_NAME
-                `;
-                const indexes = await executeQuery(sql, [tableName.toUpperCase()]);
-                return {
-                    tableName,
-                    indexes: indexes.map((idx: any) => ({
-                        name: idx.INDEX_NAME?.trim(),
-                        isUnique: idx.IS_UNIQUE === 1,
-                        type: idx.INDEX_TYPE === 0 ? 'ASCENDING' : 'DESCENDING',
-                        segmentCount: idx.SEGMENT_COUNT
-                    }))
-                };
+                return await getTableIndexes(tableName);
             } catch (error: any) {
                 logger.error(`Error getting indexes for ${tableName}: ${error.message || error}`);
                 return { error: `Internal error getting indexes for ${tableName}` };
@@ -187,27 +166,7 @@ export const setupDatabaseResources = (): Map<string, ResourceDefinition> => {
             }
             logger.info(`Accessing the /tables/${tableName}/constraints resource`);
             try {
-                checkAllowedTable(tableName);
-                const sql = `
-                    SELECT
-                        RC.RDB$CONSTRAINT_NAME AS CONSTRAINT_NAME,
-                        RC.RDB$CONSTRAINT_TYPE AS CONSTRAINT_TYPE,
-                        RC.RDB$RELATION_NAME AS TABLE_NAME,
-                        I.RDB$INDEX_NAME AS INDEX_NAME
-                    FROM RDB$RELATION_CONSTRAINTS RC
-                    LEFT JOIN RDB$INDICES I ON RC.RDB$INDEX_NAME = I.RDB$INDEX_NAME
-                    WHERE RC.RDB$RELATION_NAME = ?
-                    ORDER BY RC.RDB$CONSTRAINT_NAME
-                `;
-                const constraints = await executeQuery(sql, [tableName.toUpperCase()]);
-                return {
-                    tableName,
-                    constraints: constraints.map((c: any) => ({
-                        name: c.CONSTRAINT_NAME?.trim(),
-                        type: c.CONSTRAINT_TYPE?.trim(),
-                        indexName: c.INDEX_NAME?.trim()
-                    }))
-                };
+                return await getTableConstraints(tableName);
             } catch (error: any) {
                 logger.error(`Error getting constraints for ${tableName}: ${error.message || error}`);
                 return { error: `Internal error getting constraints for ${tableName}` };
@@ -230,33 +189,7 @@ export const setupDatabaseResources = (): Map<string, ResourceDefinition> => {
             }
             logger.info(`Accessing the /tables/${tableName}/triggers resource`);
             try {
-                checkAllowedTable(tableName);
-                const sql = `
-                    SELECT
-                        RDB$TRIGGER_NAME AS TRIGGER_NAME,
-                        RDB$RELATION_NAME AS TABLE_NAME,
-                        RDB$TRIGGER_TYPE AS TRIGGER_TYPE,
-                        RDB$TRIGGER_SEQUENCE AS SEQUENCE,
-                        RDB$TRIGGER_INACTIVE AS IS_INACTIVE,
-                        RDB$TRIGGER_SOURCE AS SOURCE
-                    FROM RDB$TRIGGERS
-                    WHERE RDB$RELATION_NAME = ?
-                    AND RDB$SYSTEM_FLAG = 0
-                    ORDER BY RDB$TRIGGER_NAME
-                `;
-                const triggers = await executeQuery(sql, [tableName.toUpperCase()]);
-                return {
-                    tableName,
-                    triggers: triggers.map((t: any) => ({
-                        name: t.TRIGGER_NAME?.trim(),
-                        type: t.TRIGGER_TYPE,
-                        sequence: t.SEQUENCE,
-                        isActive: t.IS_INACTIVE === 0,
-                        source: typeof t.SOURCE === 'string'
-                            ? t.SOURCE.trim()
-                            : (Buffer.isBuffer(t.SOURCE) ? t.SOURCE.toString('utf8').trim() : '')
-                    }))
-                };
+                return await getTableTriggers(tableName);
             } catch (error: any) {
                 logger.error(`Error getting triggers for ${tableName}: ${error.message || error}`);
                 return { error: `Internal error getting triggers for ${tableName}` };

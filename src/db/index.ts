@@ -41,3 +41,6 @@ export * from './schema.js';
 
 // Exportar funciones de metadata (triggers, procedures, functions, packages)
 export * from './metadata.js';
+
+// Export table-scoped relational metadata used by tools and resources.
+export * from './table-metadata.js';

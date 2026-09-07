@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.10.0-alpha.1] - 2026-09-07
+
+### Added
+- Added `get-table-indexes`, `get-table-constraints`, and `get-table-triggers` tools for MCP clients that cannot autonomously read Resource Templates.
+- Index metadata now includes ordered columns, uniqueness, direction, and segment count.
+- Constraint metadata now includes local columns, referenced table and columns for foreign keys, and CHECK source when available.
+
+### Changed
+- Tools and the corresponding table Resource Templates now share the same metadata implementation, keeping their authorization checks and results consistent. Implements [#33](https://github.com/PuroDelphi/mcpFirebird/issues/33).
+
 ## [2.9.3-alpha.2] - 2026-08-31
 
 ### Fixed
