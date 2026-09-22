@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.10.0-alpha.2] - 2026-09-22
+
+### Fixed
+- Load custom security policies during no-argument initialization in all server entry points, using `FIREBIRD_SECURITY_CONFIG`, `SECURITY_CONFIG`, or the documented `SECURITY_CONFIG_PATH` alias.
+- Honor `--security-config` in the CLI with precedence over environment variables and reject missing option values.
+- Load JSON and trusted CommonJS configuration files correctly in the published ESM runtime, including UTF-8 BOM JSON files. Fixes [#34](https://github.com/PuroDelphi/mcpFirebird/issues/34).
+- Document file formats, precedence, restart instructions, and the existing fallback behavior for invalid configurations.
+
 ## [2.10.0-alpha.1] - 2026-09-07
 
 ### Added

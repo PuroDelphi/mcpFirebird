@@ -15,6 +15,16 @@ import { normalizeDatabasePath, ConfigOptions } from './db/connection.js';
 import { DriverFactory } from './db/driver-factory.js';
 const argv = minimist(process.argv.slice(2));
 
+// Resolve the CLI override before any server entry point initializes security.
+if (argv['security-config'] !== undefined) {
+  const securityConfigPath = argv['security-config'];
+  if (typeof securityConfigPath !== 'string' || !securityConfigPath.trim()) {
+    console.error('ERROR: --security-config requires a configuration file path.');
+    process.exit(1);
+  }
+  process.env.FIREBIRD_SECURITY_CONFIG = securityConfigPath;
+}
+
 // Default database path for testing
 const DEFAULT_DATABASE_PATH = 'F:/Proyectos/SAI/EMPLOYEE.FDB';
 
