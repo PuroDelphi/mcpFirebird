@@ -19,7 +19,7 @@ Este servidor ha sido actualizado para soportar los últimos estándares empresa
 
 - ⚡ **Connection Pooling (Cero Latencia):** Las consultas repetitivas a la base de datos ahora utilizan conexiones persistentes en memoria, eliminando el overhead de handshake y ejecutándose casi instantáneamente.
 - 🔔 **Eventos Proactivos (Triggers):** Integración nativa con `POST_EVENT` de Firebird. El servidor puede escuchar eventos de la base de datos en tiempo real y notificar proactivamente al cliente de IA sin necesidad de polling continuo. [Leer guía detallada y ejemplos de configuración](docs/proactive-events.md).
-- 🔐 **Autorización Gestionada (EMA):** ¿No quieres guardar la contraseña de tu base de datos en el cliente LLM? Activa EMA para requerir un `--api-key` en las conexiones entrantes. El servidor interceptará este token e inyectará la contraseña real de forma segura y oculta. [Leer guía detallada en Seguridad](docs/security.md).
+- 🔐 **Autorización Gestionada (EMA):** ¿No quieres guardar la contraseña de tu base de datos en el cliente LLM? Activa EMA para requerir un `--api-key` en las conexiones entrantes. El servidor interceptará este token e inyectará la contraseña real de forma segura y oculta. [Leer guía detallada en Seguridad](docs/security.es.md).
 
 ---
 
