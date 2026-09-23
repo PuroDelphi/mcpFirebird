@@ -4,6 +4,40 @@ Este documento describe las consideraciones de seguridad y opciones de configura
 
 ## Consideraciones generales
 
+### Cargar un archivo de configuración
+
+Desde `2.10.0-alpha.2`, todos los puntos de entrada resuelven el archivo con esta prioridad:
+
+1. Ruta explícita pasada a `initSecurity(ruta)` o `loadSecurityConfig(ruta)` por código.
+2. `--security-config <ruta>` al usar la CLI (establece `FIREBIRD_SECURITY_CONFIG`).
+3. Variable `FIREBIRD_SECURITY_CONFIG`.
+4. Variable `SECURITY_CONFIG`.
+5. Variable `SECURITY_CONFIG_PATH`, conservada por compatibilidad con `.env.example`.
+
+Ejemplo de `security-config.json`:
+
+```json
+{
+  "security": {
+    "allowedTables": ["EMPLOYEES", "DEPARTMENTS"],
+    "allowedOperations": ["SELECT"],
+    "maxRows": 100
+  }
+}
+```
+
+Arranque por CLI:
+
+```bash
+npx -y mcp-firebird@alpha --security-config /absolute/path/security-config.json
+```
+
+También puedes definir `FIREBIRD_SECURITY_CONFIG` en el entorno del servidor, en `.env` o en el objeto `env` de tu cliente MCP. Conserva los parámetros habituales de conexión a Firebird. Reinicia el servidor después de cambiar la configuración.
+
+Se admiten JSON y módulos CommonJS (`.cjs`, o `.js` en un contexto CommonJS) que exporten un objeto con la propiedad `security`. Los módulos CommonJS ejecutan código: usa únicamente archivos de confianza. Se recomiendan rutas absolutas; las relativas se resuelven desde el directorio de trabajo del proceso.
+
+El registro debe mostrar `Loaded security configuration from ...`. Si no se indica archivo, se mantienen los valores predeterminados. Por compatibilidad, si el archivo no existe, no puede cargarse o no supera la validación, se registra el problema y se usan los valores predeterminados; comprueba el mensaje de carga antes de dar por aplicada tu política.
+
 MCP Firebird proporciona acceso a bases de datos Firebird, lo que implica ciertos riesgos de seguridad. Considera las siguientes recomendaciones:
 
 1. **Privilegios mínimos**: Usa un usuario de base de datos con los privilegios mínimos necesarios.

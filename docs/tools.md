@@ -43,7 +43,37 @@ Gets the stored descriptions for fields of a specific table (if they exist).
 }
 ```
 
-### 5. execute-batch-queries
+### 5. get-table-indexes
+
+Gets the indexes for one table, including their ordered columns, uniqueness, direction, and segment count.
+
+```json
+{
+  "tableName": "EMPLOYEES"
+}
+```
+
+### 6. get-table-constraints
+
+Gets PRIMARY KEY, FOREIGN KEY, UNIQUE, NOT NULL, and CHECK constraints. Foreign keys include the referenced table and ordered columns.
+
+```json
+{
+  "tableName": "EMPLOYEES"
+}
+```
+
+### 7. get-table-triggers
+
+Gets the triggers associated with one table, including their type, sequence, active state, source, and description.
+
+```json
+{
+  "tableName": "EMPLOYEES"
+}
+```
+
+### 8. execute-batch-queries
 
 Executes multiple SQL queries in parallel for improved performance.
 
@@ -66,7 +96,7 @@ Executes multiple SQL queries in parallel for improved performance.
 }
 ```
 
-### 6. describe-batch-tables
+### 9. describe-batch-tables
 
 Gets the detailed schema of multiple tables in parallel for improved performance.
 
@@ -79,7 +109,7 @@ Gets the detailed schema of multiple tables in parallel for improved performance
 
 ## Analysis Tools
 
-### 7. analyze-query-performance
+### 10. analyze-query-performance
 
 Analyzes the performance of a SQL query by executing it multiple times and measuring execution time.
 
@@ -91,7 +121,7 @@ Analyzes the performance of a SQL query by executing it multiple times and measu
 }
 ```
 
-### 8. get-execution-plan
+### 11. get-execution-plan
 
 Gets the execution plan for a SQL query to understand how the database will execute it.
 
@@ -101,7 +131,7 @@ Gets the execution plan for a SQL query to understand how the database will exec
 }
 ```
 
-### 9. analyze-missing-indexes
+### 12. analyze-missing-indexes
 
 Analyzes a SQL query to identify missing indexes that could improve performance.
 
@@ -113,7 +143,7 @@ Analyzes a SQL query to identify missing indexes that could improve performance.
 
 ## Database Management Tools
 
-### 10. backup-database
+### 13. backup-database
 
 Creates a backup of the Firebird database.
 
@@ -129,7 +159,7 @@ Creates a backup of the Firebird database.
 }
 ```
 
-### 11. restore-database
+### 14. restore-database
 
 Restores a Firebird database from a backup.
 
@@ -145,7 +175,7 @@ Restores a Firebird database from a backup.
 }
 ```
 
-### 12. validate-database
+### 15. validate-database
 
 Validates the integrity of the Firebird database.
 
@@ -162,7 +192,7 @@ Validates the integrity of the Firebird database.
 
 ## Proactive Event Tools
 
-### 13. subscribe_to_event
+### 16. subscribe_to_event
 
 Subscribes the current connection to a Firebird `POST_EVENT` trigger.
 *(Requires Streamable HTTP/SSE transport and the native Firebird driver).*
@@ -175,7 +205,7 @@ Subscribes the current connection to a Firebird `POST_EVENT` trigger.
 
 ## Utility Tools
 
-### 14. ping
+### 17. ping
 
 Tests connectivity to the MCP Firebird server.
 
@@ -183,7 +213,7 @@ Tests connectivity to the MCP Firebird server.
 {}
 ```
 
-### 15. echo
+### 18. echo
 
 Echoes back the input message.
 
@@ -193,7 +223,7 @@ Echoes back the input message.
 }
 ```
 
-### 16. get-methods
+### 19. get-methods
 
 Returns a description of all available MCP tools.
 
@@ -201,7 +231,7 @@ Returns a description of all available MCP tools.
 {}
 ```
 
-### 17. describe-method
+### 20. describe-method
 
 Returns a description of a specific MCP tool.
 

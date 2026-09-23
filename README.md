@@ -365,6 +365,8 @@ npx mcp-firebird --transport-type sse
 
 Raw SQL writes are disabled by default. Trusted deployments that require direct `INSERT`, `UPDATE`, `DELETE`, or DDL queries can set `ALLOW_RAW_SQL=true`. See the [security guide](./docs/security.md) for migration details and the structured `get-table-data` filter format.
 
+Custom security files can be loaded with `--security-config /absolute/path/security-config.json` or the `FIREBIRD_SECURITY_CONFIG` environment variable. `SECURITY_CONFIG` and `SECURITY_CONFIG_PATH` are fallback aliases, in that order; the CLI option takes precedence over environment variables. Use a JSON object such as `{"security":{"allowedTables":["EMPLOYEES"],"allowedOperations":["SELECT"],"maxRows":100}}`. Trusted CommonJS configuration files are also supported. Restart the MCP server after changing the file and check for `Loaded security configuration from ...` in its logs. Invalid or missing files retain the default configuration and log a warning. See the [security guide](./docs/security.md) for details.
+
 #### SSL/TLS Support
 
 For production deployments, use a reverse proxy like nginx:

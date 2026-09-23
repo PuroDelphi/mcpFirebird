@@ -8,6 +8,7 @@ import { createLogger } from '../utils/logger.js';
 const logger = createLogger('security:config');
 import * as fs from 'fs';
 import * as path from 'path';
+import { createRequire } from 'node:module';
 
 /**
  * Schema for data masking configuration
@@ -176,12 +177,17 @@ export interface SecurityConfig {
  */
 export function loadSecurityConfig(configPath?: string): SecurityConfig {
     let config: SecurityConfig = { ...DEFAULT_SECURITY_CONFIG };
+    configPath = configPath || process.env.FIREBIRD_SECURITY_CONFIG
+        || process.env.SECURITY_CONFIG || process.env.SECURITY_CONFIG_PATH;
 
     // If a config path is provided, try to load it
     if (configPath) {
         try {
             if (fs.existsSync(configPath)) {
-                const configFile = require(path.resolve(configPath));
+                const absolutePath = path.resolve(configPath);
+                const configFile = path.extname(absolutePath).toLowerCase() === '.json'
+                    ? JSON.parse(fs.readFileSync(absolutePath, 'utf8').replace(/^\uFEFF/, ''))
+                    : createRequire(absolutePath)(absolutePath);
 
                 if (configFile && configFile.security) {
                     // Validate the configuration

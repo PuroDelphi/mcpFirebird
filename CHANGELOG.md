@@ -2,6 +2,39 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.10.0] - 2026-09-23
+
+### Added
+- Promote all changes from `2.10.0-alpha.1` and `2.10.0-alpha.2` since stable `2.9.3`.
+- Add `get-table-indexes`, `get-table-constraints`, and `get-table-triggers` for clients that cannot autonomously read MCP Resource Templates (#33).
+- Include ordered index columns, foreign-key references, and CHECK source in shared tool/resource metadata.
+
+### Fixed
+- Load security configuration from CLI and environment variables across server entry points, with JSON and trusted CommonJS support in the ESM runtime (#34). File loading confirmed by the reporter.
+- Validate the `--security-config` argument and document configuration precedence, formats, restart instructions, and fallback behavior.
+
+### Maintenance
+- Update the locked transitive `qs` dependency from 6.15.3 to 6.16.0.
+- Expand regression tests and add a compiled-runtime MCP security smoke test.
+
+## [2.10.0-alpha.2] - 2026-09-22
+
+### Fixed
+- Load custom security policies during no-argument initialization in all server entry points, using `FIREBIRD_SECURITY_CONFIG`, `SECURITY_CONFIG`, or the documented `SECURITY_CONFIG_PATH` alias.
+- Honor `--security-config` in the CLI with precedence over environment variables and reject missing option values.
+- Load JSON and trusted CommonJS configuration files correctly in the published ESM runtime, including UTF-8 BOM JSON files. Fixes [#34](https://github.com/PuroDelphi/mcpFirebird/issues/34).
+- Document file formats, precedence, restart instructions, and the existing fallback behavior for invalid configurations.
+
+## [2.10.0-alpha.1] - 2026-09-07
+
+### Added
+- Added `get-table-indexes`, `get-table-constraints`, and `get-table-triggers` tools for MCP clients that cannot autonomously read Resource Templates.
+- Index metadata now includes ordered columns, uniqueness, direction, and segment count.
+- Constraint metadata now includes local columns, referenced table and columns for foreign keys, and CHECK source when available.
+
+### Changed
+- Tools and the corresponding table Resource Templates now share the same metadata implementation, keeping their authorization checks and results consistent. Implements [#33](https://github.com/PuroDelphi/mcpFirebird/issues/33).
+
 ## [2.9.3] - 2026-08-31
 
 ### Fixed

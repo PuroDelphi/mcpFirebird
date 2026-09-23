@@ -9,7 +9,10 @@ import {
     getExecutionPlan,
     analyzeMissingIndexes,
     executeBatchQueries,
-    describeBatchTables
+    describeBatchTables,
+    getTableIndexes,
+    getTableConstraints,
+    getTableTriggers
 } from '../db/index.js';
 
 
@@ -50,6 +53,10 @@ export const DescribeTableArgsSchema = z.object({
 
 export const GetFieldDescriptionsArgsSchema = z.object({
     tableName: z.string().min(1).describe("Name of the table to get field descriptions for")
+});
+
+export const TableMetadataArgsSchema = z.object({
+    tableName: z.string().min(1).describe("Name of the table whose relational metadata should be returned")
 });
 
 export const ExecuteBatchQueriesArgsSchema = z.object({
@@ -264,6 +271,51 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
                         text: formatForClaude(errorResponse)
                     }]
                 };
+            }
+        }
+    });
+
+    tools.set("get-table-indexes", {
+        name: "get-table-indexes",
+        description: "Returns all indexes for a table, including ordered columns, uniqueness, direction, and segment count.",
+        inputSchema: TableMetadataArgsSchema,
+        handler: async ({ tableName }: z.infer<typeof TableMetadataArgsSchema>) => {
+            try {
+                return { content: [{ type: "text", text: formatForClaude(await getTableIndexes(tableName)) }] };
+            } catch (error) {
+                const errorResponse = wrapError(error);
+                logger.error(`Error getting indexes for table ${tableName}: ${errorResponse.error}`);
+                return { content: [{ type: "text", text: formatForClaude(errorResponse) }] };
+            }
+        }
+    });
+
+    tools.set("get-table-constraints", {
+        name: "get-table-constraints",
+        description: "Returns PRIMARY KEY, FOREIGN KEY, UNIQUE, NOT NULL, and CHECK constraints for a table, including constrained columns and references.",
+        inputSchema: TableMetadataArgsSchema,
+        handler: async ({ tableName }: z.infer<typeof TableMetadataArgsSchema>) => {
+            try {
+                return { content: [{ type: "text", text: formatForClaude(await getTableConstraints(tableName)) }] };
+            } catch (error) {
+                const errorResponse = wrapError(error);
+                logger.error(`Error getting constraints for table ${tableName}: ${errorResponse.error}`);
+                return { content: [{ type: "text", text: formatForClaude(errorResponse) }] };
+            }
+        }
+    });
+
+    tools.set("get-table-triggers", {
+        name: "get-table-triggers",
+        description: "Returns only the triggers associated with a table, including source, description, sequence, type, and active state.",
+        inputSchema: TableMetadataArgsSchema,
+        handler: async ({ tableName }: z.infer<typeof TableMetadataArgsSchema>) => {
+            try {
+                return { content: [{ type: "text", text: formatForClaude(await getTableTriggers(tableName)) }] };
+            } catch (error) {
+                const errorResponse = wrapError(error);
+                logger.error(`Error getting triggers for table ${tableName}: ${errorResponse.error}`);
+                return { content: [{ type: "text", text: formatForClaude(errorResponse) }] };
             }
         }
     });
