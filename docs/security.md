@@ -13,6 +13,7 @@ Desde `2.10.0-alpha.2`, todos los puntos de entrada resuelven el archivo con est
 3. Variable `FIREBIRD_SECURITY_CONFIG`.
 4. Variable `SECURITY_CONFIG`.
 5. Variable `SECURITY_CONFIG_PATH`, conservada por compatibilidad con `.env.example`.
+6. Desde `2.11.0-alpha.1`, `FIREBIRD_SECURITY_JSON` si no se indica ninguna ruta de archivo.
 
 Ejemplo de `security-config.json`:
 
@@ -37,6 +38,31 @@ También puedes definir `FIREBIRD_SECURITY_CONFIG` en el entorno del servidor, e
 Se admiten JSON y módulos CommonJS (`.cjs`, o `.js` en un contexto CommonJS) que exporten un objeto con la propiedad `security`. Los módulos CommonJS ejecutan código: usa únicamente archivos de confianza. Se recomiendan rutas absolutas; las relativas se resuelven desde el directorio de trabajo del proceso.
 
 El registro debe mostrar `Loaded security configuration from ...`. Si no se indica archivo, se mantienen los valores predeterminados. Por compatibilidad, si el archivo no existe, no puede cargarse o no supera la validación, se registra el problema y se usan los valores predeterminados; comprueba el mensaje de carga antes de dar por aplicada tu política.
+
+### Configuración JSON sin archivos
+
+Desde `2.11.0-alpha.1`, puedes suministrar el objeto JSON completo mediante `FIREBIRD_SECURITY_JSON` en el entorno del proceso. Ejemplo para el objeto `env` de tu cliente MCP:
+
+```json
+{
+  "FIREBIRD_SECURITY_JSON": "{\"security\":{\"allowedTables\":[\"EMPLOYEES\",\"DEPARTMENTS\"],\"allowedOperations\":[\"SELECT\"],\"maxRows\":100}}"
+}
+```
+
+En PowerShell:
+
+```powershell
+$env:FIREBIRD_SECURITY_JSON = '{"security":{"allowedTables":["EMPLOYEES"],"allowedOperations":["SELECT"],"maxRows":100}}'
+npx -y mcp-firebird@alpha
+```
+
+Conserva los parámetros habituales de conexión. Las rutas de archivo indicadas mediante CLI, API o variables de entorno tienen prioridad; elimina esas variables si quieres seleccionar el JSON. Las dos fuentes no se combinan. Los campos omitidos de una política válida conservan el comportamiento predeterminado. El objeto `{"security":{}}` selecciona explícitamente los valores predeterminados.
+
+El JSON debe contener la propiedad `security` y cumplir el esquema de configuración. Se rechazan claves desconocidas en la raíz y en el objeto `security`. El límite es **64 KiB en UTF-8**, sujeto además a los límites de variables de entorno del sistema operativo. Si la fuente seleccionada es JSON vacío, mal formado, inválido o demasiado grande, se rechaza la inicialización; no se continúa silenciosamente con los valores predeterminados. Para no usar esta opción, elimina la variable en lugar de dejarla vacía.
+
+Reinicia el servidor después de cambiarla y comprueba el mensaje `Loaded security configuration from FIREBIRD_SECURITY_JSON`. El contenido del JSON no se incluye en los registros ni en los errores de validación.
+
+Solo debe definir esta variable el administrador o la aplicación de confianza que arranca el proceso MCP. Los clientes HTTP/SSE remotos no pueden modificarla mediante peticiones. Si utilizas `appsettings.json`, tu aplicación debe leerlo, serializar la política y pasarla como variable de entorno al crear el proceso; el MCP no lee `appsettings.json` automáticamente. Protege cualquier secreto incluido como el resto de credenciales del despliegue.
 
 MCP Firebird proporciona acceso a bases de datos Firebird, lo que implica ciertos riesgos de seguridad. Considera las siguientes recomendaciones:
 

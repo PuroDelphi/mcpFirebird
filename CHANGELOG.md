@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.11.0-alpha.1] - 2026-09-23
+
+### Added
+- Support `FIREBIRD_SECURITY_JSON` for trusted launchers to pass a validated security policy without creating a file, as requested in [#34](https://github.com/PuroDelphi/mcpFirebird/issues/34).
+- Preserve file-source precedence, enforce a 64 KiB UTF-8 limit, and reject unknown top-level policy fields without logging inline contents.
+
+### Security
+- Reject initialization when the selected inline policy is empty, malformed, invalid, or oversized, instead of silently using defaults.
+- Initialize the standalone HTTP entry point's process-wide policy before opening its listening socket.
+- Add policy enforcement, source precedence, startup rejection, size-boundary, and error-redaction regression coverage.
+
+### Documentation
+- Document MCP environment examples, PowerShell setup, file precedence, restart requirements, and how a trusted appsettings.json launcher should pass JSON.
+
 ## [2.10.0] - 2026-09-23
 
 ### Added

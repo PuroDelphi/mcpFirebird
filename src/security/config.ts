@@ -9,6 +9,7 @@ const logger = createLogger('security:config');
 import * as fs from 'fs';
 import * as path from 'path';
 import { createRequire } from 'node:module';
+import { ConfigError } from '../utils/errors.js';
 
 /**
  * Schema for data masking configuration
@@ -87,6 +88,33 @@ export const SecurityConfigSchema = z.object({
     resourceLimits: ResourceLimitsSchema.optional(),
     authorization: AuthorizationSchema.optional()
 });
+
+// Environment configuration is data, never executable code. Reject unknown
+// policy keys so misspelled restrictions cannot silently disappear.
+const InlineSecurityConfigSchema = z.object({
+    security: SecurityConfigSchema.strict()
+}).strict();
+export const MAX_SECURITY_JSON_BYTES = 64 * 1024;
+
+function loadInlineSecurityConfig(json: string): SecurityConfig {
+    if (Buffer.byteLength(json, 'utf8') > MAX_SECURITY_JSON_BYTES) {
+        throw new ConfigError('FIREBIRD_SECURITY_JSON exceeds the 64 KiB limit.');
+    }
+
+    let parsed: unknown;
+    try {
+        parsed = JSON.parse(json);
+    } catch {
+        // Parser errors can contain the input, including credentials.
+        throw new ConfigError('FIREBIRD_SECURITY_JSON must contain valid JSON.');
+    }
+    const result = InlineSecurityConfigSchema.safeParse(parsed);
+    if (!result.success) {
+        throw new ConfigError('FIREBIRD_SECURITY_JSON must contain a valid security object with supported policy fields.');
+    }
+    logger.info('Loaded security configuration from FIREBIRD_SECURITY_JSON');
+    return { ...DEFAULT_SECURITY_CONFIG, ...result.data.security };
+}
 
 /**
  * Default security configuration
@@ -179,6 +207,12 @@ export function loadSecurityConfig(configPath?: string): SecurityConfig {
     let config: SecurityConfig = { ...DEFAULT_SECURITY_CONFIG };
     configPath = configPath || process.env.FIREBIRD_SECURITY_CONFIG
         || process.env.SECURITY_CONFIG || process.env.SECURITY_CONFIG_PATH;
+
+    // Preserve the precedence of existing file-based deployments. Presence,
+    // including an empty value, means an explicitly supplied inline policy.
+    if (!configPath && process.env.FIREBIRD_SECURITY_JSON !== undefined) {
+        return loadInlineSecurityConfig(process.env.FIREBIRD_SECURITY_JSON);
+    }
 
     // If a config path is provided, try to load it
     if (configPath) {

@@ -11,6 +11,7 @@ export * from './authorization.js';
 import { initSecurityConfig } from './config.js';
 import { createAuditTable } from './audit.js';
 import { createLogger } from '../utils/logger.js';
+import { ConfigError } from '../utils/errors.js';
 const logger = createLogger('security:index');
 
 /**
@@ -28,5 +29,7 @@ export async function initSecurity(configPath?: string): Promise<void> {
         logger.info('Security module initialized successfully');
     } catch (error: any) {
         logger.error(`Error initializing security module: ${error.message}`);
+        // Never start serving requests with defaults after an invalid inline policy.
+        if (error instanceof ConfigError) throw error;
     }
 }
