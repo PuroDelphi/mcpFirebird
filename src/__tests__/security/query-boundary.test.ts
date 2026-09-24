@@ -21,6 +21,7 @@ describe('real query boundary with mocked Firebird I/O', () => {
         jest.mocked(logQueryExecution).mockResolvedValue(undefined);
     });
     it('rejects catalog SQL before opening a connection, but allows fixed internal metadata SQL', async () => {
+        securityConfig.sql = { allowSystemTables: false };
         await expect(executeQuery('SELECT * FROM RDB$RELATIONS')).rejects.toThrow('System table');
         expect(connectToDatabase).not.toHaveBeenCalled();
         await expect(executeMetadataQuery('SELECT * FROM RDB$RELATIONS')).resolves.toEqual([{ ID: 1 }]);
@@ -75,5 +76,31 @@ describe('real query boundary with mocked Firebird I/O', () => {
         resolveConnection({}); await new Promise(resolve => setTimeout(resolve, 0));
         expect(destroyMock).toHaveBeenCalledTimes(1);
         expect(queryDatabase).not.toHaveBeenCalled();
+    });
+    it('returns more than 1000 rows and handles more than 100 queries without configured caps', async () => {
+        const rows = Array.from({length:1200}, (_, ID) => ({ID}));
+        jest.mocked(queryDatabase).mockResolvedValue(rows);
+        await expect(executeQuery('SELECT * FROM T')).resolves.toHaveLength(1200);
+        jest.mocked(queryDatabase).mockResolvedValue([{ID:1}]);
+        for (let i = 0; i < 120; i++) await executeQuery('SELECT * FROM RDB$RELATIONS');
+        expect(queryDatabase).toHaveBeenCalledTimes(121);
+    });
+    it('normalizes procedure output objects before BLOB resolution and limits', async () => {
+        jest.mocked(queryDatabase).mockResolvedValue({ID:42, DESCRIPTION:Buffer.from('result')} as any);
+        await expect(executeQuery('EXECUTE PROCEDURE P_TEST')).resolves.toEqual([{ID:42, DESCRIPTION:'result'}]);
+        securityConfig.resourceLimits = {maxResponseSize:1};
+        await expect(executeQuery('EXECUTE PROCEDURE P_TEST')).rejects.toThrow('size');
+    });
+    it('does not impose an unconfigured five- or ten-second query deadline', async () => {
+        jest.useFakeTimers();
+        try {
+            let complete!: (rows: any[]) => void;
+            jest.mocked(queryDatabase).mockImplementation(() => new Promise(resolve => { complete = resolve; }));
+            const pending = executeQuery('SELECT * FROM T');
+            await jest.advanceTimersByTimeAsync(15000);
+            expect(destroyMock).not.toHaveBeenCalled();
+            complete([{ID:1}]);
+            await expect(pending).resolves.toEqual([{ID:1}]);
+        } finally { jest.useRealTimers(); }
     });
 });

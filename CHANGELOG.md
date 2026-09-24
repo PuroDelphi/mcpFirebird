@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.11.0-alpha.3] - 2026-09-24
+
+### Compatibility
+- Make advanced security restrictions opt-in. Without an explicit policy, preserve catalog reads, procedures, functions, joins/CTEs and historical `ALLOW_RAW_SQL=true` write/DDL behavior.
+- Remove implicit row/response limits, query deadlines, rate limits and process-lifetime query quotas. Partial resource policies activate only the supplied limits; empty sections activate no advanced controls.
+- Preserve baseline SQL validation, parameterized tool filters, authentication, CORS and driver selection. Explicit operation/table/row/masking/role/catalog policies still fail closed and cannot be bypassed with the raw-write switch.
+- Supersede alpha.2's restrictive defaults. Existing configuration files that explicitly contain previously dormant limits now enforce those limits; review the updated English/Spanish guides.
+
+### Fixed
+- Normalize object-shaped stored procedure results returned by the pure-JavaScript driver before BLOB resolution, masking and limits.
+- Exclude temporary test/cache files and tarballs from the published package.
+- Add compatibility and opt-in regression tests, including long-lived sessions, large results, unconfigured deadlines and a disposable Firebird 2.5.9 integration check.
+
+### Documentation
+- Explain independent activation/deactivation of controls, default behavior and policy migration in both languages, README files, environment examples and the implementation review.
+
 ## [2.11.0-alpha.2] - 2026-09-24
 
 ### Security

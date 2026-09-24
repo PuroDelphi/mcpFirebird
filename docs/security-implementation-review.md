@@ -1,8 +1,10 @@
-# Security implementation review — 2.11.0-alpha.2
+# Security implementation review — 2.11.0-alpha.3
 
 Date: 2026-09-24. Scope: security claims in `README.md`, `README.es.md`, `docs/security.md`, its Spanish counterpart, metadata/transport documentation, and the source paths implementing those claims. This is an implementation review and regression suite, not an independent penetration-test certification.
 
 ## Findings and changes
+
+The alpha.3 compatibility correction makes advanced controls opt-in. No configuration means historical SQL support and no implicit row/size/deadline/count/rate limits. Empty sections have the same behavior, and partially configured limits do not populate unrelated limits. Explicit policies remain enforced, including previously dormant fields in existing configuration files. The legacy raw-write gate and validation remain; CORS, drivers and authentication defaults are unchanged. The stricter defaults recorded in the alpha.2 changelog are superseded, not recommended deployment defaults.
 
 | Previously documented capability | Gap found | Alpha implementation / validation |
 | --- | --- | --- |
@@ -29,6 +31,8 @@ npm test -- --runInBand
 ```
 
 Regression tests include SQL/schema validation, catalog denial/allowlists, DDL gate combinations, nested/CTE/join/UNION bypass attempts, row-filter OR/pagination handling, masking aliases and failure behavior, actual query dispatch with mocked I/O, row/size/rate/count limits, query deadlines, audit failures, OAuth claims and real MCP HTTP session ownership.
+
+Compatibility regressions additionally cover catalog reads, executable/selectable procedures, functions, joins/CTEs, historical raw writes/DDL, baseline validation, more than 1,000 returned rows, more than 100 queries, no implicit five-/ten-second deadline, independent partial policies and explicit denials winning over permissive flags. The real-driver procedure test exposed object-shaped results; these are now normalized to rows before BLOB resolution and output controls.
 
 An additional **real Firebird 2.5.9** smoke test passed on a disposable local database, covering filtering, alias masking, metadata visibility, catalog reads, DDL denial/permission and both audit destinations. No application database was used. Run it only when you intend to create/drop a temporary database on `127.0.0.1:3050`:
 

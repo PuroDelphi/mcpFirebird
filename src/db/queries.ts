@@ -131,7 +131,10 @@ async function executeGuarded(sql: string, params: any[], config: ConfigOptions,
             if (expired) { getPool(config).destroy(connection); throw new FirebirdError('Query deadline exceeded', 'QUERY_TIMEOUT'); }
             db = connection;
             const result = await queryDatabase(connection, sql, params);
-            return resolveBlobFields(result);
+            // node-firebird returns an object (not a row array) for
+            // EXECUTE PROCEDURE. Normalize before masking, limits and BLOBs.
+            const rows = result == null ? [] : Array.isArray(result) ? result : [result];
+            return resolveBlobFields(rows);
         };
         let resolved = await Promise.race([work(), new Promise<never>((_, reject) => {
             if (Number.isFinite(timeout)) timer = setTimeout(() => {

@@ -10,6 +10,7 @@ describe('security policy enforcement', () => {
     beforeEach(() => {
         for (const key of Object.keys(securityConfig)) delete (securityConfig as any)[key];
         Object.assign(securityConfig, structuredClone(DEFAULT_SECURITY_CONFIG));
+        securityConfig.sql = { allowSystemTables: false, allowedSystemTables: [], allowDDL: false, allowUnsafeQueries: false };
         delete process.env.ALLOW_RAW_SQL;
         for (const key of ['FIREBIRD_SECURITY_CONFIG','SECURITY_CONFIG','SECURITY_CONFIG_PATH','FIREBIRD_SECURITY_JSON']) delete process.env[key];
         resetQueryCount(); resetRateLimit();
@@ -48,7 +49,7 @@ describe('security policy enforcement', () => {
     it('handles quoted strings, escaped quotes and comments without treating them as SQL', () => {
         expect(() => prepareUserQuery("/* hi */ SELECT 'DROP; it''s a string' FROM T -- test")).not.toThrow();
     });
-    it('denies sequence side effects hidden inside SELECT by default', () => {
+    it('denies sequence side effects when SQL restrictions are selected', () => {
         expect(() => prepareUserQuery('SELECT NEXT VALUE FOR SEQ FROM T')).toThrow('Sequence');
         expect(() => prepareUserQuery('SELECT GEN_ID(SEQ, 1) FROM T')).toThrow();
     });

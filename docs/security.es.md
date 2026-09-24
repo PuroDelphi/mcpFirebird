@@ -2,20 +2,24 @@
 
 [English](security.md)
 
-Esta guía corresponde a **2.11.0-alpha.2**, no a versiones anteriores de npm. Consulta también la [revisión de implementación](security-implementation-review.md) y el [historial de cambios](../CHANGELOG.md).
+Esta guía corresponde a **2.11.0-alpha.3**, no a versiones anteriores de npm. Consulta también la [revisión de implementación](security-implementation-review.md) y el [historial de cambios](../CHANGELOG.md).
 
 ## Aviso de migración
 
-La documentación anterior presentaba incorrectamente las opciones `sql` y varias funciones auxiliares como protecciones efectivas. Esta alpha conecta la política a la ejecución y rechaza consultas que no puede comprobar con seguridad.
+**La seguridad avanzada es optativa.** Sin configuración (o con objetos `security`/`sql` vacíos) se conserva el soporte anterior de catálogo, procedimientos ejecutables/seleccionables, funciones, joins y CTE. No se imponen límites nuevos de filas/tamaño, plazos de cinco segundos, cuotas de 100 consultas ni frecuencia. Se mantienen la validación anterior, filtros parametrizados, autenticación por clave API y CORS. `ALLOW_RAW_SQL=true` sigue habilitando escrituras, incluido DDL, si ninguna política explícita las prohíbe.
+
+Las funciones de seguridad antes desconectadas ahora están implementadas, pero solo se aplican al configurarlas. Consideraciones al activarlas:
 
 - Un archivo seleccionado inválido o inexistente impide arrancar; ya no se continúa con valores predeterminados.
-- `ALLOW_RAW_SQL=true` no omite las restricciones de operaciones. DDL necesita autorización adicional.
-- Las consultas del usuario a tablas de sistema están bloqueadas por defecto; las consultas internas fijas de metadatos siguen disponibles con sus permisos.
-- Ahora se aplican límites de filas, respuesta, cantidad de consultas, frecuencia y tiempo. Los metadatos también consumen cuota.
+- `ALLOW_RAW_SQL=true` no omite restricciones explícitas de operaciones ni `sql.allowDDL=false`.
+- Las restricciones de catálogo se activan con `sql.allowSystemTables=false` o una lista `sql.allowedSystemTables`. Los metadatos internos siguen sujetos a sus permisos.
+- Cada límite de filas, tamaño, cantidad, frecuencia o tiempo se activa por separado. Los omitidos quedan inactivos; los metadatos consumen cuota solo si se ha configurado.
 - Con restricciones de tablas, filas, enmascaramiento o roles se admite un subconjunto conservador de SQL de una sola tabla. Joins, CTE, subconsultas y rutinas opacas se rechazan.
 - Las suscripciones compartidas a eventos no están disponibles con políticas restringidas: el gestor anterior no aísla usuarios.
 
 Prueba tus consultas antes de desplegar la alpha. **Utiliza una cuenta Firebird con privilegios mínimos, no SYSDBA.** Las comprobaciones del MCP no sustituyen los permisos de la base ni inspeccionan todas las dependencias de vistas y rutinas.
+
+Para conservar la compatibilidad, deja sin establecer las fuentes de seguridad. Para activar únicamente un límite de filas usa `FIREBIRD_SECURITY_JSON='{"security":{"maxRows":1000}}'`: no activa plazos, cuotas ni restricciones SQL adicionales. Para desactivar un control elimina su propiedad y reinicia. Si una configuración antigua ya contiene opciones antes inactivas, ahora sí se aplican porque se han especificado expresamente. No elimines indiscriminadamente políticas cuyos permisos necesites conservar.
 
 ## Cargar la configuración
 
@@ -70,14 +74,14 @@ Solo debe configurarla el administrador o lanzador de confianza. Los clientes HT
 
 | Opción | Predeterminado | Efecto |
 | --- | --- | --- |
-| `allowSystemTables` | `false` | Bloquea consultas del usuario a relaciones `RDB$`, `MON$`, `SEC$`, salvo excepciones. `true` permite leerlas sin omitir otros permisos. |
-| `allowedSystemTables` | `[]` | Nombres exactos permitidos como excepciones de solo lectura. |
-| `allowDDL` | `false` | Puerta adicional para CREATE, ALTER, DROP, RECREATE, GRANT, REVOKE y COMMENT. |
-| `allowUnsafeQueries` | `false` | Autoriza UNION y llamadas opacas en despliegues de confianza sin políticas restringidas; nunca desactiva los demás controles. |
+| `allowSystemTables` | Omitido | Acceso histórico al catálogo. `false` restringe lecturas RDB$/MON$/SEC$ a la lista; `true` permite lecturas generales sin omitir otros permisos. |
+| `allowedSystemTables` | Omitido | Configurar una lista activa la restricción de catálogo salvo `allowSystemTables=true`; `[]` no permite ninguna. |
+| `allowDDL` | Omitido | Conserva la puerta de escritura histórica. `false` bloquea CREATE, ALTER, DROP, RECREATE, GRANT, REVOKE y COMMENT; `true` permite considerarlos, respetando ALLOW_RAW_SQL y los permisos configurados. |
+| `allowUnsafeQueries` | Omitido | Validación y soporte de rutinas anteriores. `false` activa análisis conservador y bloquea UNION/rutinas opacas; `true` permite SQL de confianza como UNION si no contradice políticas de tablas, filas, roles, enmascaramiento o catálogo. |
 
-Las escrituras directas en relaciones de sistema, múltiples sentencias, SQL dinámico y bloques procedurales se rechazan siempre. Los metadatos internos usan SQL fijo/parametrizado; el cliente no puede solicitar esa excepción. Si utilizas `allowedTables`, incluye también las relaciones de catálogo consultadas directamente: los permisos son acumulativos.
+Se siguen rechazando múltiples sentencias. El análisis conservador se activa con políticas de tablas/filas/enmascaramiento/roles, restricciones de catálogo o `allowUnsafeQueries=false`; rechaza además escrituras de sistema, SQL dinámico, bloques y sintaxis que no puede comprobar (incluidos joins con coma y procedimientos seleccionables). Configurar solo límites o auditoría no restringe las formas SQL. Los metadatos internos usan SQL fijo/parametrizado; el cliente no puede solicitar esa excepción. Si utilizas `allowedTables`, incluye también las relaciones de catálogo consultadas directamente: los permisos son acumulativos.
 
-Para DDL necesitas `ALLOW_RAW_SQL=true`, `sql.allowDDL=true` y la operación en `allowedOperations`, sin aparecer en `forbiddenOperations`. Ejemplo:
+Para DDL necesitas `ALLOW_RAW_SQL=true` y respetar las listas de operaciones si las configuras. `sql.allowDDL=false` lo bloquea; sin política SQL no hace falta una bandera adicional. Ejemplo de permisos explícitos:
 
 ```json
 {
@@ -89,15 +93,17 @@ Para DDL necesitas `ALLOW_RAW_SQL=true`, `sql.allowDDL=true` y la operación en 
 }
 ```
 
-Las llamadas a funciones no reconocidas y `EXECUTE PROCEDURE` requieren además `allowUnsafeQueries=true`, permiso EXECUTE y ausencia de restricciones de tablas, filas, enmascaramiento o roles. Sus cuerpos pueden tener efectos secundarios; el MCP no los inspecciona. Esto no es un parser completo de Firebird ni un entorno inmune a inyección: parametriza los valores y limita los privilegios de la cuenta.
+Las funciones opacas y `EXECUTE PROCEDURE` mantienen su disponibilidad anterior sin banderas nuevas cuando no hay políticas restrictivas. Se bloquean con restricciones de tablas, filas, enmascaramiento, roles, catálogo o `allowUnsafeQueries=false`: sus cuerpos podrían eludir esos controles. Pueden tener efectos secundarios y no se inspeccionan. No es un parser completo ni un entorno inmune a inyección: parametriza y limita privilegios. La ruta compatible conserva la validación heurística anterior, incluido rechazar comentarios y UNION salvo habilitación explícita de consultas de confianza.
 
 ## Tablas y operaciones
 
 `allowedTables`, `forbiddenTables` y `tableNamePattern` se comprueban en la ejecución, los metadatos y la visibilidad de listados. Usa nombres exactos de la base: el SQL sin comillas convierte identificadores a mayúsculas; las comillas preservan el caso. Los metadatos de rutinas usan su nombre de objeto; los triggers usan su tabla asociada. Las herramientas que normalizan tablas a mayúsculas comprueban ese nombre normalizado.
 
-Se permiten SELECT y EXECUTE por defecto; se prohíben DROP, TRUNCATE, ALTER, GRANT y REVOKE. Las listas de operaciones utilizan mayúsculas y la prohibición prevalece. Los metadatos de rutinas requieren EXECUTE y SELECT para su consulta interna.
+Las listas de operaciones están omitidas por defecto: SELECT/EXECUTE no necesitan ALLOW_RAW_SQL; el resto sí. Configura `allowedOperations` y `forbiddenOperations` para restringirlas, utilizando mayúsculas. Una lista de permitidas vacía deniega todo; una lista de prohibidas vacía no añade prohibiciones. Las denegaciones prevalecen incluso con ALLOW_RAW_SQL. Los metadatos de rutinas requieren EXECUTE y SELECT para su consulta interna.
 
 Con políticas restringidas se aceptan sentencias de una sola tabla. Utiliza vistas con permisos y filtros definidos en Firebird para informes complejos; autorizar una vista no comprueba automáticamente todas sus dependencias.
+
+Una política de operaciones que excluya o prohíba EXECUTE también activa el análisis conservador para impedir llamadas opacas ocultas dentro de SELECT. No activa cuotas ni restricciones de catálogo.
 
 ## Filtrado de filas y enmascaramiento
 
@@ -120,7 +126,13 @@ El enmascaramiento ocurre tras resolver BLOB y antes de responder o auditar resu
 
 ## Límites de recursos
 
-Valores predeterminados: `maxRows=1000`, `queryTimeout=5000`; dentro de `resourceLimits`: `maxRowsPerQuery=5000`, `maxResponseSize=5242880`, `maxQueryCpuTime=10000`, `maxQueriesPerSession=100`, `rateLimit={"queriesPerMinute":60,"burstLimit":20}`.
+Todos los límites quedan inactivos si se omiten, incluso dentro de un objeto `resourceLimits` parcial. Ejemplo optativo, no valores predeterminados:
+
+```json
+{"security":{"maxRows":1000,"queryTimeout":5000,"resourceLimits":{"maxRowsPerQuery":5000,"maxResponseSize":5242880,"maxQueryCpuTime":10000,"maxQueriesPerSession":100,"rateLimit":{"queriesPerMinute":60,"burstLimit":20}}}}
+```
+
+Especifica solo los límites que quieras activar. Usa enteros positivos; para desactivar un límite elimina la propiedad y reinicia (cero/null no son válidos).
 
 Se aplica el menor límite de filas. Los resultados excesivos se rechazan, no se truncan silenciosamente. Se mide el tamaño JSON en bytes UTF-8, incluyendo comprobaciones de respuestas agregadas de herramientas/recursos. La comprobación ocurre después de materializar datos del driver: no limita la memoria del servidor Firebird. Utiliza FIRST/ROWS y controles de la base.
 

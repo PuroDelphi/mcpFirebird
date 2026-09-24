@@ -2,20 +2,24 @@
 
 [Español](security.es.md)
 
-This guide describes enforcement in **2.11.0-alpha.2**, not older npm releases. See the [security implementation review](security-implementation-review.md) and [changelog](../CHANGELOG.md).
+This guide describes enforcement in **2.11.0-alpha.3**, not older npm releases. See the [security implementation review](security-implementation-review.md) and [changelog](../CHANGELOG.md).
 
 ## Important migration notice
 
-Earlier documentation incorrectly presented `sql` settings and several disconnected security helpers as enforced protections. This alpha connects the policy to query execution and rejects unsupported or ambiguous requests. Existing workloads may need configuration changes:
+**Advanced security is opt-in.** With no security configuration (or empty `security`/`sql` objects), this alpha preserves historical SQL support: catalog reads, stored/selectable procedures, functions, joins and CTEs remain available. There is no new implicit row/size cap, five-second deadline, 100-query quota or rate limit. Existing raw-write validation, parameterized tool filters, API-key authentication and CORS behavior remain in place. `ALLOW_RAW_SQL=true` continues to enable direct writes, including DDL, when no explicit policy forbids them.
+
+Earlier documentation incorrectly presented disconnected security helpers as enforced protections. They are now implemented, **but apply only when configured**. Important boundaries when opting in:
 
 - Invalid selected configuration files now stop initialization instead of falling back to defaults.
-- `ALLOW_RAW_SQL=true` no longer bypasses operation restrictions. DDL needs another explicit opt-in.
-- User queries against system tables are denied by default. Fixed server-authored metadata queries remain available, subject to operation/object permissions.
-- Row, response, query-count, rate and deadline limits are now enforced. Metadata queries also consume quotas.
+- `ALLOW_RAW_SQL=true` never bypasses explicitly configured operation restrictions or `sql.allowDDL=false`.
+- Catalog restrictions activate with `sql.allowSystemTables=false` or an explicit `sql.allowedSystemTables` list. Fixed internal metadata reads remain available, subject to permissions.
+- Each configured row, response, query-count, rate or deadline limit is enforced independently. Omitted limits stay inactive; metadata queries consume quotas only when configured.
 - Policies restricting tables, rows, masking or roles use a conservative single-table SQL subset. Unsupported joins, CTEs, nested queries and opaque routines are rejected under these policies.
 - Shared event subscriptions are unavailable with scoped policies because the legacy event manager is not isolated per user.
 
 Do not deploy an alpha directly into production without testing representative queries. **Use a least-privilege Firebird account, not SYSDBA.** Application checks complement, but do not replace, database privileges. A permitted view may expose underlying objects; configure database views and grants accordingly.
+
+To keep compatibility, leave security sources unset. To enable only a row cap, set `FIREBIRD_SECURITY_JSON='{"security":{"maxRows":1000}}'`; this does not activate a timeout, query quota, catalog restriction or SQL subset. Remove the property (or the selected policy source) and restart to disable it. A configured policy from an older release is still explicit: previously dormant options in that policy now take effect. Do not remove a policy indiscriminately if you depend on its permissions.
 
 ## Loading a configuration file
 
@@ -81,12 +85,12 @@ Only a trusted administrator/launcher may supply the policy. HTTP/SSE clients ca
 
 | Setting | Default | Enforcement |
 | --- | --- | --- |
-| `sql.allowSystemTables` | `false` | Deny user access to `RDB$`, `MON$` and `SEC$` relations unless explicitly listed below. `true` permits reads of these relations; other restrictions still apply. |
-| `sql.allowedSystemTables` | `[]` | Exact relation names allowed as read-only exceptions while broad access is disabled. |
-| `sql.allowDDL` | `false` | Additional gate for `CREATE`, `ALTER`, `DROP`, `RECREATE`, `GRANT`, `REVOKE`, `COMMENT`. Requires the write gate and operation permissions too. |
-| `sql.allowUnsafeQueries` | `false` | Opt-in for `UNION` and opaque routine calls in unrestricted trusted deployments. Never bypasses table/row/masking/role rules, system-table restrictions or DDL gates. |
+| `sql.allowSystemTables` | Unset | Historical catalog access. Set `false` to restrict `RDB$`, `MON$` and `SEC$` reads to the allowlist; `true` allows broad reads without bypassing other permissions. |
+| `sql.allowedSystemTables` | Unset | Setting a list activates a catalog allowlist unless `allowSystemTables=true`; `[]` allows none. |
+| `sql.allowDDL` | Unset | Historical raw-write gate. `false` denies CREATE, ALTER, DROP, RECREATE, GRANT, REVOKE and COMMENT. `true` permits consideration of DDL, still requiring `ALLOW_RAW_SQL=true` and any configured operation permissions. |
+| `sql.allowUnsafeQueries` | Unset | Historical SQL validation and routine support. `false` enables conservative parsing and blocks UNION/opaque routines; `true` allows trusted SQL such as UNION when no scoped/catalog policy conflicts. It never bypasses operation, table, row, masking, role or DDL restrictions. |
 
-Direct system-relation writes, multiple statements, dynamic SQL and procedural blocks are always rejected. Internal metadata reads are fixed/parameterized server SQL, not an exemption that a tool caller can request. With `allowedTables`, include any explicitly queried catalog relation there as well: permissions are cumulative.
+Multiple statements remain rejected. Conservative parsing activates for scoped table/row/masking/role policies, catalog restrictions or `allowUnsafeQueries=false`; it also rejects direct system-relation writes, dynamic SQL, procedural blocks and syntax it cannot verify (including comma joins/selectable procedures). These restrictions do not activate just by configuring a limit or audit log. Internal metadata reads are fixed/parameterized server SQL, not an exemption that a tool caller can request. With `allowedTables`, include any explicitly queried catalog relation there as well: permissions are cumulative.
 
 DDL example, for a trusted administrator with matching Firebird privileges:
 
@@ -100,17 +104,19 @@ DDL example, for a trusted administrator with matching Firebird privileges:
 }
 ```
 
-Also set `ALLOW_RAW_SQL=true`. To permit an operation forbidden by default, explicitly adjust `forbiddenOperations`; denials always win. SQL writes otherwise remain disabled.
+Also set `ALLOW_RAW_SQL=true`. If you configured `forbiddenOperations`, remove an operation from that list before permitting it; denials always win. SQL writes otherwise remain disabled. Without a SQL policy, no additional DDL switch is required.
 
-Opaque function calls and `EXECUTE PROCEDURE` additionally require `allowUnsafeQueries=true`, `ALLOW_RAW_SQL=true` and `EXECUTE` permission, with no scoped table/row/masking/role policy. Their bodies cannot be inspected by this policy and may have side effects. Never enable this for an untrusted database account. Unknown SQL syntax is rejected rather than assumed safe; this is not a complete Firebird SQL parser or an injection-proof sandbox. Use parameterized values.
+Opaque functions and `EXECUTE PROCEDURE` keep their historical availability without restrictive policies; they do not require a new flag. They are blocked with scoped table/row/masking/role policies, catalog restrictions or `allowUnsafeQueries=false`, even if another switch is permissive: their bodies could evade those controls. Their bodies may have side effects and are not inspected. This is not a complete Firebird SQL parser or an injection-proof sandbox. Use parameterized values and database grants. The compatibility path retains the previous heuristic validation (including rejecting comments and UNION unless trusted-query opt-in is selected).
 
 ## Table and operation permissions
 
 `allowedTables`, `forbiddenTables` and `tableNamePattern` apply at the query boundary, to table metadata access, and to listing visibility. Names are exact database identifiers: normal unquoted SQL identifiers resolve to uppercase; quoted names retain case. Table metadata tools that normalize input to uppercase check that normalized name. Routine metadata uses object names for these restrictions; trigger metadata uses its parent table.
 
-`allowedOperations` defaults to `SELECT, EXECUTE`; `forbiddenOperations` defaults to `DROP, TRUNCATE, ALTER, GRANT, REVOKE`. Both lists use uppercase names. Global denials apply even with `ALLOW_RAW_SQL=true` or a permissive role. Routine metadata tools retain their `EXECUTE` gate and also require `SELECT` for the internal catalog read.
+Operation lists are unset by default: the historical raw-write gate permits SELECT/EXECUTE without `ALLOW_RAW_SQL`, and requires that flag for other operations. Configure `allowedOperations`/`forbiddenOperations` explicitly to narrow permissions; use uppercase names. An empty allowlist denies all operations; an empty denylist adds no denials. Global denials apply even with `ALLOW_RAW_SQL=true` or a permissive role. Routine metadata tools retain their `EXECUTE` gate and also require `SELECT` for the internal catalog read.
 
 Scoped policies accept single-table statements only. Joins, CTEs, nested SELECTs, selectable procedures and DDL are rejected in this mode. Use a database-enforced view for complex reporting; the view itself must implement the required row/column restrictions. Views, triggers and routines can have indirect dependencies that text checks cannot authorize for you.
+
+An operation policy that excludes or forbids EXECUTE also selects conservative parsing to prevent opaque routine calls hidden inside SELECT. It does not activate resource quotas or a catalog denylist.
 
 ## Row filtering and masking
 
@@ -151,7 +157,7 @@ The structured `get-table-data` filters (`eq`, `ne`, `gt`, `gte`, `lt`, `lte`, `
 }
 ```
 
-These are the defaults. Both row limits apply; the lower wins. Oversized results are rejected, not silently truncated. Size is measured using UTF-8 JSON bytes; tool/resource wrappers also check aggregate responses. Row/size checks occur after driver materialization, so they are **not a database memory quota**. Use `FIRST`/`ROWS` and database-side controls to bound work.
+This is an **opt-in example, not the defaults**. Every limit is inactive when omitted, even inside a partially populated `resourceLimits` object. Use positive integers; remove a property to disable it (zero/null are invalid). When both row limits are configured, the lower wins. Oversized results are rejected, not silently truncated. Size is measured using UTF-8 JSON bytes; tool/resource wrappers also check aggregate responses. Row/size checks occur after driver materialization, so they are **not a database memory quota**. Use `FIRST`/`ROWS` and database-side controls to bound work.
 
 The lower of `queryTimeout` and the legacy `maxQueryCpuTime` is a **wall-clock deadline**, including attachment/query/BLOB reading. Timed-out connections are discarded; late attachments are also closed. This does not measure Firebird CPU time or guarantee immediate server-side cancellation. A timed-out write may already have committed: never automatically retry it.
 

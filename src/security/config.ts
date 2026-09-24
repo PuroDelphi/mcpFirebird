@@ -11,10 +11,10 @@ const regexPattern = z.string().refine(value => {
 }, 'Invalid regular expression');
 const identifier = z.string().regex(/^[A-Za-z_][A-Za-z0-9_$]{0,62}$/);
 export const SqlSecuritySchema = z.object({
-    allowSystemTables: z.boolean().default(false),
-    allowedSystemTables: z.array(identifier).default([]),
-    allowDDL: z.boolean().default(false),
-    allowUnsafeQueries: z.boolean().default(false)
+    allowSystemTables: z.boolean().optional(),
+    allowedSystemTables: z.array(identifier).optional(),
+    allowDDL: z.boolean().optional(),
+    allowUnsafeQueries: z.boolean().optional()
 }).strict();
 export const DataMaskingSchema = z.array(z.object({
     columns: z.array(z.string()).min(1),
@@ -33,11 +33,11 @@ export const AuditConfigSchema = z.object({
     logParameters: z.boolean().default(true)
 }).strict();
 export const ResourceLimitsSchema = z.object({
-    maxRowsPerQuery: z.number().int().positive().default(5000),
-    maxResponseSize: z.number().int().positive().default(5 * 1024 * 1024),
+    maxRowsPerQuery: z.number().int().positive().optional(),
+    maxResponseSize: z.number().int().positive().optional(),
     // Historical name: wall-clock deadline, not server CPU accounting.
-    maxQueryCpuTime: z.number().int().positive().default(10000),
-    maxQueriesPerSession: z.number().int().positive().default(100),
+    maxQueryCpuTime: z.number().int().positive().optional(),
+    maxQueriesPerSession: z.number().int().positive().optional(),
     rateLimit: z.object({
         queriesPerMinute: z.number().int().positive(),
         burstLimit: z.number().int().positive()
@@ -81,12 +81,11 @@ export type SecurityConfig = z.infer<typeof SecurityConfigSchema>;
 export const MAX_SECURITY_JSON_BYTES = 64 * 1024;
 export const DEFAULT_SECURITY_CONFIG: SecurityConfig = {
     sql: SqlSecuritySchema.parse({}),
-    allowedOperations: ['SELECT', 'EXECUTE'],
-    forbiddenOperations: ['DROP', 'TRUNCATE', 'ALTER', 'GRANT', 'REVOKE'],
-    maxRows: 1000,
-    queryTimeout: 5000,
+    // No implicit advanced restrictions. The historical raw-write gate and
+    // SQL validation remain enforced by prepareUserQuery. Explicit policies
+    // are always enforced, including when ALLOW_RAW_SQL=true.
     audit: AuditConfigSchema.parse({ auditFile: './logs/audit.log' }),
-    resourceLimits: ResourceLimitsSchema.parse({ rateLimit: { queriesPerMinute: 60, burstLimit: 20 } })
+    resourceLimits: ResourceLimitsSchema.parse({})
 };
 
 function parsePolicy(value: unknown): SecurityConfig {

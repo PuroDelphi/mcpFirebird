@@ -574,9 +574,9 @@ end.
 
 Desde **2.11.0-alpha.2**, las opciones SQL, restricciones, filtros de filas, enmascaramiento, límites, auditoría y autorización se comprueban en la ejecución, no solo al leer la configuración. Los ejemplos anteriores se sustituyen por la [guía actualizada en español](docs/security.es.md) y su [versión inglesa](docs/security.md).
 
-Usa `--security-config /ruta/politica.json` o `FIREBIRD_SECURITY_JSON`. Ambas fuentes admiten `security` y `sql`; una configuración seleccionada inválida detiene el inicio. DDL necesita permisos explícitos, `ALLOW_RAW_SQL=true` y `sql.allowDDL=true`.
+Usa `--security-config /ruta/politica.json` o `FIREBIRD_SECURITY_JSON`. Ambas fuentes admiten `security` y `sql`; una configuración seleccionada inválida detiene el inicio. En **2.11.0-alpha.3** las restricciones avanzadas son optativas: no hay cuotas, plazos, bloqueo de catálogo ni restricciones nuevas de rutinas implícitas. Se conserva `ALLOW_RAW_SQL=true` para escrituras, incluido DDL; los permisos configurados expresamente y `sql.allowDDL=false` no se pueden omitir.
 
-**Revisa la migración antes de actualizar:** los límites antes inactivos ahora se aplican; las políticas restringidas rechazan SQL complejo, las tablas con filtros de filas son de solo lectura y las suscripciones compartidas a eventos se deshabilitan en ese modo. Los plazos son de tiempo transcurrido, no cuotas de CPU de Firebird. Utiliza cuentas con privilegios mínimos.
+**Activa solo los controles que necesites:** `{"security":{"maxRows":100}}` habilita únicamente ese límite. Los omitidos quedan inactivos; para desactivarlos elimina sus propiedades y reinicia. Una política antigua que incluya opciones antes inactivas ahora sí las aplica. Las políticas restringidas rechazan SQL complejo, las tablas con filtros son de solo lectura y los eventos compartidos se deshabilitan en ese modo. Los plazos no son cuotas CPU de Firebird. Consulta la guía y utiliza privilegios mínimos.
 
 La [revisión de implementación](docs/security-implementation-review.md) relaciona los problemas encontrados con las correcciones y las pruebas realizadas.
 

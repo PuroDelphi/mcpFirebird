@@ -37,6 +37,18 @@ try {
     await raw('INSERT INTO PUBLIC_DATA VALUES (?, ?, ?)',[1,'private-value',1]);
     await raw('INSERT INTO PUBLIC_DATA VALUES (?, ?, ?)',[2,'hidden-row',0]);
     reset();
+    // Default compatibility: catalog, opaque functions, stored procedures,
+    // joins and long-lived sessions work without enabling advanced controls.
+    delete process.env.ALLOW_RAW_SQL;
+    await raw('CREATE PROCEDURE COMPAT_PROC RETURNS (ID INTEGER) AS BEGIN ID = 42; END');
+    assert.equal((await executeQuery('EXECUTE PROCEDURE COMPAT_PROC',[],config))[0].ID,42);
+    assert((await executeQuery("SELECT RDB$GET_CONTEXT('SYSTEM', 'ENGINE_VERSION') AS VERSION FROM RDB$DATABASE",[],config))[0].VERSION);
+    assert.equal((await executeQuery('SELECT A.ID FROM PUBLIC_DATA A, PUBLIC_DATA B WHERE A.ID = B.ID',[],config)).length,2);
+    for (let i=0;i<110;i++) await executeQuery('SELECT ID FROM PUBLIC_DATA',[],config);
+    await assert.rejects(executeQuery('CREATE TABLE LEGACY_WRITE (ID INTEGER)',[],config));
+    process.env.ALLOW_RAW_SQL='true';
+    await executeQuery('CREATE TABLE LEGACY_WRITE (ID INTEGER)',[],config);
+    delete process.env.ALLOW_RAW_SQL;
     securityConfig.allowedTables=['PUBLIC_DATA'];
     securityConfig.rowFilters={PUBLIC_DATA:'VISIBLE = 1'};
     securityConfig.dataMasking=[{columns:['SSN'],pattern:'^.*$',replacement:'[masked]'}];
@@ -60,7 +72,7 @@ try {
     const auditRows=await raw('SELECT LOG_ID FROM SECURITY_SMOKE_AUDIT');
     assert.equal(auditRows.length,2);
     assert.equal(readFileSync(auditFile,'utf8').trim().split('\n').length,2);
-    console.log('PASS: local Firebird row filtering, masking aliases, table visibility, catalog allowlist, DDL gating, database/file audit');
+    console.log('PASS: legacy default compatibility and opt-in row filtering, masking, visibility, catalog policy, DDL gating, database/file audit');
 } finally {
     delete globalThis.MCP_FIREBIRD_CONFIG;
     await closePool();

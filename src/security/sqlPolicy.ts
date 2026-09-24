@@ -1,6 +1,7 @@
 import { securityConfig } from './config.js';
 import { checkAllowedOperation, checkAllowedTable } from './authorization.js';
 import { FirebirdError } from '../utils/errors.js';
+import { getSqlOperation, validateSql } from '../utils/security.js';
 
 interface Token { value: string; kind: 'word' | 'quoted' | 'literal' | 'symbol'; start: number; end: number; depth: number }
 const deny = (message: string): never => { throw new FirebirdError(message, 'SECURITY_ERROR'); };
@@ -52,27 +53,50 @@ const DDL = new Set(['CREATE', 'ALTER', 'DROP', 'RECREATE', 'GRANT', 'REVOKE', '
 export interface PreparedQuery { sql: string; operation: string; aliases: Record<string, string> }
 
 export function prepareUserQuery(sql: string): PreparedQuery {
+    const policy = securityConfig.sql;
+    const restricted = !!(securityConfig.allowedTables || securityConfig.forbiddenTables?.length || securityConfig.tableNamePattern ||
+        Object.keys(securityConfig.rowFilters || {}).length || securityConfig.dataMasking?.length ||
+        (securityConfig.authorization && securityConfig.authorization.type !== 'none'));
+    const catalogRestricted = policy?.allowSystemTables !== true &&
+        (policy?.allowSystemTables === false || policy?.allowedSystemTables !== undefined);
+    // An explicit policy that denies EXECUTE must also prevent opaque routine
+    // calls hidden inside SELECT. Do not impose this on unconfigured clients.
+    const routinesRestricted = securityConfig.forbiddenOperations?.includes('EXECUTE') ||
+        (securityConfig.allowedOperations !== undefined && !securityConfig.allowedOperations.includes('EXECUTE'));
+    // Keep historical SQL support unless the administrator selects controls
+    // that need conservative parsing. Limits/audit alone do not narrow SQL.
+    if (!restricted && !catalogRestricted && !routinesRestricted && policy?.allowUnsafeQueries !== false) {
+        let leading = getSqlOperation(sql);
+        if (policy?.allowUnsafeQueries === true) {
+            const first = tokenizeSql(sql)[0];
+            if (!first || first.kind !== 'word') deny('Unsupported SQL statement');
+            leading = first.value;
+        }
+        else if (!validateSql(sql)) deny('Invalid or potentially unsafe SQL query');
+        const operation = leading === 'WITH' ? 'SELECT' : leading;
+        if (!operation) deny('Unsupported SQL statement');
+        checkAllowedOperation(operation);
+        if (!['SELECT', 'EXECUTE'].includes(operation) && process.env.ALLOW_RAW_SQL !== 'true') deny('Direct writes require ALLOW_RAW_SQL=true');
+        if (DDL.has(operation) && policy?.allowDDL === false) deny('DDL is disabled by sql.allowDDL=false');
+        return { sql, operation, aliases: {} };
+    }
     const tokens = tokenizeSql(sql);
     const words = tokens.filter(t => t.kind === 'word').map(t => t.value);
     const first = tokens[0];
     if (!first || first.kind !== 'word') deny('Unsupported SQL statement');
     const operation = first.value === 'WITH' ? 'SELECT' : first.value;
     if (!['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'EXECUTE', ...DDL].includes(operation)) deny('Unsupported SQL operation');
-    const policy = securityConfig.sql;
     checkAllowedOperation(operation);
     if (!['SELECT', 'EXECUTE'].includes(operation) && process.env.ALLOW_RAW_SQL !== 'true') deny('Direct writes require ALLOW_RAW_SQL=true');
-    if (DDL.has(operation) && !policy?.allowDDL) deny('DDL requires sql.allowDDL=true');
-    const restricted = !!(securityConfig.allowedTables || securityConfig.forbiddenTables?.length || securityConfig.tableNamePattern ||
-        Object.keys(securityConfig.rowFilters || {}).length || securityConfig.dataMasking?.length ||
-        (securityConfig.authorization && securityConfig.authorization.type !== 'none'));
+    if (DDL.has(operation) && policy?.allowDDL === false) deny('DDL is disabled by sql.allowDDL=false');
     if (words.includes('BLOCK') || words.includes('STATEMENT')) deny('Dynamic SQL and procedural blocks are not supported');
     if (operation === 'SELECT' && words.some(w => ['INSERT', 'UPDATE', 'DELETE', 'MERGE', 'INTO', ...DDL].includes(w))) deny('Read queries cannot contain write operations');
     if (words.includes('UNION') && !policy?.allowUnsafeQueries) deny('UNION requires sql.allowUnsafeQueries=true');
     if (operation === 'SELECT' && words.includes('NEXT') && words.includes('VALUE')) {
-        if (restricted || !policy?.allowUnsafeQueries || process.env.ALLOW_RAW_SQL !== 'true') deny('Sequence mutation requires an unrestricted trusted-query policy');
+        if (restricted || catalogRestricted || policy?.allowUnsafeQueries !== true || process.env.ALLOW_RAW_SQL !== 'true') deny('Sequence mutation requires an unrestricted trusted-query policy');
         checkAllowedOperation('EXECUTE');
     }
-    if (operation === 'EXECUTE' && (tokens[1]?.value !== 'PROCEDURE' || !policy?.allowUnsafeQueries || process.env.ALLOW_RAW_SQL !== 'true' || restricted)) {
+    if (operation === 'EXECUTE' && (tokens[1]?.value !== 'PROCEDURE' || !policy?.allowUnsafeQueries || process.env.ALLOW_RAW_SQL !== 'true' || restricted || catalogRestricted)) {
         deny('Procedure execution requires allowUnsafeQueries and cannot be combined with table, row, masking, or role restrictions');
     }
     // Opaque routines can read/write tables that are invisible to a SQL text policy.
@@ -81,7 +105,7 @@ export function prepareUserQuery(sql: string): PreparedQuery {
         // INSERT's column list is not a function call.
         if (tokens[i - 1]?.value === 'INTO') continue;
         if (['word', 'quoted'].includes(t.kind) && tokens[i + 1].value === '(' && (t.kind === 'quoted' || !READ_FUNCTIONS.has(t.value))) {
-            if (restricted || !policy?.allowUnsafeQueries || process.env.ALLOW_RAW_SQL !== 'true') deny('Unrecognized SQL function requires an unrestricted trusted-query policy');
+            if (restricted || catalogRestricted || !policy?.allowUnsafeQueries || process.env.ALLOW_RAW_SQL !== 'true') deny('Unrecognized SQL function requires an unrestricted trusted-query policy');
             checkAllowedOperation('EXECUTE');
         }
     }
@@ -111,7 +135,7 @@ export function prepareUserQuery(sql: string): PreparedQuery {
         const name = relation.value;
         if (/^(RDB|MON|SEC)\$/i.test(name)) {
             if (operation !== 'SELECT') deny('System relations are read-only through MCP');
-            if (!policy?.allowSystemTables && !policy?.allowedSystemTables.includes(name)) deny(`System table ${name} is not allowed`);
+            if (catalogRestricted && !policy?.allowedSystemTables?.includes(name)) deny(`System table ${name} is not allowed`);
         }
         // CTE names are only exempt when no table/role restrictions exist.
         if (first.value !== 'WITH' || restricted) checkAllowedTable(name);
