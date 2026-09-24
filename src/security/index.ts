@@ -30,6 +30,6 @@ export async function initSecurity(configPath?: string): Promise<void> {
     } catch (error: any) {
         logger.error(`Error initializing security module: ${error.message}`);
         // Never start serving requests with defaults after an invalid inline policy.
-        if (error instanceof ConfigError) throw error;
+        throw error instanceof ConfigError ? error : new ConfigError('Security initialization failed.');
     }
 }

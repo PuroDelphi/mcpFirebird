@@ -15,10 +15,20 @@ import { FirebirdError } from '../utils/errors.js';
 import { validateSql } from '../utils/security.js';
 import { withCorrectConfig } from './wrapper.js';
 import { resolveBlobFields } from './blob.js';
+import { securityConfig } from '../security/config.js';
+import { prepareUserQuery } from '../security/sqlPolicy.js';
+import { checkAllowedOperation, checkAllowedTable } from '../security/authorization.js';
+import { applyDataMasking } from '../security/dataMasking.js';
+import { checkQueryCountLimit, checkRateLimit, checkResponseSizeLimit, checkRowLimit } from '../security/resourceLimits.js';
+import { currentSecurityContext } from '../security/context.js';
+import { logQueryExecution } from '../security/audit.js';
 
 export { readBlobField, resolveBlobFields } from './blob.js';
 
 const logger = createLogger('db:queries');
+function isTableVisible(name: string): boolean {
+    try { checkAllowedTable(name.trim()); return true; } catch { return false; }
+}
 
 // Directorio de bases de datos
 export const DATABASE_DIR = process.env.FIREBIRD_DB_DIR || './databases';
@@ -82,7 +92,12 @@ export interface ExecutionPlanResult {
  * @returns {Promise<any[]>} Results of the query execution
  * @throws {FirebirdError} If there is a connection or query error
  */
-export const executeQuery = async (sql: string, params: any[] = [], config = DEFAULT_CONFIG): Promise<any[]> => {
+export const executeQuery = (sql: string, params: any[] = [], config = DEFAULT_CONFIG): Promise<any[]> => executeGuarded(sql, params, config, 'user');
+// Only fixed, parameterized SQL authored by this server may use these internal paths.
+export const executeMetadataQuery = (sql: string, params: any[] = [], config = DEFAULT_CONFIG): Promise<any[]> => executeGuarded(sql, params, config, 'metadata');
+export const executeAuditQuery = (sql: string, params: any[] = [], config = DEFAULT_CONFIG): Promise<any[]> => executeGuarded(sql, params, config, 'audit');
+
+async function executeGuarded(sql: string, params: any[], config: ConfigOptions, kind: 'user' | 'metadata' | 'audit'): Promise<any[]> {
     // Try to load config from global variable first
     const globalConfig = getGlobalConfig();
     if (globalConfig && globalConfig.database) {
@@ -91,23 +106,59 @@ export const executeQuery = async (sql: string, params: any[] = [], config = DEF
     }
     let db: FirebirdDatabase | null = null;
     let succeeded = false;
+    let timer: NodeJS.Timeout | undefined;
+    let expired = false;
+    const start = Date.now();
+    const originalSql = sql;
     try {
-        // Validar la consulta SQL para prevenir inyección
-        if (!validateSql(sql)) {
-            throw new FirebirdError(
-                `Potentially unsafe SQL query: ${sql.substring(0, 100)}${sql.length > 100 ? '...' : ''}`,
-                'SECURITY_ERROR'
-            );
+        if (kind !== 'audit') {
+            const { sessionId } = currentSecurityContext();
+            checkRateLimit(sessionId); checkQueryCountLimit(sessionId);
         }
-
-        db = await connectToDatabase(config);
-        const result = await queryDatabase(db, sql, params);
-        // BLOBs must be resolved while the connection is still open, so keep the
-        // success flag off until this completes.
-        const resolved = await resolveBlobFields(result);
+        let aliases: Record<string, string> = {};
+        if (kind === 'user') {
+            const prepared = prepareUserQuery(sql);
+            sql = prepared.sql; aliases = prepared.aliases;
+        }
+        if (kind !== 'audit') {
+            if (kind === 'metadata') checkAllowedOperation('SELECT');
+            // Record intent before dispatch. An unavailable audit sink prevents execution.
+            await logQueryExecution(originalSql, params, '', '', true, '', 0, 0);
+        }
+        const timeout = Math.min(securityConfig.queryTimeout || Infinity, securityConfig.resourceLimits?.maxQueryCpuTime || Infinity);
+        const work = async () => {
+            const connection = await connectToDatabase(config);
+            if (expired) { getPool(config).destroy(connection); throw new FirebirdError('Query deadline exceeded', 'QUERY_TIMEOUT'); }
+            db = connection;
+            const result = await queryDatabase(connection, sql, params);
+            return resolveBlobFields(result);
+        };
+        let resolved = await Promise.race([work(), new Promise<never>((_, reject) => {
+            if (Number.isFinite(timeout)) timer = setTimeout(() => {
+                expired = true;
+                if (db) { getPool(config).destroy(db); db = null; }
+                reject(new FirebirdError('Query deadline exceeded; connection discarded', 'QUERY_TIMEOUT'));
+            }, timeout);
+        })]);
+        if (timer) clearTimeout(timer);
+        if (kind !== 'audit') {
+            checkRowLimit(resolved.length);
+            resolved = applyDataMasking(resolved, aliases);
+            checkResponseSizeLimit(resolved);
+            // Free the user-query attachment before database auditing borrows one.
+            // Otherwise concurrent audited queries can exhaust the pool and deadlock.
+            if (db) { getPool(config).release(db); db = null; }
+            await logQueryExecution(originalSql, params, '', '', true, '', Date.now() - start, resolved.length, resolved);
+        }
         succeeded = true;
         return resolved;
     } catch (error: any) {
+        if (timer) clearTimeout(timer);
+        if (db) { getPool(config).destroy(db); db = null; }
+        if (kind !== 'audit') {
+            try { await logQueryExecution(originalSql, params, '', '', false, 'Query rejected or failed', Date.now() - start); }
+            catch { /* Original failure is still returned; no unlogged result is exposed. */ }
+        }
         // Propagar el error original si ya es un FirebirdError
         if (error instanceof FirebirdError) {
             throw error;
@@ -118,6 +169,7 @@ export const executeQuery = async (sql: string, params: any[] = [], config = DEF
         logger.error(errorMessage);
         throw new FirebirdError(errorMessage, 'QUERY_ERROR', error);
     } finally {
+        if (timer) clearTimeout(timer);
         // Return the connection to the pool on success, or evict it on failure.
         // A connection that hit an error may be poisoned/stale, so it must be
         // destroyed rather than recycled into the pool.
@@ -130,7 +182,7 @@ export const executeQuery = async (sql: string, params: any[] = [], config = DEF
             }
         }
     }
-};
+}
 
 /**
  * Lista todas las bases de datos Firebird disponibles en el directorio de bases de datos
@@ -186,9 +238,9 @@ export const getTables = async (config = DEFAULT_CONFIG): Promise<TableInfo[]> =
             ORDER BY RDB$RELATION_NAME
         `;
 
-        const tables = await executeQuery(sql, [], config);
+        const tables = await executeMetadataQuery(sql, [], config);
 
-        const tableInfos = tables.map((table: any) => ({
+        const tableInfos = tables.filter((table: any) => isTableVisible(table.NAME)).map((table: any) => ({
             name: table.NAME,
             uri: `firebird://table/${table.NAME}`
         }));
@@ -231,9 +283,9 @@ export const getViews = async (config = DEFAULT_CONFIG): Promise<TableInfo[]> =>
             ORDER BY RDB$RELATION_NAME
         `;
 
-        const views = await executeQuery(sql, [], config);
+        const views = await executeMetadataQuery(sql, [], config);
 
-        const viewInfos = views.map((view: any) => ({
+        const viewInfos = views.filter((view: any) => isTableVisible(view.NAME)).map((view: any) => ({
             name: view.NAME,
             uri: `firebird://view/${view.NAME}`
         }));
@@ -269,9 +321,9 @@ export const getProcedures = async (config = DEFAULT_CONFIG): Promise<TableInfo[
             ORDER BY RDB$PROCEDURE_NAME
         `;
 
-        const procedures = await executeQuery(sql, [], config);
+        const procedures = await executeMetadataQuery(sql, [], config);
 
-        const procedureInfos = procedures.map((proc: any) => ({
+        const procedureInfos = procedures.filter((proc: any) => isTableVisible(proc.NAME)).map((proc: any) => ({
             name: proc.NAME,
             uri: `firebird://procedure/${proc.NAME}`
         }));
@@ -298,6 +350,7 @@ export const getProcedures = async (config = DEFAULT_CONFIG): Promise<TableInfo[
  * @throws {FirebirdError} Si hay un error de conexión, de consulta o el nombre de tabla es inválido
  */
 export const getFieldDescriptions = async (tableName: string, config = DEFAULT_CONFIG): Promise<FieldInfo[]> => {
+    checkAllowedTable(tableName);
     // Try to load config from global variable first
     const globalConfig = getGlobalConfig();
     if (globalConfig && globalConfig.database) {
@@ -326,7 +379,7 @@ export const getFieldDescriptions = async (tableName: string, config = DEFAULT_C
                 RF.RDB$FIELD_POSITION
         `;
 
-        const fields = await executeQuery(sql, [tableName], config);
+        const fields = await executeMetadataQuery(sql, [tableName], config);
 
         if (fields.length === 0) {
             logger.warn(`No se encontraron campos para la tabla: ${tableName}`);
@@ -358,6 +411,7 @@ export const getFieldDescriptions = async (tableName: string, config = DEFAULT_C
  * @throws {FirebirdError} Si hay un error de conexión, de consulta o el nombre de tabla es inválido
  */
 export const describeTable = async (tableName: string, config = DEFAULT_CONFIG): Promise<ColumnInfo[]> => {
+    checkAllowedTable(tableName);
     // Try to load config from global variable first
     const globalConfig = getGlobalConfig();
     if (globalConfig && globalConfig.database) {
@@ -416,7 +470,7 @@ export const describeTable = async (tableName: string, config = DEFAULT_CONFIG):
             ORDER BY rf.RDB$FIELD_POSITION
         `;
 
-        const columns = await executeQuery(sql, [tableName], config);
+        const columns = await executeMetadataQuery(sql, [tableName], config);
 
         if (columns.length === 0) {
             logger.warn(`No se encontraron columnas para la tabla: ${tableName}`);
@@ -474,10 +528,10 @@ export const listTables = async (config = DEFAULT_CONFIG): Promise<string[]> => 
             ORDER BY RDB$RELATION_NAME
         `;
 
-        const tables = await executeQuery(sql, [], config);
+        const tables = await executeMetadataQuery(sql, [], config);
 
         // Firebird puede devolver nombres con espacios al final, así que hacemos trim
-        const tableNames = tables.map((table: any) => table.RDB$RELATION_NAME.trim());
+        const tableNames = tables.map((table: any) => table.RDB$RELATION_NAME.trim()).filter(isTableVisible);
 
         logger.info(`Se encontraron ${tableNames.length} tablas de usuario`);
         return tableNames;
@@ -510,12 +564,7 @@ export const analyzeQueryPerformance = async (
 ): Promise<QueryPerformanceResult> => {
     try {
         // Validate the SQL query to prevent injection
-        if (!validateSql(sql)) {
-            throw new FirebirdError(
-                `Invalid SQL query: ${sql}`,
-                'VALIDATION_ERROR'
-            );
-        }
+        prepareUserQuery(sql);
 
         logger.info(`Analyzing query performance with ${iterations} iterations`);
         logger.debug(`Query: ${sql}`);
@@ -622,12 +671,7 @@ export const getExecutionPlan = async (
 ): Promise<ExecutionPlanResult> => {
     try {
         // Validate the SQL query to prevent injection
-        if (!validateSql(sql)) {
-            throw new FirebirdError(
-                `Invalid SQL query: ${sql}`,
-                'VALIDATION_ERROR'
-            );
-        }
+        prepareUserQuery(sql);
 
         logger.info(`Getting execution plan for query: ${sql.substring(0, 100)}${sql.length > 100 ? '...' : ''}`);
 
@@ -762,12 +806,7 @@ export const analyzeMissingIndexes = async (
 ): Promise<{missingIndexes: string[], recommendations: string[], success: boolean, error?: string}> => {
     try {
         // Validate the SQL query to prevent injection
-        if (!validateSql(sql)) {
-            throw new FirebirdError(
-                `Invalid SQL query: ${sql}`,
-                'VALIDATION_ERROR'
-            );
-        }
+        prepareUserQuery(sql);
 
         logger.info(`Analyzing missing indexes for query: ${sql.substring(0, 100)}${sql.length > 100 ? '...' : ''}`);
 

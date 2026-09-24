@@ -7,10 +7,12 @@
 import express from 'express';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { createLogger } from '../utils/logger.js';
+import { currentSecurityContext } from '../security/context.js';
 
 const logger = createLogger('server:sse');
 
 interface SessionInfo {
+    owner: string;
     transport: SSEServerTransport;
     createdAt: Date;
     lastActivity: Date;
@@ -121,6 +123,7 @@ export function createSseRouter(_createServerInstance?: () => Promise<any>): exp
 
             // Store session info
             activeSessions[sessionId] = {
+                owner: currentSecurityContext().sessionId,
                 transport,
                 createdAt: new Date(),
                 lastActivity: new Date()
@@ -185,7 +188,7 @@ export function createSseRouter(_createServerInstance?: () => Promise<any>): exp
         }
 
         const sessionInfo = activeSessions[sessionId];
-        if (!sessionInfo) {
+        if (!sessionInfo || sessionInfo.owner !== currentSecurityContext().sessionId) {
             logger.warn(`POST /messages called with unknown sessionId: ${sessionId}`);
             res.status(404).json({
                 jsonrpc: '2.0',

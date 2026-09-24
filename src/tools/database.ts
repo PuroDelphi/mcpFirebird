@@ -18,6 +18,8 @@ import {
 
 import { getSqlOperation, quoteIdentifier, validateSql } from '../utils/security.js';
 import { checkAllowedOperation, checkAllowedTable } from '../security/authorization.js';
+import { prepareUserQuery } from '../security/sqlPolicy.js';
+import { checkResponseSizeLimit } from '../security/resourceLimits.js';
 import { createLogger } from '../utils/logger.js';
 import { stringifyCompact, wrapSuccess, wrapError, formatForClaude } from '../utils/jsonHelper.js';
 import { FirebirdError } from '../utils/errors.js';
@@ -112,24 +114,7 @@ export interface ToolDefinition {
 }
 
 function assertSqlOperationAllowed(sql: string): void {
-    const operation = getSqlOperation(sql);
-    const normalizedOperation = operation === 'WITH' ? 'SELECT' : operation;
-
-    if (!normalizedOperation) {
-        throw new FirebirdError('Unable to determine SQL operation', 'SECURITY_ERROR');
-    }
-
-    if (!['SELECT', 'EXECUTE'].includes(normalizedOperation)) {
-        if (process.env.ALLOW_RAW_SQL !== 'true') {
-            throw new FirebirdError(
-                `SQL operation ${normalizedOperation} is disabled by default. Set ALLOW_RAW_SQL=true to enable trusted raw writes.`,
-                'SECURITY_ERROR'
-            );
-        }
-        return;
-    }
-
-    checkAllowedOperation(normalizedOperation);
+    prepareUserQuery(sql);
 }
 
 /**
@@ -148,7 +133,7 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
             logger.info('Executing database query');
 
             try {
-                if (typeof sql !== 'string' || !validateSql(sql)) {
+                if (typeof sql !== 'string') {
                     throw new FirebirdError(
                         'Potentially unsafe SQL query',
                         'SECURITY_ERROR'
@@ -330,7 +315,6 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
             logger.info('Executing analyze-query-performance tool');
 
             try {
-                if (!validateSql(sql)) throw new FirebirdError('Potentially unsafe SQL query', 'SECURITY_ERROR');
                 assertSqlOperationAllowed(sql);
                 const result = await analyzeQueryPerformance(
                     sql,
@@ -368,7 +352,6 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
             logger.info('Executing get-execution-plan tool');
 
             try {
-                if (!validateSql(sql)) throw new FirebirdError('Potentially unsafe SQL query', 'SECURITY_ERROR');
                 assertSqlOperationAllowed(sql);
                 const result = await getExecutionPlan(sql, params || []);
 
@@ -402,7 +385,6 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
             logger.info('Executing analyze-missing-indexes tool');
 
             try {
-                if (!validateSql(sql)) throw new FirebirdError('Potentially unsafe SQL query', 'SECURITY_ERROR');
                 assertSqlOperationAllowed(sql);
                 const result = await analyzeMissingIndexes(sql);
 
@@ -439,12 +421,6 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
             try {
                 // Validate each query for security
                 queries.forEach((query, index) => {
-                    if (!validateSql(query.sql)) {
-                        throw new FirebirdError(
-                            `Potentially unsafe SQL query at index ${index}`,
-                            'SECURITY_ERROR'
-                        );
-                    }
                     assertSqlOperationAllowed(query.sql);
                 });
 
@@ -635,7 +611,7 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
     tools.set("verify-wire-encryption", {
         name: "verify-wire-encryption",
         title: "Verify Wire Encryption",
-        description: "Verifies if the current database connection is using wire encryption (requires native driver).",
+        description: "Reports wire-encryption configuration; does not verify negotiated encryption on an active database connection.",
         inputSchema: VerifyWireEncryptionArgsSchema,
         handler: async () => {
             logger.info("Verifying wire encryption status");
@@ -643,6 +619,8 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
             try {
                 // Check if native driver is available
                 const driverInfo = {
+                    verified: false,
+                    status: 'configuration-only',
                     hasNativeDriver: process.env.USE_NATIVE_DRIVER === 'true',
                     wireEncryptionEnabled: process.env.WIRE_CRYPT === 'Enabled',
                     driverType: process.env.USE_NATIVE_DRIVER === 'true' ? 'native' : 'pure-js',
@@ -708,5 +686,13 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
         }
     });
 
+    for (const tool of tools.values()) {
+        const handler = tool.handler;
+        tool.handler = async args => {
+            const result = await handler(args);
+            checkResponseSizeLimit(result);
+            return result;
+        };
+    }
     return tools;
 };

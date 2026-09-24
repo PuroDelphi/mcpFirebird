@@ -4,6 +4,15 @@ import { FirebirdError } from '../utils/errors.js';
 import { DriverFactory, DriverType } from '../db/driver-factory.js';
 import { getDefaultConfig } from '../db/connection.js';
 import { ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { securityConfig } from '../security/config.js';
+
+function assertEventPolicy(): void {
+    if (securityConfig.authorization?.type && securityConfig.authorization.type !== 'none' ||
+        securityConfig.allowedTables || securityConfig.forbiddenTables?.length || securityConfig.tableNamePattern ||
+        Object.keys(securityConfig.rowFilters || {}).length || securityConfig.dataMasking?.length) {
+        throw new FirebirdError('Shared event subscriptions are disabled with scoped security policies', 'SECURITY_ERROR');
+    }
+}
 
 const logger = createLogger('resources:events');
 
@@ -138,6 +147,7 @@ async function getEventManager(): Promise<any> {
  * Registers one or more events to listen to.
  */
 export async function registerFirebirdEvents(events: string[]): Promise<void> {
+    assertEventPolicy();
     const evtManager = await getEventManager();
     
     // Combine existing events with new ones
@@ -167,6 +177,8 @@ export async function registerFirebirdEvents(events: string[]): Promise<void> {
  * Compatible with modern McpServer implementation.
  */
 export function setupEventResources(server: any) {
+    // The legacy manager shares state across clients; do not expose it under per-user policies.
+    try { assertEventPolicy(); } catch { return; }
     mcpServerInstance = server;
     
     // Check if it's the modern McpServer instance or the legacy Server
@@ -182,6 +194,7 @@ export function setupEventResources(server: any) {
                 mimeType: "application/json"
             },
             async (uri: URL, { eventName }: { eventName: string }) => {
+                assertEventPolicy();
                 logger.debug(`Client requested event resource: ${eventName}`);
                 const state = activeEvents.get(eventName) || { count: 0, lastFired: null };
                 
@@ -243,6 +256,7 @@ export function setupEventResources(server: any) {
                 description: "Real-time state and payload of a Firebird POST_EVENT trigger"
             },
             async (uri: URL, { eventName }: { eventName: string }) => {
+                assertEventPolicy();
                 logger.debug(`Client requested event resource: ${eventName}`);
                 const state = activeEvents.get(eventName) || { count: 0, lastFired: null };
                 

@@ -114,11 +114,11 @@ describe('security configuration file loading', () => {
         expect(loadSecurityConfig(filename).maxRows).toBe(42);
     });
 
-    it.each(['missing', 'invalid-json', 'invalid-schema', 'missing-security'])('preserves the default fallback for %s', kind => {
+    it.each(['missing', 'invalid-json', 'invalid-schema', 'missing-security'])('fails closed for %s', kind => {
         const filename = path.join(directory, 'policy.json');
         if (kind === 'invalid-json') fs.writeFileSync(filename, '{');
         if (kind === 'invalid-schema') fs.writeFileSync(filename, '{"security":{"maxRows":-1}}');
         if (kind === 'missing-security') fs.writeFileSync(filename, '{}');
-        expect(loadSecurityConfig(filename)).toEqual(DEFAULT_SECURITY_CONFIG);
+        expect(() => loadSecurityConfig(filename)).toThrow(ConfigError);
     });
 });

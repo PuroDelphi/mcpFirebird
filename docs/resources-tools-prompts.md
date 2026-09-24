@@ -445,7 +445,7 @@ These tools mirror the corresponding `firebird://tables/{tableName}/...` Resourc
 ---
 
 #### `verify-wire-encryption`
-**Description:** Verifies if wire encryption is enabled.
+**Description:** Reports wire-encryption configuration. It does not verify the negotiated encryption of an active connection.
 
 **Parameters:** None
 
@@ -455,6 +455,8 @@ These tools mirror the corresponding `firebird://tables/{tableName}/...` Resourc
   "hasNativeDriver": true,
   "wireEncryptionEnabled": true,
   "driverType": "native",
+  "verified": false,
+  "status": "configuration-only",
   "recommendation": "..."
 }
 ```

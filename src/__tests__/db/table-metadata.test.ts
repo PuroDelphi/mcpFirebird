@@ -1,8 +1,8 @@
 jest.mock('../../db/queries.js', () => ({
-    executeQuery: jest.fn()
+    executeMetadataQuery: jest.fn()
 }));
 
-import { executeQuery } from '../../db/queries.js';
+import { executeMetadataQuery as executeQuery } from '../../db/queries.js';
 import { getTableConstraints, getTableIndexes, getTableTriggers } from '../../db/table-metadata.js';
 
 const mockedExecuteQuery = jest.mocked(executeQuery);

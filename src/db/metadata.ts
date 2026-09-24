@@ -4,11 +4,16 @@
  * (triggers, stored procedures, functions, packages)
  */
 
-import { executeQuery } from './queries.js';
+import { executeMetadataQuery as executeQuery } from './queries.js';
 import { ConfigOptions } from './connection.js';
 import { createLogger } from '../utils/logger.js';
 import { FirebirdError } from '../utils/errors.js';
 import { validateSql } from '../utils/security.js';
+import { checkAllowedTable } from '../security/authorization.js';
+
+function visible(name: string): boolean {
+    try { checkAllowedTable(name.trim()); return true; } catch { return false; }
+}
 
 const logger = createLogger('db:metadata');
 
@@ -86,7 +91,7 @@ export const listTriggers = async (config?: ConfigOptions): Promise<TriggerInfo[
         const triggers = await executeQuery(sql, [], config);
         logger.info(`Found ${triggers.length} triggers`);
 
-        return triggers.map((t: any) => ({
+        return triggers.filter((t: any) => visible(t.TABLE_NAME || t.NAME)).map((t: any) => ({
             name: t.NAME,
             tableName: t.TABLE_NAME || 'DATABASE',
             triggerType: getTriggerTypeDescription(t.TRIGGER_TYPE),
@@ -136,6 +141,7 @@ export const describeTrigger = async (triggerName: string, config?: ConfigOption
         }
 
         const trigger = result[0];
+        checkAllowedTable(trigger.TABLE_NAME || trigger.NAME);
         logger.info(`Retrieved trigger details for: ${triggerName}`);
 
         return {
@@ -181,7 +187,7 @@ export const listProcedures = async (config?: ConfigOptions): Promise<ProcedureI
         const procedures = await executeQuery(sql, [], config);
         logger.info(`Found ${procedures.length} stored procedures`);
 
-        return procedures.map((p: any) => ({
+        return procedures.filter((p: any) => visible(p.NAME)).map((p: any) => ({
             name: p.NAME,
             inputParams: p.INPUT_PARAMS || 0,
             outputParams: p.OUTPUT_PARAMS || 0,
@@ -203,6 +209,7 @@ export const listProcedures = async (config?: ConfigOptions): Promise<ProcedureI
  * @returns {Promise<ProcedureInfo>} Procedure information including source code
  */
 export const describeProcedure = async (procedureName: string, config?: ConfigOptions): Promise<ProcedureInfo> => {
+    checkAllowedTable(procedureName);
     try {
         if (!validateSql(procedureName)) {
             throw new FirebirdError(`Invalid procedure name: ${procedureName}`, 'VALIDATION_ERROR');
@@ -274,7 +281,7 @@ export const listFunctions = async (config?: ConfigOptions): Promise<FunctionInf
         const functions = await executeQuery(sql, [], config);
         logger.info(`Found ${functions.length} functions`);
 
-        return functions.map((f: any) => ({
+        return functions.filter((f: any) => visible(f.NAME)).map((f: any) => ({
             name: f.NAME,
             moduleName: f.MODULE_NAME,
             entryPoint: f.ENTRY_POINT,
@@ -296,6 +303,7 @@ export const listFunctions = async (config?: ConfigOptions): Promise<FunctionInf
  * @returns {Promise<FunctionInfo>} Function information including source code
  */
 export const describeFunction = async (functionName: string, config?: ConfigOptions): Promise<FunctionInfo> => {
+    checkAllowedTable(functionName);
     try {
         if (!validateSql(functionName)) {
             throw new FirebirdError(`Invalid function name: ${functionName}`, 'VALIDATION_ERROR');
@@ -366,7 +374,7 @@ export const listPackages = async (config?: ConfigOptions): Promise<PackageInfo[
         const packages = await executeQuery(sql, [], config);
         logger.info(`Found ${packages.length} packages`);
 
-        return packages.map((p: any) => ({
+        return packages.filter((p: any) => visible(p.NAME)).map((p: any) => ({
             name: p.NAME,
             headerSource: '', // Will be loaded separately
             bodySource: undefined,
@@ -387,6 +395,7 @@ export const listPackages = async (config?: ConfigOptions): Promise<PackageInfo[
  * @returns {Promise<PackageInfo>} Package information including header and body source
  */
 export const describePackage = async (packageName: string, config?: ConfigOptions): Promise<PackageInfo> => {
+    checkAllowedTable(packageName);
     try {
         if (!validateSql(packageName)) {
             throw new FirebirdError(`Invalid package name: ${packageName}`, 'VALIDATION_ERROR');
@@ -480,7 +489,7 @@ export async function listAvailableEvents(): Promise<{ name: string, type: strin
     
     try {
         const results = await executeQuery(query) as { NAME: string, TYPE: string }[];
-        return results.map(row => ({
+        return results.filter(row => visible(row.NAME)).map(row => ({
             name: row.NAME,
             type: row.TYPE
         }));

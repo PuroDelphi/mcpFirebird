@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.11.0-alpha.2] - 2026-09-24
+
+### Security
+- Implement `sql.allowSystemTables`, `allowedSystemTables`, `allowDDL` and bounded `allowUnsafeQueries` behavior for both file and inline JSON policies. Accept `sql` at the root or inside `security`, rejecting conflicts.
+- Enforce policy at the actual query boundary, including batch and analysis execution; separate fixed internal metadata/audit SQL from user-controlled SQL.
+- Enforce global and role operation/table restrictions, including with `ALLOW_RAW_SQL=true`; filter metadata visibility.
+- Connect row predicates, alias-aware output masking, row/UTF-8 response limits, wall-clock deadlines, query counts and token-bucket rate limiting. Reject ambiguous SQL under scoped policies instead of bypassing restrictions.
+- Enforce HTTPS OAuth2 introspection and propagate verified identity to permissions. Bind HTTP/SSE sessions to their principal and disable shared event subscriptions under scoped policies.
+- Connect fail-closed file/database auditing with parameterized inserts, UUID keys, intent/completion events and Firebird 2.5-compatible schema. Mask responses before auditing them.
+- Fail startup on invalid selected files and invalid nested options; clear stale policy fields on initialization. No silent fallback to defaults.
+
+### Fixed
+- Prevent recursive Streamable HTTP transport shutdown discovered by the authenticated-session integration test.
+- Replace misleading security documentation in English and Spanish with tested behavior, migration guidance and explicit limitations. Add an implementation review mapping the previous gaps to enforcement/tests.
+
+### Compatibility notes
+- This alpha intentionally tightens behavior. Direct DDL needs explicit operation permission, `ALLOW_RAW_SQL=true` and `allowDDL=true`. Filtered tables are read-only; masking/scoped policies restrict accepted query shapes.
+- Previously dormant resource limits now apply, including to metadata queries. Review quotas before rollout. `maxQueryCpuTime` is a legacy name for a client wall-clock deadline, not a Firebird CPU quota or guaranteed server-side cancellation.
+- Existing incompatible database audit tables require a new configured table name; no automatic destructive schema migration is performed.
+
 ## [2.11.0-alpha.1] - 2026-09-23
 
 ### Added

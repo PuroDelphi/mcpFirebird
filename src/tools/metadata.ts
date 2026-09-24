@@ -17,6 +17,7 @@ import {
     listAvailableEvents
 } from '../db/metadata.js';
 import { checkAllowedOperation } from '../security/authorization.js';
+import { checkResponseSizeLimit } from '../security/resourceLimits.js';
 
 // Definición local de ToolDefinition basada en el uso
 export interface ToolDefinition {
@@ -574,5 +575,13 @@ export function setupMetadataTools(databaseTools: Map<string, any>): Map<string,
     });
 
     logger.info(`Configured ${tools.size} metadata tools`);
+    for (const tool of tools.values()) {
+        const handler = tool.handler;
+        tool.handler = async (...args: any[]) => {
+            const result = await handler(...args);
+            checkResponseSizeLimit(result);
+            return result;
+        };
+    }
     return tools;
 }

@@ -13,7 +13,7 @@ These tools allow you to explore and understand the structure and logic of your 
 
 ## Security
 
-All metadata tools respect the security configuration defined in your `.env` file or security configuration script. By default, these tools require the `EXECUTE` operation permission.
+Routine metadata tools require `EXECUTE` and, starting with `2.11.0-alpha.2`, `SELECT` for the internal catalog read. Table metadata tools require `SELECT`. Global and role object permissions restrict visibility; internal catalog reads do not grant arbitrary user access to system tables. Queries consume the configured resource quotas. See the [security migration guide](security.md).
 
 ### Configuration Example
 
