@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.11.0-alpha.4] - 2026-09-28
+
+### Fixed
+- Fix [#36](https://github.com/PuroDelphi/mcpFirebird/issues/36): distinguish FROM inside EXTRACT, SUBSTRING and TRIM arguments from a table FROM clause. Aliased/quoted columns, nested builtin expressions and parenthesized arguments no longer cause false relation-security errors.
+- Continue inspecting actual relations and nested subqueries; preserve table/catalog denials, qualified-relation rejection, row filters and masking restrictions. No security flags need to be disabled to use these functions.
+- Add parser/query-boundary regressions and a disposable Firebird 2.5.9 test for the reported SQL and related functions. Compatibility defaults remain unchanged from alpha.3.
+
+### Documentation
+- Document supported function argument syntax and the existing expression-projection restriction when masking is configured, in English and Spanish.
+
 ## [2.11.0-alpha.3] - 2026-09-24
 
 ### Compatibility

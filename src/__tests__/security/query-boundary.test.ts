@@ -33,6 +33,17 @@ describe('real query boundary with mocked Firebird I/O', () => {
         await expect(listTables()).resolves.toEqual(['PUBLIC_DATA']);
         await expect(executeQuery('SELECT * FROM PRIVATE_DATA')).rejects.toThrow();
     });
+    it('dispatches EXTRACT with aliases and applies row filtering to the real relation (#36)', async () => {
+        securityConfig.allowedTables = ['MY_TABLE'];
+        securityConfig.allowedOperations = ['SELECT'];
+        securityConfig.rowFilters = {MY_TABLE:'VISIBLE = 1'};
+        securityConfig.sql = {allowSystemTables:false,allowUnsafeQueries:false};
+        jest.mocked(queryDatabase).mockResolvedValue([{ID:1,MON:9}]);
+        await expect(executeQuery('SELECT T.ID, EXTRACT(MONTH FROM T.CREATED_AT) AS MON FROM MY_TABLE T WHERE T.ID = ?', [1]))
+            .resolves.toEqual([{ID:1,MON:9}]);
+        expect(queryDatabase).toHaveBeenCalledWith(expect.anything(),
+            'SELECT T.ID, EXTRACT(MONTH FROM T.CREATED_AT) AS MON FROM (SELECT * FROM MY_TABLE WHERE (VISIBLE = 1)) T WHERE T.ID = ?', [1]);
+    });
     it('applies row filtering, parameter binding and masking inside the query boundary', async () => {
         securityConfig.rowFilters = { T: 'VISIBLE = 1' };
         securityConfig.dataMasking = [{ columns: ['SSN'], pattern: '^.*$', replacement: 'hidden' }];

@@ -2,7 +2,7 @@
 
 [Español](security.es.md)
 
-This guide describes enforcement in **2.11.0-alpha.3**, not older npm releases. See the [security implementation review](security-implementation-review.md) and [changelog](../CHANGELOG.md).
+This guide describes enforcement in **2.11.0-alpha.4**, not older npm releases. See the [security implementation review](security-implementation-review.md) and [changelog](../CHANGELOG.md).
 
 ## Important migration notice
 
@@ -117,6 +117,8 @@ Operation lists are unset by default: the historical raw-write gate permits SELE
 Scoped policies accept single-table statements only. Joins, CTEs, nested SELECTs, selectable procedures and DDL are rejected in this mode. Use a database-enforced view for complex reporting; the view itself must implement the required row/column restrictions. Views, triggers and routines can have indirect dependencies that text checks cannot authorize for you.
 
 An operation policy that excludes or forbids EXECUTE also selects conservative parsing to prevent opaque routine calls hidden inside SELECT. It does not activate resource quotas or a catalog denylist.
+
+Starting with alpha.4, builtin argument separators such as `EXTRACT(MONTH FROM T.CREATED_AT)`, `SUBSTRING(T.NAME FROM 1 FOR 3)` and `TRIM(BOTH FROM T.NAME)` are distinguished from table FROM clauses, including nested expressions. Aliased columns do not require `allowUnsafeQueries=true` or disabling security. Actual table references and nested subqueries remain subject to the policy; schema-qualified relations remain unsupported in conservative mode. If data masking is enabled, expression projections are still rejected as described below. Opt-in defaults are unchanged from alpha.3.
 
 ## Row filtering and masking
 

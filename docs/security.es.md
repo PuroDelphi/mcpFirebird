@@ -2,7 +2,7 @@
 
 [English](security.md)
 
-Esta guía corresponde a **2.11.0-alpha.3**, no a versiones anteriores de npm. Consulta también la [revisión de implementación](security-implementation-review.md) y el [historial de cambios](../CHANGELOG.md).
+Esta guía corresponde a **2.11.0-alpha.4**, no a versiones anteriores de npm. Consulta también la [revisión de implementación](security-implementation-review.md) y el [historial de cambios](../CHANGELOG.md).
 
 ## Aviso de migración
 
@@ -104,6 +104,8 @@ Las listas de operaciones están omitidas por defecto: SELECT/EXECUTE no necesit
 Con políticas restringidas se aceptan sentencias de una sola tabla. Utiliza vistas con permisos y filtros definidos en Firebird para informes complejos; autorizar una vista no comprueba automáticamente todas sus dependencias.
 
 Una política de operaciones que excluya o prohíba EXECUTE también activa el análisis conservador para impedir llamadas opacas ocultas dentro de SELECT. No activa cuotas ni restricciones de catálogo.
+
+Desde alpha.4 se distingue el FROM de argumentos como `EXTRACT(MONTH FROM T.CREATED_AT)`, `SUBSTRING(T.NAME FROM 1 FOR 3)` y `TRIM(BOTH FROM T.NAME)` del FROM que introduce tablas, también en expresiones anidadas. Los alias de columnas no requieren `allowUnsafeQueries=true` ni desactivar la seguridad. Las tablas reales y subconsultas siguen sujetas a la política; las relaciones calificadas por esquema continúan sin admitirse en modo conservador. Con enmascaramiento activo se siguen rechazando proyecciones con expresiones, como se explica a continuación. Los valores optativos de alpha.3 no cambian.
 
 ## Filtrado de filas y enmascaramiento
 

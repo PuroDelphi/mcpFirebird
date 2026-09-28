@@ -52,6 +52,30 @@ const READ_FUNCTIONS = new Set(('COUNT SUM AVG MIN MAX CAST COALESCE NULLIF IIF 
 const DDL = new Set(['CREATE', 'ALTER', 'DROP', 'RECREATE', 'GRANT', 'REVOKE', 'COMMENT']);
 export interface PreparedQuery { sql: string; operation: string; aliases: Record<string, string> }
 
+/** Identify separators in builtin arguments, not entire function bodies.
+ * A nested SELECT must still expose its own FROM to relation authorization.
+ */
+function functionArgumentSeparators(tokens: Token[]): Set<number> {
+    const separators = new Set<number>();
+    const frames: Array<{ name?: string; query: boolean }> = [];
+    for (let i = 0; i < tokens.length; i++) {
+        const token = tokens[i];
+        if (token.kind === 'symbol' && token.value === '(') {
+            const previous = tokens[i - 1];
+            frames.push({name: previous?.kind === 'word' ? previous.value : undefined, query:false});
+        } else if (token.kind === 'symbol' && token.value === ')') {
+            frames.pop();
+        } else if (token.kind === 'word') {
+            const frame = frames.at(-1);
+            if (!frame) continue;
+            if (token.value === 'SELECT') frame.query = true;
+            if (!frame.query && ((token.value === 'FROM' && ['EXTRACT', 'SUBSTRING', 'TRIM'].includes(frame.name || '')) ||
+                (token.value === 'FOR' && frame.name === 'SUBSTRING'))) separators.add(i);
+        }
+    }
+    return separators;
+}
+
 export function prepareUserQuery(sql: string): PreparedQuery {
     const policy = securityConfig.sql;
     const restricted = !!(securityConfig.allowedTables || securityConfig.forbiddenTables?.length || securityConfig.tableNamePattern ||
@@ -81,6 +105,7 @@ export function prepareUserQuery(sql: string): PreparedQuery {
         return { sql, operation, aliases: {} };
     }
     const tokens = tokenizeSql(sql);
+    const argumentSeparators = functionArgumentSeparators(tokens);
     const words = tokens.filter(t => t.kind === 'word').map(t => t.value);
     const first = tokens[0];
     if (!first || first.kind !== 'word') deny('Unsupported SQL statement');
@@ -103,7 +128,7 @@ export function prepareUserQuery(sql: string): PreparedQuery {
     if (!DDL.has(operation) && operation !== 'EXECUTE') for (let i = 0; i < tokens.length - 1; i++) {
         const t = tokens[i];
         // INSERT's column list is not a function call.
-        if (tokens[i - 1]?.value === 'INTO') continue;
+        if (tokens[i - 1]?.value === 'INTO' || argumentSeparators.has(i)) continue;
         if (['word', 'quoted'].includes(t.kind) && tokens[i + 1].value === '(' && (t.kind === 'quoted' || !READ_FUNCTIONS.has(t.value))) {
             if (restricted || catalogRestricted || !policy?.allowUnsafeQueries || process.env.ALLOW_RAW_SQL !== 'true') deny('Unrecognized SQL function requires an unrestricted trusted-query policy');
             checkAllowedOperation('EXECUTE');
@@ -113,6 +138,7 @@ export function prepareUserQuery(sql: string): PreparedQuery {
     for (let i = 0; i < tokens.length; i++) {
         const t = tokens[i];
         if (t.kind !== 'word' || !['FROM', 'JOIN', 'INTO', 'UPDATE', 'TABLE'].includes(t.value)) continue;
+        if (argumentSeparators.has(i)) continue;
         if (t.value === 'UPDATE' && operation !== 'UPDATE') continue;
         const next = tokens[i + 1];
         if (!next || !['word', 'quoted'].includes(next.kind)) {
@@ -147,7 +173,7 @@ export function prepareUserQuery(sql: string): PreparedQuery {
         }
         if (securityConfig.dataMasking?.length) {
             if (operation !== 'SELECT') deny('Writes are disabled when data masking is configured');
-            const from = tokens.findIndex(t => t.kind === 'word' && t.value === 'FROM');
+            const from = tokens.findIndex((t, i) => t.kind === 'word' && t.value === 'FROM' && t.depth === 0 && !argumentSeparators.has(i));
             let projection = sql.slice(first.end, tokens[from].start).trim().replace(/^(?:FIRST\s+\d+\s*)?(?:SKIP\s+\d+\s*)?/i, '').trim();
             const ident = '(?:[A-Za-z_][A-Za-z0-9_$]*|"(?:[^"]|"")+")';
             const direct = new RegExp(`^(${ident})(?:\\s+(?:AS\\s+)?(${ident}))?$`, 'i');

@@ -36,6 +36,19 @@ try {
     await raw('CREATE TABLE PRIVATE_DATA (ID INTEGER)');
     await raw('INSERT INTO PUBLIC_DATA VALUES (?, ?, ?)',[1,'private-value',1]);
     await raw('INSERT INTO PUBLIC_DATA VALUES (?, ?, ?)',[2,'hidden-row',0]);
+    await raw('CREATE TABLE MY_TABLE (ID INTEGER, CREATED_AT TIMESTAMP, NAME VARCHAR(30), VISIBLE SMALLINT)');
+    await raw("INSERT INTO MY_TABLE VALUES (1, TIMESTAMP '2026-09-28 12:00:00', '  abc  ', 1)");
+    await raw("INSERT INTO MY_TABLE VALUES (2, TIMESTAMP '2026-08-28 12:00:00', 'hidden', 0)");
+    reset();
+    securityConfig.allowedTables=['MY_TABLE'];
+    securityConfig.allowedOperations=['SELECT'];
+    securityConfig.sql={allowSystemTables:false,allowUnsafeQueries:false};
+    const reportedSql='SELECT T.ID, EXTRACT(MONTH FROM T.CREATED_AT) AS MON FROM MY_TABLE T;';
+    assert.deepEqual(await executeQuery(reportedSql,[],config),[{ID:1,MON:9},{ID:2,MON:8}]);
+    securityConfig.rowFilters={MY_TABLE:'VISIBLE = 1'};
+    assert.deepEqual(await executeQuery(reportedSql,[],config),[{ID:1,MON:9}]);
+    assert.deepEqual(await executeQuery('SELECT TRIM(BOTH FROM SUBSTRING(T.NAME FROM (1) FOR (7))) AS NAME FROM MY_TABLE T',[],config),[{NAME:'abc'}]);
+    await assert.rejects(executeQuery('SELECT EXTRACT(MONTH FROM T.CREATED_AT) FROM PRIVATE_DATA T',[],config));
     reset();
     // Default compatibility: catalog, opaque functions, stored procedures,
     // joins and long-lived sessions work without enabling advanced controls.
@@ -72,7 +85,7 @@ try {
     const auditRows=await raw('SELECT LOG_ID FROM SECURITY_SMOKE_AUDIT');
     assert.equal(auditRows.length,2);
     assert.equal(readFileSync(auditFile,'utf8').trim().split('\n').length,2);
-    console.log('PASS: legacy default compatibility and opt-in row filtering, masking, visibility, catalog policy, DDL gating, database/file audit');
+    console.log('PASS: issue #36 EXTRACT/SUBSTRING/TRIM, legacy compatibility and opt-in filtering, masking, visibility, catalog policy, DDL gating, database/file audit');
 } finally {
     delete globalThis.MCP_FIREBIRD_CONFIG;
     await closePool();
