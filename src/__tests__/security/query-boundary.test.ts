@@ -1,0 +1,117 @@
+jest.mock('../../db/connection.js', () => ({
+    DEFAULT_CONFIG: {}, getGlobalConfig: jest.fn(), connectToDatabase: jest.fn(), queryDatabase: jest.fn(),
+    getPool: jest.fn(() => ({ release: releaseMock, destroy: destroyMock }))
+}));
+jest.mock('../../security/audit.js', () => ({ logQueryExecution: jest.fn().mockResolvedValue(undefined) }));
+const releaseMock = jest.fn();
+const destroyMock = jest.fn();
+import { connectToDatabase, queryDatabase } from '../../db/connection.js';
+import { executeQuery, executeMetadataQuery, executeBatchQueries, listTables } from '../../db/queries.js';
+import { logQueryExecution } from '../../security/audit.js';
+import { DEFAULT_SECURITY_CONFIG, securityConfig } from '../../security/config.js';
+import { resetQueryCount, resetRateLimit } from '../../security/resourceLimits.js';
+
+describe('real query boundary with mocked Firebird I/O', () => {
+    beforeEach(() => {
+        jest.clearAllMocks(); resetQueryCount(); resetRateLimit();
+        for (const key of Object.keys(securityConfig)) delete (securityConfig as any)[key];
+        Object.assign(securityConfig, structuredClone(DEFAULT_SECURITY_CONFIG));
+        jest.mocked(connectToDatabase).mockResolvedValue({} as any);
+        jest.mocked(queryDatabase).mockResolvedValue([{ ID: 1 }]);
+        jest.mocked(logQueryExecution).mockResolvedValue(undefined);
+    });
+    it('rejects catalog SQL before opening a connection, but allows fixed internal metadata SQL', async () => {
+        securityConfig.sql = { allowSystemTables: false };
+        await expect(executeQuery('SELECT * FROM RDB$RELATIONS')).rejects.toThrow('System table');
+        expect(connectToDatabase).not.toHaveBeenCalled();
+        await expect(executeMetadataQuery('SELECT * FROM RDB$RELATIONS')).resolves.toEqual([{ ID: 1 }]);
+        expect(releaseMock).toHaveBeenCalledTimes(1);
+    });
+    it('filters table listing and protects direct SQL using the same policy', async () => {
+        securityConfig.allowedTables = ['PUBLIC_DATA'];
+        jest.mocked(queryDatabase).mockResolvedValue([{RDB$RELATION_NAME:'PRIVATE_DATA '},{RDB$RELATION_NAME:'PUBLIC_DATA '}]);
+        await expect(listTables()).resolves.toEqual(['PUBLIC_DATA']);
+        await expect(executeQuery('SELECT * FROM PRIVATE_DATA')).rejects.toThrow();
+    });
+    it('dispatches EXTRACT with aliases and applies row filtering to the real relation (#36)', async () => {
+        securityConfig.allowedTables = ['MY_TABLE'];
+        securityConfig.allowedOperations = ['SELECT'];
+        securityConfig.rowFilters = {MY_TABLE:'VISIBLE = 1'};
+        securityConfig.sql = {allowSystemTables:false,allowUnsafeQueries:false};
+        jest.mocked(queryDatabase).mockResolvedValue([{ID:1,MON:9}]);
+        await expect(executeQuery('SELECT T.ID, EXTRACT(MONTH FROM T.CREATED_AT) AS MON FROM MY_TABLE T WHERE T.ID = ?', [1]))
+            .resolves.toEqual([{ID:1,MON:9}]);
+        expect(queryDatabase).toHaveBeenCalledWith(expect.anything(),
+            'SELECT T.ID, EXTRACT(MONTH FROM T.CREATED_AT) AS MON FROM (SELECT * FROM MY_TABLE WHERE (VISIBLE = 1)) T WHERE T.ID = ?', [1]);
+    });
+    it('applies row filtering, parameter binding and masking inside the query boundary', async () => {
+        securityConfig.rowFilters = { T: 'VISIBLE = 1' };
+        securityConfig.dataMasking = [{ columns: ['SSN'], pattern: '^.*$', replacement: 'hidden' }];
+        jest.mocked(queryDatabase).mockResolvedValue([{ OTHER: '123' }]);
+        await expect(executeQuery('SELECT SSN AS OTHER FROM T WHERE ID = ?', [7])).resolves.toEqual([{ OTHER: 'hidden' }]);
+        expect(queryDatabase).toHaveBeenCalledWith(expect.anything(), expect.stringContaining('WHERE (VISIBLE = 1)'), [7]);
+        expect(logQueryExecution).toHaveBeenLastCalledWith(expect.any(String), [7], '', '', true, '', expect.any(Number), 1, [{OTHER:'hidden'}]);
+    });
+    it('does not release oversized results and enforces policy in batch queries', async () => {
+        securityConfig.maxRows = 1;
+        jest.mocked(queryDatabase).mockResolvedValue([{ID:1},{ID:2}]);
+        await expect(executeQuery('SELECT * FROM T')).rejects.toThrow('rows');
+        expect(destroyMock).toHaveBeenCalled();
+        const results = await executeBatchQueries([{sql:'SELECT * FROM RDB$RELATIONS'}, {sql:'SELECT * FROM T'}]);
+        expect(results.every(result => !result.success)).toBe(true);
+    });
+    it('prevents execution when the configured audit sink fails', async () => {
+        jest.mocked(logQueryExecution).mockRejectedValue(new Error('Unavailable audit sink'));
+        await expect(executeQuery('SELECT * FROM T')).rejects.toThrow();
+        expect(queryDatabase).not.toHaveBeenCalled();
+    });
+    it('releases the completed query attachment before completion auditing borrows a connection', async () => {
+        jest.mocked(logQueryExecution).mockImplementation(async (...args) => {
+            if (args[8] !== undefined) expect(releaseMock).toHaveBeenCalledTimes(1);
+        });
+        await executeQuery('SELECT * FROM T');
+        expect(releaseMock).toHaveBeenCalledTimes(1);
+    });
+    it('discards timed-out connections rather than returning them to the pool', async () => {
+        securityConfig.queryTimeout = 10;
+        jest.mocked(queryDatabase).mockImplementation(() => new Promise(() => {}));
+        await expect(executeQuery('SELECT * FROM T')).rejects.toThrow('deadline');
+        expect(destroyMock).toHaveBeenCalledTimes(1);
+        expect(releaseMock).not.toHaveBeenCalled();
+    });
+    it('closes an attachment that arrives after the deadline', async () => {
+        securityConfig.queryTimeout = 10;
+        let resolveConnection!: (value: any) => void;
+        jest.mocked(connectToDatabase).mockImplementation(() => new Promise(resolve => { resolveConnection = resolve; }));
+        await expect(executeQuery('SELECT * FROM T')).rejects.toThrow('deadline');
+        resolveConnection({}); await new Promise(resolve => setTimeout(resolve, 0));
+        expect(destroyMock).toHaveBeenCalledTimes(1);
+        expect(queryDatabase).not.toHaveBeenCalled();
+    });
+    it('returns more than 1000 rows and handles more than 100 queries without configured caps', async () => {
+        const rows = Array.from({length:1200}, (_, ID) => ({ID}));
+        jest.mocked(queryDatabase).mockResolvedValue(rows);
+        await expect(executeQuery('SELECT * FROM T')).resolves.toHaveLength(1200);
+        jest.mocked(queryDatabase).mockResolvedValue([{ID:1}]);
+        for (let i = 0; i < 120; i++) await executeQuery('SELECT * FROM RDB$RELATIONS');
+        expect(queryDatabase).toHaveBeenCalledTimes(121);
+    });
+    it('normalizes procedure output objects before BLOB resolution and limits', async () => {
+        jest.mocked(queryDatabase).mockResolvedValue({ID:42, DESCRIPTION:Buffer.from('result')} as any);
+        await expect(executeQuery('EXECUTE PROCEDURE P_TEST')).resolves.toEqual([{ID:42, DESCRIPTION:'result'}]);
+        securityConfig.resourceLimits = {maxResponseSize:1};
+        await expect(executeQuery('EXECUTE PROCEDURE P_TEST')).rejects.toThrow('size');
+    });
+    it('does not impose an unconfigured five- or ten-second query deadline', async () => {
+        jest.useFakeTimers();
+        try {
+            let complete!: (rows: any[]) => void;
+            jest.mocked(queryDatabase).mockImplementation(() => new Promise(resolve => { complete = resolve; }));
+            const pending = executeQuery('SELECT * FROM T');
+            await jest.advanceTimersByTimeAsync(15000);
+            expect(destroyMock).not.toHaveBeenCalled();
+            complete([{ID:1}]);
+            await expect(pending).resolves.toEqual([{ID:1}]);
+        } finally { jest.useRealTimers(); }
+    });
+});

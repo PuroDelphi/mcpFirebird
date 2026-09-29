@@ -1,6 +1,9 @@
 import crypto from 'crypto';
 import type cors from 'cors';
 import type { RequestHandler } from 'express';
+import { securityConfig } from '../security/config.js';
+import { verifyOAuth2Token } from '../security/authorization.js';
+import { securityContext } from '../security/context.js';
 
 export function buildCorsOptions(allowedOrigin = process.env.MCP_ALLOWED_ORIGIN): cors.CorsOptions {
     const origins = allowedOrigin
@@ -26,10 +29,23 @@ export function createBearerAuthMiddleware(
     apiKey: string | undefined,
     onRejected?: (message: string) => void
 ): RequestHandler {
-    return (req, res, next) => {
-        if (!apiKey || req.method === 'OPTIONS') return next();
-
+    return async (req, res, next) => {
+        if (req.method === 'OPTIONS') return next();
+        const authType = securityConfig.authorization?.type;
         const authorization = req.headers.authorization;
+        if (authType === 'oauth2') {
+            try {
+                if (!authorization?.startsWith('Bearer ')) throw new Error('Missing token');
+                const user = await verifyOAuth2Token(authorization.slice(7));
+                return securityContext.run({ user, sessionId: `oauth:${user.id}` }, next);
+            } catch {
+                onRejected?.('OAuth2 authentication rejected');
+                return res.status(401).json({ error: 'Unauthorized' });
+            }
+        }
+        if (!apiKey && authType === 'basic') return res.status(503).json({ error: 'Authentication is not configured' });
+        if (!apiKey) return securityContext.run({ sessionId: `http:${req.socket.remoteAddress || 'unknown'}` }, next);
+
         if (!authorization?.startsWith('Bearer ')) {
             onRejected?.('Missing or invalid Bearer token');
             return res.status(401).json({
@@ -48,6 +64,7 @@ export function createBearerAuthMiddleware(
             });
         }
 
-        next();
+        // The shared key represents one principal. Client-supplied session IDs cannot reset quotas.
+        securityContext.run({ sessionId: 'api-key', user: { id: 'api-key', username: 'api-key', role: 'user' } }, next);
     };
 }

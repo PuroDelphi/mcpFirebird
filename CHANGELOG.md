@@ -2,6 +2,96 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.11.0] - 2026-09-29
+
+Promote all changes from `2.11.0-alpha.1` through `2.11.0-alpha.4` since stable `2.10.0`. The reporter confirmed the original query in #36 now works correctly.
+
+### Added
+- Configure security without a file through validated `FIREBIRD_SECURITY_JSON`, including SQL options at the root or inside `security` (#34). Existing file-source precedence is retained.
+- Enforce explicitly configured table/operation permissions, catalog policies, row filters, alias-aware masking, resource limits, auditing and OAuth2/role permissions at query execution and transport boundaries.
+- Include English and Spanish configuration guides, compatibility examples and a security implementation review.
+
+### Fixed
+- Distinguish FROM inside EXTRACT, SUBSTRING and TRIM arguments from actual table clauses, preserving authorization and row filters (#36).
+- Normalize stored-procedure result objects before BLOB resolution and output controls.
+- Fix HTTP transport shutdown recursion, isolate request identity and bind authenticated HTTP/SSE sessions to their owner.
+- Reject invalid selected security configurations rather than silently weakening policy. Make masking/audit failures withhold results and handle timed-out connections safely.
+- Exclude temporary test/cache files and tarballs from npm packages.
+
+### Compatibility and migration
+- Advanced controls remain **opt-in**: no new implicit row/size/deadline/rate/query-count limits or catalog/routine restrictions without an explicit policy. Empty or partial configurations do not activate unrelated controls.
+- Preserve the historical `ALLOW_RAW_SQL=true` write/DDL gate, CORS behavior and driver selection. Explicit denials still win over permissive switches.
+- Existing policies containing formerly dormant settings now enforce those settings. Review limits and SQL restrictions before upgrading. Scoped policies reject SQL they cannot safely analyze; masked projections remain restricted and row-filtered tables are read-only.
+- Invalid or missing selected policy files now prevent startup. Incompatible legacy audit tables need a new configured table name; no destructive migration is performed.
+- `maxQueryCpuTime` is a wall-clock deadline, not Firebird CPU accounting or guaranteed server-side cancellation. Database privileges remain essential.
+
+### Validation
+- 173 automated tests, TypeScript build and compiled CLI/MCP smoke checks passed.
+- Disposable Firebird 2.5.9 integration passed, including the #36 query, related functions, default compatibility and explicitly configured security controls.
+
+### Maintenance
+- Refresh compatible locked transitive dependencies: fast-uri 3.1.8, ip-address 10.7.2 and undici 6.29.0. Production dependency audit reports no known vulnerabilities after the update; Firebird driver versions are unchanged.
+
+## [2.11.0-alpha.4] - 2026-09-28
+
+### Fixed
+- Fix [#36](https://github.com/PuroDelphi/mcpFirebird/issues/36): distinguish FROM inside EXTRACT, SUBSTRING and TRIM arguments from a table FROM clause. Aliased/quoted columns, nested builtin expressions and parenthesized arguments no longer cause false relation-security errors.
+- Continue inspecting actual relations and nested subqueries; preserve table/catalog denials, qualified-relation rejection, row filters and masking restrictions. No security flags need to be disabled to use these functions.
+- Add parser/query-boundary regressions and a disposable Firebird 2.5.9 test for the reported SQL and related functions. Compatibility defaults remain unchanged from alpha.3.
+
+### Documentation
+- Document supported function argument syntax and the existing expression-projection restriction when masking is configured, in English and Spanish.
+
+## [2.11.0-alpha.3] - 2026-09-24
+
+### Compatibility
+- Make advanced security restrictions opt-in. Without an explicit policy, preserve catalog reads, procedures, functions, joins/CTEs and historical `ALLOW_RAW_SQL=true` write/DDL behavior.
+- Remove implicit row/response limits, query deadlines, rate limits and process-lifetime query quotas. Partial resource policies activate only the supplied limits; empty sections activate no advanced controls.
+- Preserve baseline SQL validation, parameterized tool filters, authentication, CORS and driver selection. Explicit operation/table/row/masking/role/catalog policies still fail closed and cannot be bypassed with the raw-write switch.
+- Supersede alpha.2's restrictive defaults. Existing configuration files that explicitly contain previously dormant limits now enforce those limits; review the updated English/Spanish guides.
+
+### Fixed
+- Normalize object-shaped stored procedure results returned by the pure-JavaScript driver before BLOB resolution, masking and limits.
+- Exclude temporary test/cache files and tarballs from the published package.
+- Add compatibility and opt-in regression tests, including long-lived sessions, large results, unconfigured deadlines and a disposable Firebird 2.5.9 integration check.
+
+### Documentation
+- Explain independent activation/deactivation of controls, default behavior and policy migration in both languages, README files, environment examples and the implementation review.
+
+## [2.11.0-alpha.2] - 2026-09-24
+
+### Security
+- Implement `sql.allowSystemTables`, `allowedSystemTables`, `allowDDL` and bounded `allowUnsafeQueries` behavior for both file and inline JSON policies. Accept `sql` at the root or inside `security`, rejecting conflicts.
+- Enforce policy at the actual query boundary, including batch and analysis execution; separate fixed internal metadata/audit SQL from user-controlled SQL.
+- Enforce global and role operation/table restrictions, including with `ALLOW_RAW_SQL=true`; filter metadata visibility.
+- Connect row predicates, alias-aware output masking, row/UTF-8 response limits, wall-clock deadlines, query counts and token-bucket rate limiting. Reject ambiguous SQL under scoped policies instead of bypassing restrictions.
+- Enforce HTTPS OAuth2 introspection and propagate verified identity to permissions. Bind HTTP/SSE sessions to their principal and disable shared event subscriptions under scoped policies.
+- Connect fail-closed file/database auditing with parameterized inserts, UUID keys, intent/completion events and Firebird 2.5-compatible schema. Mask responses before auditing them.
+- Fail startup on invalid selected files and invalid nested options; clear stale policy fields on initialization. No silent fallback to defaults.
+
+### Fixed
+- Prevent recursive Streamable HTTP transport shutdown discovered by the authenticated-session integration test.
+- Replace misleading security documentation in English and Spanish with tested behavior, migration guidance and explicit limitations. Add an implementation review mapping the previous gaps to enforcement/tests.
+
+### Compatibility notes
+- This alpha intentionally tightens behavior. Direct DDL needs explicit operation permission, `ALLOW_RAW_SQL=true` and `allowDDL=true`. Filtered tables are read-only; masking/scoped policies restrict accepted query shapes.
+- Previously dormant resource limits now apply, including to metadata queries. Review quotas before rollout. `maxQueryCpuTime` is a legacy name for a client wall-clock deadline, not a Firebird CPU quota or guaranteed server-side cancellation.
+- Existing incompatible database audit tables require a new configured table name; no automatic destructive schema migration is performed.
+
+## [2.11.0-alpha.1] - 2026-09-23
+
+### Added
+- Support `FIREBIRD_SECURITY_JSON` for trusted launchers to pass a validated security policy without creating a file, as requested in [#34](https://github.com/PuroDelphi/mcpFirebird/issues/34).
+- Preserve file-source precedence, enforce a 64 KiB UTF-8 limit, and reject unknown top-level policy fields without logging inline contents.
+
+### Security
+- Reject initialization when the selected inline policy is empty, malformed, invalid, or oversized, instead of silently using defaults.
+- Initialize the standalone HTTP entry point's process-wide policy before opening its listening socket.
+- Add policy enforcement, source precedence, startup rejection, size-boundary, and error-redaction regression coverage.
+
+### Documentation
+- Document MCP environment examples, PowerShell setup, file precedence, restart requirements, and how a trusted appsettings.json launcher should pass JSON.
+
 ## [2.10.0] - 2026-09-23
 
 ### Added

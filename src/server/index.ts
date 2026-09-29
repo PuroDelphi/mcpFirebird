@@ -55,6 +55,7 @@ import { ConfigError } from '../utils/errors.js';
 import { closePool } from '../db/connection.js';
 import pkg from '../../package.json' with { type: 'json' };
 import { buildCorsOptions, createBearerAuthMiddleware } from './http-security.js';
+import { currentSecurityContext } from '../security/context.js';
 
 /**
  * Factory function to create a configured MCP server instance
@@ -332,8 +333,8 @@ async function startBackwardsCompatibleServer(port: number): Promise<void> {
 
     // EMA Authentication Middleware for HTTP transports
     const serverApiKey = process.env.FIREBIRD_API_KEY || process.env.FB_API_KEY;
+    app.use(createBearerAuthMiddleware(serverApiKey, message => logger.warn(`${message} from HTTP client`)));
     if (serverApiKey) {
-        app.use(createBearerAuthMiddleware(serverApiKey, message => logger.warn(`${message} from HTTP client`)));
         logger.info('EMA HTTP Authentication enabled (Bearer Token required)');
     } else {
         logger.warn('WARNING: Running HTTP server without FIREBIRD_API_KEY. Endpoints are exposed without authentication.');
@@ -343,6 +344,7 @@ async function startBackwardsCompatibleServer(port: number): Promise<void> {
     const transports = {
         sse: {} as Record<string, SSEServerTransport>
     };
+    const owners = new Map<string, string>();
 
     // Modern Streamable HTTP endpoint - use the dedicated router with stateless support
     const streamableRouter = createStreamableHttpRouter(createMcpServerInstance);
@@ -357,9 +359,11 @@ async function startBackwardsCompatibleServer(port: number): Promise<void> {
             const transport = new SSEServerTransport('/messages', res);
             const sessionId = transport.sessionId || crypto.randomUUID();
             transports.sse[sessionId] = transport;
+            owners.set(sessionId, currentSecurityContext().sessionId);
 
             res.on("close", () => {
                 delete transports.sse[sessionId];
+                owners.delete(sessionId);
                 logger.debug(`Cleaned up SSE transport for session: ${sessionId}`);
             });
 
@@ -388,6 +392,9 @@ async function startBackwardsCompatibleServer(port: number): Promise<void> {
         try {
             const sessionId = req.query.sessionId as string;
             const transport = transports.sse[sessionId];
+            if (transport && owners.get(sessionId) !== currentSecurityContext().sessionId) {
+                res.status(403).json({ error: 'Forbidden' }); return;
+            }
             if (transport) {
                 await transport.handlePostMessage(req, res, req.body);
             } else {

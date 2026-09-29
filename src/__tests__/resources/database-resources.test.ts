@@ -1,8 +1,12 @@
-jest.mock('../../db/queries.js', () => ({
+jest.mock('../../db/queries.js', () => {
+    const execute = jest.fn();
+    return {
     listTables: jest.fn(),
     describeTable: jest.fn(),
-    executeQuery: jest.fn()
-}));
+    executeQuery: execute,
+    executeMetadataQuery: execute
+    };
+});
 
 jest.mock('../../db/schema.js', () => ({
     getTableSchema: jest.fn()
@@ -11,7 +15,7 @@ jest.mock('../../db/schema.js', () => ({
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { executeQuery, listTables } from '../../db/queries.js';
+import { executeMetadataQuery as executeQuery, listTables } from '../../db/queries.js';
 import { getTableSchema } from '../../db/schema.js';
 import { registerDatabaseResources } from '../../resources/database.js';
 

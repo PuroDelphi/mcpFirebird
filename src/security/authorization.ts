@@ -3,23 +3,10 @@
  */
 
 import { securityConfig } from './config.js';
+import { currentSecurityContext } from './context.js';
+import { FirebirdError } from '../utils/errors.js';
 import { createLogger } from '../utils/logger.js';
 const logger = createLogger('security:authorization');
-
-// Define FirebirdError class if it doesn't exist
-class FirebirdError extends Error {
-    type: string;
-    originalError?: any;
-
-    constructor(message: string, type: string = 'UNKNOWN_ERROR', cause?: any) {
-        super(message);
-        this.name = 'FirebirdError';
-        this.type = type;
-        if (cause) {
-            this.originalError = cause;
-        }
-    }
-}
 
 /**
  * Interface for user information
@@ -37,7 +24,7 @@ export interface UserInfo {
  * @returns {boolean} Whether the user is authorized
  * @throws {FirebirdError} If the user is not authorized
  */
-export function checkTableAccess(tableName: string, user?: UserInfo): boolean {
+export function checkTableAccess(tableName: string, user: UserInfo | undefined = currentSecurityContext().user): boolean {
     // If no authorization is configured, allow access
     if (!securityConfig.authorization || securityConfig.authorization.type === 'none') {
         return true;
@@ -80,10 +67,10 @@ export function checkTableAccess(tableName: string, user?: UserInfo): boolean {
  * @returns {boolean} Whether the user is authorized
  * @throws {FirebirdError} If the user is not authorized
  */
-export function checkOperationAccess(operation: string, user?: UserInfo): boolean {
+export function checkOperationAccess(operation: string, user: UserInfo | undefined = currentSecurityContext().user): boolean {
     // If no authorization is configured, check the allowed operations
     if (!securityConfig.authorization || securityConfig.authorization.type === 'none') {
-        return checkAllowedOperation(operation);
+        return true;
     }
 
     // If no user is provided, deny access
@@ -118,6 +105,7 @@ export function checkOperationAccess(operation: string, user?: UserInfo): boolea
  * @throws {FirebirdError} If the operation is not allowed
  */
 export function checkAllowedOperation(operation: string): boolean {
+    operation = operation.toUpperCase();
     // Check if the operation is explicitly forbidden
     if (securityConfig.forbiddenOperations && securityConfig.forbiddenOperations.includes(operation)) {
         throw new FirebirdError(`Operation ${operation} is forbidden`, 'AUTHORIZATION_ERROR');
@@ -128,7 +116,7 @@ export function checkAllowedOperation(operation: string): boolean {
         throw new FirebirdError(`Operation ${operation} is not allowed`, 'AUTHORIZATION_ERROR');
     }
 
-    return true;
+    return checkOperationAccess(operation);
 }
 
 /**
@@ -156,7 +144,7 @@ export function checkAllowedTable(tableName: string): boolean {
         }
     }
 
-    return true;
+    return checkTableAccess(tableName);
 }
 
 /**
@@ -174,17 +162,19 @@ export async function verifyOAuth2Token(token: string): Promise<UserInfo> {
         throw new FirebirdError('OAuth2 configuration missing', 'AUTHORIZATION_ERROR');
     }
 
-    const { tokenVerifyUrl, clientId, clientSecret } = securityConfig.authorization.oauth2;
+    const { tokenVerifyUrl, clientId, clientSecret, scope } = securityConfig.authorization.oauth2;
 
     try {
         // Call the token verification endpoint
         const response = await fetch(tokenVerifyUrl, {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json',
+                'Content-Type': 'application/x-www-form-urlencoded',
                 'Authorization': `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString('base64')}`
             },
-            body: JSON.stringify({ token })
+            body: new URLSearchParams({ token }).toString(),
+            signal: AbortSignal.timeout(5000),
+            redirect: 'error'
         });
 
         if (!response.ok) {
@@ -193,6 +183,14 @@ export async function verifyOAuth2Token(token: string): Promise<UserInfo> {
 
         // Extract user information from the response
         const data = await response.json() as any;
+        if (data.active !== true || (data.exp !== undefined && (!Number.isFinite(data.exp) || data.exp <= Date.now() / 1000))) {
+            throw new Error('Inactive or expired token');
+        }
+        const scopes = typeof data.scope === 'string' ? data.scope.split(/\s+/) : [];
+        if (scope && scope.split(/\s+/).some(required => !scopes.includes(required))) throw new Error('Missing required scope');
+        const subject = data.sub || data.user_id;
+        const role = data.role || data.roles?.[0];
+        if (typeof subject !== 'string' || !subject.trim() || typeof role !== 'string' || !role.trim()) throw new Error('Missing identity or role');
 
         const userInfo: UserInfo = {
             id: data.sub || data.user_id || '',
@@ -202,7 +200,6 @@ export async function verifyOAuth2Token(token: string): Promise<UserInfo> {
 
         return userInfo;
     } catch (error: any) {
-        logger.error(`Error verifying OAuth2 token: ${error.message}`);
-        throw new FirebirdError(`Token verification failed: ${error.message}`, 'AUTHORIZATION_ERROR');
+        throw new FirebirdError('Token verification failed', 'AUTHORIZATION_ERROR');
     }
 }

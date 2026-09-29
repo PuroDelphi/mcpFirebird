@@ -1,5 +1,5 @@
 import { checkAllowedOperation, checkAllowedTable } from '../security/authorization.js';
-import { executeQuery } from './queries.js';
+import { executeMetadataQuery as executeQuery } from './queries.js';
 
 const trimmed = (value: unknown): string | undefined => {
     if (typeof value === 'string') return value.trim();
@@ -9,7 +9,7 @@ const trimmed = (value: unknown): string | undefined => {
 
 export async function getTableIndexes(tableName: string) {
     checkAllowedOperation('SELECT');
-    checkAllowedTable(tableName);
+    checkAllowedTable(tableName.toUpperCase());
 
     const rows = await executeQuery(`
         SELECT
@@ -48,7 +48,7 @@ export async function getTableIndexes(tableName: string) {
 
 export async function getTableConstraints(tableName: string) {
     checkAllowedOperation('SELECT');
-    checkAllowedTable(tableName);
+    checkAllowedTable(tableName.toUpperCase());
 
     const rows = await executeQuery(`
         SELECT
@@ -107,7 +107,7 @@ export async function getTableConstraints(tableName: string) {
 
 export async function getTableTriggers(tableName: string) {
     checkAllowedOperation('SELECT');
-    checkAllowedTable(tableName);
+    checkAllowedTable(tableName.toUpperCase());
 
     const rows = await executeQuery(`
         SELECT

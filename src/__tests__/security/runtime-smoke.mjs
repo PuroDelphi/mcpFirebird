@@ -12,7 +12,7 @@ const directory = mkdtempSync(join(tmpdir(), 'mcp-security-runtime-'));
 const policy = join(directory, 'policy.json');
 const commonjs = join(directory, 'policy.cjs');
 const env = { ...process.env, LOG_LEVEL: 'info', DOTENV_CONFIG_QUIET: 'true' };
-for (const key of ['FIREBIRD_SECURITY_CONFIG', 'SECURITY_CONFIG', 'SECURITY_CONFIG_PATH']) delete env[key];
+for (const key of ['FIREBIRD_SECURITY_CONFIG', 'SECURITY_CONFIG', 'SECURITY_CONFIG_PATH', 'FIREBIRD_SECURITY_JSON']) delete env[key];
 
 try {
     writeFileSync(policy, JSON.stringify({ security: { forbiddenTables: ['PRIVATE_DATA'], maxRows: 17 } }));
@@ -26,12 +26,37 @@ try {
         assert.match(result.stderr, /--security-config requires a configuration file path/);
     }
 
-    // CLI override must win over all environment aliases. Exercise the actual
-    // MCP protocol without requiring a database: authorization rejects first.
+    // An invalid inline policy must stop both entry points without leaking it.
+    for (const entry of ['dist/cli.js', 'dist/http-entry.js']) {
+        const result = spawnSync(process.execPath, [entry], {
+            env: { ...env, FIREBIRD_SECURITY_JSON: '{private-policy-marker', PORT: '0' },
+            encoding: 'utf8', timeout: 10000
+        });
+        assert.equal(result.status, 1, result.stderr);
+        assert.match(result.stderr, /FIREBIRD_SECURITY_JSON must contain valid JSON/);
+        assert.ok(!result.stderr.includes('private-policy-marker'), result.stderr);
+        assert.ok(!result.stdout.includes('private-policy-marker'), result.stdout);
+    }
+
+    // Exercise policy enforcement through the actual MCP protocol, without a
+    // database: authorization rejects before querying.
+    for (const scenario of [
+        {
+            args: ['--security-config', policy],
+            env: { FIREBIRD_SECURITY_CONFIG: commonjs, SECURITY_CONFIG: commonjs, SECURITY_CONFIG_PATH: commonjs,
+                FIREBIRD_SECURITY_JSON: 'ignored-lower-priority-json' },
+            log: `Loaded security configuration from ${policy}`
+        },
+        {
+            args: [],
+            env: { FIREBIRD_SECURITY_JSON: JSON.stringify({ security: { forbiddenTables: ['PRIVATE_DATA'] } }) },
+            log: 'Loaded security configuration from FIREBIRD_SECURITY_JSON'
+        }
+    ]) {
     const transport = new StdioClientTransport({
         command: process.execPath,
-        args: ['dist/cli.js', '--transport-type', 'stdio', '--security-config', policy],
-        env: { ...env, FIREBIRD_SECURITY_CONFIG: commonjs, SECURITY_CONFIG: commonjs, SECURITY_CONFIG_PATH: commonjs },
+        args: ['dist/cli.js', '--transport-type', 'stdio', ...scenario.args],
+        env: { ...env, ...scenario.env },
         stderr: 'pipe'
     });
     let logs = '';
@@ -41,11 +66,12 @@ try {
         await client.connect(transport);
         const result = await client.callTool({ name: 'get-table-indexes', arguments: { tableName: 'PRIVATE_DATA' } });
         assert.match(JSON.stringify(result), /not allowed|forbidden|denied/i);
-        assert.ok(logs.includes(`Loaded security configuration from ${policy}`), logs);
+        assert.ok(logs.includes(scenario.log), logs);
     } finally {
         await client.close();
     }
-    console.log('ESM JSON/CommonJS, CLI validation, CLI precedence, and MCP authorization smoke checks passed.');
+    }
+    console.log('ESM file/inline policies, precedence, startup rejection, redaction, and MCP authorization checks passed.');
 } finally {
     rmSync(directory, { recursive: true, force: true });
 }

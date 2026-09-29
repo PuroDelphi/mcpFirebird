@@ -5,8 +5,7 @@
  * for deployment on platforms like Smithery, Railway, Render, etc.
  * 
  * Configuration is passed via:
- * 1. Environment variables (standard Docker deployment)
- * 2. Query parameters (Smithery deployment)
+ * Environment variables controlled by the server administrator.
  */
 
 import express from 'express';
@@ -39,6 +38,9 @@ async function startHttpServer() {
     logger.info(`Platform: ${process.platform}, Node.js: ${process.version}`);
     
     try {
+        // Validate the process-wide policy before opening a listening socket.
+        await initSecurity();
+
         // Get port from environment (Smithery sets PORT variable)
         const port = parseInt(process.env.PORT || process.env.SSE_PORT || '3003', 10);
         
@@ -78,9 +80,6 @@ async function startHttpServer() {
 
         const createServerInstance = async (): Promise<McpServer> => {
             logger.info('Creating new MCP server instance...');
-
-            // Initialize security
-            await initSecurity();
 
             // Create server with modern capabilities
             const server = new McpServer(

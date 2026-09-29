@@ -1131,7 +1131,7 @@ STREAMABLE_STATELESS_MODE=true npx -y mcp-firebird \
 
 **STDIO:**
 - ✅ Use for local testing
-- ✅ No additional security needed
+- ⚠️ Apply database privileges and MCP security policies even for local STDIO clients.
 - ⚠️ Use environment variables for credentials
 
 **SSE/HTTP Streamable/Unified:**

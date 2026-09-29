@@ -6,6 +6,7 @@ import { ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { checkAllowedTable } from '../security/authorization.js';
 import { quoteIdentifier } from '../utils/security.js';
 import { getTableConstraints, getTableIndexes, getTableTriggers } from '../db/table-metadata.js';
+import { checkResponseSizeLimit } from '../security/resourceLimits.js';
 
 const logger = createLogger('database'); // Provide string argument
 
@@ -243,6 +244,14 @@ export const setupDatabaseResources = (): Map<string, ResourceDefinition> => {
     // Añadir más recursos aquí...
 
     logger.info(`Defined ${resources.size} database resources.`);
+    for (const resource of resources.values()) {
+        const handler = resource.handler;
+        resource.handler = async params => {
+            const result = await handler(params);
+            checkResponseSizeLimit(result);
+            return result;
+        };
+    }
     return resources;
 };
 

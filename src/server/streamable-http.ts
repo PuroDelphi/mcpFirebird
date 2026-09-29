@@ -10,10 +10,12 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
 import { createLogger } from '../utils/logger.js';
+import { currentSecurityContext } from '../security/context.js';
 
 const logger = createLogger('server:streamable-http');
 
 interface SessionInfo {
+    owner: string;
     transport: StreamableHTTPServerTransport;
     server: McpServer;
     createdAt: Date;
@@ -38,19 +40,6 @@ export function createStreamableHttpRouter(createServerInstance: () => Promise<M
     const STATELESS_MODE = process.env.STREAMABLE_STATELESS_MODE === 'true';
 
     logger.info(`Streamable HTTP router initialized in ${STATELESS_MODE ? 'stateless' : 'stateful'} mode`);
-
-    // In stateless mode, we can reuse the server instance but must create new transports
-    // for each request to prevent request ID collisions
-    let sharedServer: McpServer | null = null;
-
-    async function getSharedServer() {
-        if (!sharedServer) {
-            logger.debug('Creating shared server instance for stateless mode');
-            sharedServer = await createServerInstance();
-            logger.debug('Shared server instance created');
-        }
-        return sharedServer;
-    }
 
     // Periodic cleanup of expired sessions (only in stateful mode)
     let cleanupInterval: NodeJS.Timeout | null = null;
@@ -90,8 +79,8 @@ export function createStreamableHttpRouter(createServerInstance: () => Promise<M
 
         try {
             if (STATELESS_MODE) {
-                // Stateless mode: reuse server, create new transport per request
-                await handleStatelessRequest(req, res, getSharedServer);
+                // A protocol instance must not be shared by concurrent principals/transports.
+                await handleStatelessRequest(req, res, createServerInstance);
             } else {
                 // Stateful mode: manage sessions
                 await handleStatefulRequest(req, res, createServerInstance, activeSessions);
@@ -145,6 +134,7 @@ export function createStreamableHttpRouter(createServerInstance: () => Promise<M
         }
 
         const sessionInfo = activeSessions[sessionId];
+        if (sessionInfo.owner !== currentSecurityContext().sessionId) { res.status(403).json({ error: 'Forbidden' }); return; }
         sessionInfo.lastActivity = new Date();
 
         try {
@@ -195,6 +185,7 @@ export function createStreamableHttpRouter(createServerInstance: () => Promise<M
         }
         
         const sessionInfo = activeSessions[sessionId];
+        if (sessionInfo.owner !== currentSecurityContext().sessionId) { res.status(403).json({ error: 'Forbidden' }); return; }
         
         try {
             await sessionInfo.transport.handleRequest(req, res);
@@ -256,7 +247,7 @@ export function createStreamableHttpRouter(createServerInstance: () => Promise<M
 
 /**
  * Handles requests in stateless mode following the official SDK pattern:
- * - Reuse the server instance across requests
+ * - Create a server instance for each request
  * - Create a new transport for EACH request to prevent request ID collisions
  * - Connect the server to the new transport for each request
  */
@@ -279,7 +270,7 @@ async function handleStatelessRequest(
             transport.close();
         });
 
-        // Get the shared server instance and connect it to the new transport
+        // The server is request-local, including its protocol request IDs and transport.
         const server = await getServer();
         await server.connect(transport);
 
@@ -309,6 +300,7 @@ async function handleStatefulRequest(
         // Reuse existing session
         logger.debug(`Reusing existing session: ${sessionId}`);
         sessionInfo = activeSessions[sessionId];
+        if (sessionInfo.owner !== currentSecurityContext().sessionId) { res.status(403).json({ error: 'Forbidden' }); return; }
         sessionInfo.lastActivity = new Date();
     } else if (!sessionId && isInitializeRequest(req.body)) {
         // New initialization request
@@ -321,6 +313,7 @@ async function handleStatefulRequest(
                 logger.info(`Session initialized: ${newSessionId}`);
                 // Store the session info
                 activeSessions[newSessionId] = {
+                    owner: currentSecurityContext().sessionId,
                     transport,
                     server,
                     createdAt: new Date(),
@@ -333,16 +326,14 @@ async function handleStatefulRequest(
         transport.onclose = () => {
             if (transport.sessionId && activeSessions[transport.sessionId]) {
                 logger.info(`Transport closed for session: ${transport.sessionId}`);
-                try {
-                    activeSessions[transport.sessionId].server.close();
-                } catch (error) {
-                    logger.warn(`Error closing server for session ${transport.sessionId}:`, { error });
-                }
+                // The SDK closes its protocol state when the transport closes.
+                // Calling server.close() here re-enters transport.close().
                 delete activeSessions[transport.sessionId];
             }
         };
 
         sessionInfo = {
+            owner: currentSecurityContext().sessionId,
             transport,
             server,
             createdAt: new Date(),

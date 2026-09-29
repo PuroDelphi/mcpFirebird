@@ -1,20 +1,36 @@
-# Seguridad en MCP Firebird
+# Security in MCP Firebird
 
-Este documento describe las consideraciones de seguridad y opciones de configuración para MCP Firebird, incluyendo ejemplos detallados de todas las capacidades de seguridad implementadas.
+[Español](security.es.md)
 
-## Consideraciones generales
+This guide describes enforcement in stable **2.11.0**, including all changes tested in 2.11.0-alpha.1 through alpha.4. Older stable releases do not implement all these controls. See the [security implementation review](security-implementation-review.md) and [changelog](../CHANGELOG.md).
 
-### Cargar un archivo de configuración
+## Important migration notice
 
-Desde `2.10.0-alpha.2`, todos los puntos de entrada resuelven el archivo con esta prioridad:
+**Advanced security is opt-in.** With no security configuration (or empty `security`/`sql` objects), this release preserves historical SQL support: catalog reads, stored/selectable procedures, functions, joins and CTEs remain available. There is no new implicit row/size cap, five-second deadline, 100-query quota or rate limit. Existing raw-write validation, parameterized tool filters, API-key authentication and CORS behavior remain in place. `ALLOW_RAW_SQL=true` continues to enable direct writes, including DDL, when no explicit policy forbids them.
 
-1. Ruta explícita pasada a `initSecurity(ruta)` o `loadSecurityConfig(ruta)` por código.
-2. `--security-config <ruta>` al usar la CLI (establece `FIREBIRD_SECURITY_CONFIG`).
-3. Variable `FIREBIRD_SECURITY_CONFIG`.
-4. Variable `SECURITY_CONFIG`.
-5. Variable `SECURITY_CONFIG_PATH`, conservada por compatibilidad con `.env.example`.
+Earlier documentation incorrectly presented disconnected security helpers as enforced protections. They are now implemented, **but apply only when configured**. Important boundaries when opting in:
 
-Ejemplo de `security-config.json`:
+- Invalid selected configuration files now stop initialization instead of falling back to defaults.
+- `ALLOW_RAW_SQL=true` never bypasses explicitly configured operation restrictions or `sql.allowDDL=false`.
+- Catalog restrictions activate with `sql.allowSystemTables=false` or an explicit `sql.allowedSystemTables` list. Fixed internal metadata reads remain available, subject to permissions.
+- Each configured row, response, query-count, rate or deadline limit is enforced independently. Omitted limits stay inactive; metadata queries consume quotas only when configured.
+- Policies restricting tables, rows, masking or roles use a conservative single-table SQL subset. Unsupported joins, CTEs, nested queries and opaque routines are rejected under these policies.
+- Shared event subscriptions are unavailable with scoped policies because the legacy event manager is not isolated per user.
+
+Test representative queries and existing policies before upgrading production. **Use a least-privilege Firebird account, not SYSDBA.** Application checks complement, but do not replace, database privileges. A permitted view may expose underlying objects; configure database views and grants accordingly.
+
+To keep compatibility, leave security sources unset. To enable only a row cap, set `FIREBIRD_SECURITY_JSON='{"security":{"maxRows":1000}}'`; this does not activate a timeout, query quota, catalog restriction or SQL subset. Remove the property (or the selected policy source) and restart to disable it. A configured policy from an older release is still explicit: previously dormant options in that policy now take effect. Do not remove a policy indiscriminately if you depend on its permissions.
+
+## Loading a configuration file
+
+Precedence, highest first:
+
+1. Explicit programmatic `initSecurity(path)` / `loadSecurityConfig(path)`.
+2. CLI `--security-config <path>` (sets `FIREBIRD_SECURITY_CONFIG`).
+3. `FIREBIRD_SECURITY_CONFIG`.
+4. `SECURITY_CONFIG`.
+5. `SECURITY_CONFIG_PATH`.
+6. `FIREBIRD_SECURITY_JSON` if no file path is selected.
 
 ```json
 {
@@ -22,513 +38,204 @@ Ejemplo de `security-config.json`:
     "allowedTables": ["EMPLOYEES", "DEPARTMENTS"],
     "allowedOperations": ["SELECT"],
     "maxRows": 100
-  }
-}
-```
-
-Arranque por CLI:
-
-```bash
-npx -y mcp-firebird@alpha --security-config /absolute/path/security-config.json
-```
-
-También puedes definir `FIREBIRD_SECURITY_CONFIG` en el entorno del servidor, en `.env` o en el objeto `env` de tu cliente MCP. Conserva los parámetros habituales de conexión a Firebird. Reinicia el servidor después de cambiar la configuración.
-
-Se admiten JSON y módulos CommonJS (`.cjs`, o `.js` en un contexto CommonJS) que exporten un objeto con la propiedad `security`. Los módulos CommonJS ejecutan código: usa únicamente archivos de confianza. Se recomiendan rutas absolutas; las relativas se resuelven desde el directorio de trabajo del proceso.
-
-El registro debe mostrar `Loaded security configuration from ...`. Si no se indica archivo, se mantienen los valores predeterminados. Por compatibilidad, si el archivo no existe, no puede cargarse o no supera la validación, se registra el problema y se usan los valores predeterminados; comprueba el mensaje de carga antes de dar por aplicada tu política.
-
-MCP Firebird proporciona acceso a bases de datos Firebird, lo que implica ciertos riesgos de seguridad. Considera las siguientes recomendaciones:
-
-1. **Privilegios mínimos**: Usa un usuario de base de datos con los privilegios mínimos necesarios.
-2. **Aislamiento**: Ejecuta MCP Firebird en un entorno aislado, como un contenedor Docker.
-3. **Firewall**: Limita el acceso a los puertos utilizados por MCP Firebird.
-4. **HTTPS**: Usa HTTPS para conexiones SSE en producción.
-5. **Validación de entrada**: MCP Firebird valida las consultas SQL para prevenir inyección, pero es una buena práctica validar también en el cliente.
-
-## Capacidades de seguridad implementadas
-
-MCP Firebird incluye un sistema de seguridad completo con las siguientes capacidades:
-
-- **Restricción de tablas**: Limita qué tablas son accesibles
-- **Limitación de operaciones SQL**: Controla qué tipos de operaciones SQL están permitidas
-- **Enmascaramiento de datos sensibles**: Oculta información confidencial en los resultados
-- **Filtrado de filas**: Aplica condiciones para limitar qué registros son visibles
-- **Límites de recursos**: Previene consultas que consumen demasiados recursos
-- **Integración con sistemas de autorización**: Soporte para OAuth2 y mapeo de roles a permisos
-- **Autorización Gestionada (EMA)**: Protege las conexiones de red HTTP/SSE con tokens Bearer.
-- **Auditoría**: Registro detallado de operaciones para fines de seguridad.
-
-## Autorización Gestionada (EMA)
-
-Para implementaciones en red (Streamable HTTP / SSE), la seguridad de acceso a nivel de transporte es crítica. MCP Firebird soporta EMA (Enterprise Managed Authorization) mediante claves de API estáticas.
-
-**Configuración en el servidor:**
-```bash
-export FIREBIRD_API_KEY=mi_super_secreto_123
-# O por argumento:
-npx -y mcp-firebird --transport-type sse --api-key mi_super_secreto_123 ...
-```
-
-**Conexión desde el cliente:**
-Los clientes deben enviar este token como un header `Authorization: Bearer`.
-```typescript
-const transport = new StreamableHTTPClientTransport(
-    new URL("http://localhost:3003/mcp"),
-    { headers: { "Authorization": "Bearer mi_super_secreto_123" } }
-);
-```
-
-## Configuración de CORS
-
-CORS solo afecta a clientes ejecutados dentro de un navegador. Los clientes STDIO, Claude Desktop, n8n y otros clientes de servidor no dependen de CORS.
-
-Por compatibilidad, el valor predeterminado permite cualquier origen (`*`) y admite el encabezado `Authorization`. Las credenciales del navegador (cookies o autenticación HTTP automática) permanecen desactivadas, porque los navegadores no permiten combinar credenciales con un origen comodín.
-
-Para restringir el acceso a uno o varios sitios web:
-
-```bash
-# Un solo origen
-export MCP_ALLOWED_ORIGIN="https://app.example.com"
-
-# Varios orígenes separados por comas
-export MCP_ALLOWED_ORIGIN="https://app.example.com,https://admin.example.com"
-```
-
-En Windows PowerShell:
-
-```powershell
-$env:MCP_ALLOWED_ORIGIN="https://app.example.com,https://admin.example.com"
-```
-
-Los clientes deben enviar la clave mediante `Authorization: Bearer <token>`; no deben enviarla como cookie ni como parámetro de la URL.
-
-## Consultas SQL de escritura
-
-Las herramientas de consulta permiten `SELECT` y procedimientos autorizados de forma predeterminada. Las operaciones SQL directas de escritura o DDL (`INSERT`, `UPDATE`, `DELETE`, `CREATE`, etc.) están desactivadas para reducir el riesgo de que contenido no confiable induzca al LLM a modificar la base de datos.
-
-En una instalación controlada que necesite conservar las escrituras directas:
-
-```bash
-export ALLOW_RAW_SQL=true
-```
-
-En Windows PowerShell:
-
-```powershell
-$env:ALLOW_RAW_SQL="true"
-```
-
-Activa esta opción únicamente con un usuario Firebird de privilegios mínimos. La herramienta `get-table-data` no acepta cláusulas SQL libres: usa `filters` y `orderBy` estructurados para parametrizar valores y validar nombres de columnas.
-
-Ejemplo:
-
-```json
-{
-  "tableName": "CUSTOMERS",
-  "first": 100,
-  "filters": [
-    { "column": "ACTIVE", "operator": "eq", "value": 1 },
-    { "column": "NAME", "operator": "like", "value": "A%" }
-  ],
-  "orderBy": [
-    { "column": "NAME", "direction": "ASC" }
-  ]
-}
-```
-
-Operadores disponibles: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`, `like`, `in`, `isNull` e `isNotNull`.
-
-## Restricción de acceso a tablas y vistas
-
-Puedes restringir qué tablas y vistas están disponibles para el servidor MCP usando filtros de inclusión y exclusión:
-
-```javascript
-// En tu configuración personalizada (config.js)
-module.exports = {
-  // Configuración básica...
-
-  security: {
-    // Sólo permitir acceso a estas tablas
-    allowedTables: [
-      'CUSTOMERS',
-      'PRODUCTS',
-      'ORDERS',
-      'ORDER_ITEMS'
-    ],
-
-    // Excluir estas tablas explícitamente (tiene precedencia sobre allowedTables)
-    forbiddenTables: [
-      'USERS',
-      'USER_CREDENTIALS',
-      'AUDIT_LOG'
-    ],
-
-    // Filtro de patrón de nombre (expresión regular)
-    tableNamePattern: '^(?!TMP_|TEMP_|BAK_).*$'  // Excluir tablas temporales/backup
-  }
-};
-```
-
-Para usar esta configuración:
-
-```bash
-npx -y mcp-firebird --config ./config.js
-```
-
-## Limitación de operaciones SQL
-
-Puedes restringir qué operaciones SQL están permitidas:
-
-```javascript
-// En tu configuración personalizada
-module.exports = {
-  // Configuración básica...
-
-  security: {
-    // Operaciones SQL permitidas
-    allowedOperations: ['SELECT', 'EXECUTE'],  // Solo consultas y procedimientos almacenados
-
-    // Bloquear estas operaciones específicamente
-    forbiddenOperations: ['DROP', 'TRUNCATE', 'ALTER', 'GRANT', 'REVOKE'],
-
-    // Número máximo de filas que se pueden devolver en una consulta
-    maxRows: 1000,
-
-    // Tiempo máximo de ejecución para consultas (en ms)
-    queryTimeout: 5000
-  }
-};
-```
-
-## Enmascaramiento de datos sensibles
-
-Puedes configurar reglas para enmascarar o filtrar datos sensibles:
-
-```javascript
-module.exports = {
-  // Configuración básica...
-
-  security: {
-    dataMasking: [
-      {
-        // Enmascarar columnas específicas
-        columns: ['CREDIT_CARD_NUMBER', 'SSN', 'PASSWORD'],
-        pattern: /^.*/,
-        replacement: '************'
-      },
-      {
-        // Enmascarar parcialmente emails
-        columns: ['EMAIL'],
-        pattern: /^(.{3})(.*)(@.*)$/,
-        replacement: '$1***$3'
-      }
-    ],
-
-    // Filtros de línea para excluir datos sensibles
-    rowFilters: {
-      'CUSTOMERS': 'GDPR_CONSENT = 1',  // Solo mostrar clientes con consentimiento GDPR
-      'EMPLOYEES': 'IS_PUBLIC_PROFILE = 1'  // Solo perfiles públicos de empleados
-    }
-  }
-};
-```
-
-## Limitaciones de volumen de datos
-
-Configura límites para prevenir consultas que consumen demasiados recursos:
-
-```javascript
-module.exports = {
-  // Configuración básica...
-
-  security: {
-    resourceLimits: {
-      // Límite de filas por consulta
-      maxRowsPerQuery: 5000,
-
-      // Límite de tamaño de resultado (en bytes)
-      maxResponseSize: 1024 * 1024 * 5,  // 5 MB
-
-      // Límite de tiempo de CPU por consulta (ms)
-      maxQueryCpuTime: 10000,
-
-      // Límite de consultas por sesión
-      maxQueriesPerSession: 100,
-
-      // Limitación de tasa (consultas por minuto)
-      rateLimit: {
-        queriesPerMinute: 60,
-        burstLimit: 20
-      }
-    }
-  }
-};
-```
-
-## Integración con sistemas de autorización externos
-
-MCP Firebird puede integrarse con sistemas de autorización externos para un control de acceso más preciso:
-
-```javascript
-module.exports = {
-  // Configuración básica...
-
-  security: {
-    authorization: {
-      // Usar un servicio de autorización externo
-      type: 'oauth2',
-
-      // Configuración para OAuth2
-      oauth2: {
-        tokenVerifyUrl: 'https://auth.example.com/verify',
-        clientId: 'mcp-firebird-client',
-        clientSecret: process.env.OAUTH_CLIENT_SECRET,
-        scope: 'database:read'
-      },
-
-      // Mapeo de roles a permisos
-      rolePermissions: {
-        'analyst': {
-          tables: ['SALES', 'PRODUCTS', 'CUSTOMERS'],
-          operations: ['SELECT']
-        },
-        'manager': {
-          tables: ['SALES', 'PRODUCTS', 'CUSTOMERS', 'EMPLOYEES'],
-          operations: ['SELECT', 'INSERT', 'UPDATE']
-        },
-        'admin': {
-          allTablesAllowed: true,
-          operations: ['SELECT', 'INSERT', 'UPDATE', 'DELETE']
-        }
-      }
-    }
-  }
-};
-```
-
-## Ejemplos prácticos de seguridad
-
-### Ejemplo 1: Servidor MCP para análisis de ventas
-
-```javascript
-// config-sales-analysis.js
-module.exports = {
-  database: process.env.FIREBIRD_DATABASE,
-  user: process.env.FIREBIRD_USER,
-  password: process.env.FIREBIRD_PASSWORD,
-
-  security: {
-    // Acceso limitado a tablas de ventas
-    allowedTables: [
-      'SALES', 'PRODUCTS', 'CUSTOMERS', 'REGIONS',
-      'SALES_TARGETS', 'PRODUCT_CATEGORIES'
-    ],
-
-    // Solo permitir consultas SELECT
-    allowedOperations: ['SELECT'],
-
-    // Enmascarar datos sensibles de clientes
-    dataMasking: [
-      {
-        columns: ['CUSTOMER_EMAIL', 'CUSTOMER_PHONE'],
-        pattern: /^.*/,
-        replacement: '[REDACTED]'
-      }
-    ],
-
-    // Límites de recursos
-    resourceLimits: {
-      maxRowsPerQuery: 10000,
-      maxQueryCpuTime: 5000
-    }
-  }
-};
-```
-
-### Ejemplo 2: Servidor MCP para gestión de inventario
-
-```javascript
-// config-inventory.js
-module.exports = {
-  database: process.env.FIREBIRD_DATABASE,
-  user: process.env.FIREBIRD_USER,
-  password: process.env.FIREBIRD_PASSWORD,
-
-  security: {
-    // Acceso a tablas de inventario
-    allowedTables: [
-      'INVENTORY', 'PRODUCTS', 'WAREHOUSES',
-      'STOCK_MOVEMENTS', 'SUPPLIERS'
-    ],
-
-    // Permitir operaciones de lectura y escritura limitadas
-    allowedOperations: ['SELECT', 'INSERT', 'UPDATE'],
-
-    // Prevenir modificación de registros históricos
-    rowFilters: {
-      'STOCK_MOVEMENTS': 'MOVEMENT_DATE > DATEADD(-30 DAY TO CURRENT_DATE)'
-    },
-
-    // Auditoría completa
-    audit: {
-      enabled: true,
-      destination: 'both',
-      auditFile: 'C:\\logs\\inventory-audit.log',
-      auditTable: 'MCP_INVENTORY_AUDIT',
-      detailLevel: 'full'
-    }
-  }
-};
-```
-
-### Ejemplo 3: Configuración para desarrollo y pruebas
-
-```javascript
-// config-development.js
-module.exports = {
-  database: process.env.FIREBIRD_DATABASE_DEV,
-  user: process.env.FIREBIRD_USER_DEV,
-  password: process.env.FIREBIRD_PASSWORD_DEV,
-
-  security: {
-    // En desarrollo, permitir más operaciones
-    allowedOperations: ['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'CREATE'],
-
-    // Excluir solo tablas críticas
-    forbiddenTables: ['SYSTEM_CONFIG', 'APP_SECRETS'],
-
-    // Limitar impacto de consultas pesadas
-    resourceLimits: {
-      maxRowsPerQuery: 1000,
-      maxQueryCpuTime: 3000,
-      queriesPerMinute: 120
-    },
-
-    // Auditoría básica
-    audit: {
-      enabled: true,
-      destination: 'file',
-      auditFile: './logs/dev-audit.log',
-      detailLevel: 'basic'
-    }
-  }
-};
-```
-
-## Opciones de seguridad SQL
-
-MCP Firebird proporciona opciones adicionales para controlar la seguridad de las consultas SQL:
-
-```json
-{
+  },
   "sql": {
     "allowSystemTables": false,
-    "allowedSystemTables": ["RDB$PROCEDURES", "RDB$PROCEDURE_PARAMETERS"],
+    "allowedSystemTables": [],
     "allowDDL": false,
     "allowUnsafeQueries": false
   }
 }
 ```
 
-Para usar esta configuración con Claude Desktop:
+```bash
+node dist/cli.js --security-config /absolute/path/security-config.json
+```
+
+JSON and trusted CommonJS (`.cjs`, or `.js` in a CommonJS context) are supported. CJS executes code; never use an untrusted configuration module. JSON allows only `security` and `sql` at the root. CJS may retain other application properties, but its security policy is validated strictly. Unknown nested options, invalid regular expressions and conflicting SQL locations are rejected. Use `--security-config`, not the old documentation's incorrect `--config` example.
+
+Missing, unreadable, malformed or invalid selected files prevent startup. No source is merged with a lower-priority source. Omitted fields use defaults. An unset source selects defaults; an explicitly invalid source does not. Restart after changes and verify `Loaded security configuration from ...` in the log.
+
+<a id="configuración-json-sin-archivos"></a>
+
+## Inline JSON configuration
+
+`FIREBIRD_SECURITY_JSON` accepts the same object, including the top-level `sql` section. Alternatively, place `sql` inside `security`; **do not supply both locations**. A SQL-only object is also supported.
+
+Example MCP client `env` fragment (keep your database connection settings):
 
 ```json
-"mcp-firebird": {
-    "args": [
-        "mcp-firebird",
-        "--database",
-        "F:\\Proyectos\\SAI\\EMPLOYEE.FDB",
-        "--user",
-        "SYSDBA",
-        "--password",
-        "masterkey",
-        "--host",
-        "localhost",
-        "--port",
-        "3050",
-        "--security-config",
-        "C:\\ruta\\a\\tu\\security-config.json"
-    ],
-    "command": "npx",
-    "type": "stdio"
+{
+  "FIREBIRD_SECURITY_JSON": "{\"security\":{\"allowedOperations\":[\"SELECT\"],\"maxRows\":100},\"sql\":{\"allowSystemTables\":false,\"allowedSystemTables\":[\"RDB$PROCEDURES\",\"RDB$PROCEDURE_PARAMETERS\"],\"allowDDL\":false,\"allowUnsafeQueries\":false}}"
 }
 ```
 
-## Validación de consultas SQL
+PowerShell:
 
-MCP Firebird incluye validación de consultas SQL para prevenir inyección SQL. Esta validación se realiza antes de ejecutar cualquier consulta.
-
-```javascript
-// Ejemplo de validación de consulta SQL
-const isSafe = validateSql("SELECT * FROM EMPLOYEES WHERE ID = ?");
+```powershell
+$env:FIREBIRD_SECURITY_JSON = '{"security":{"allowedOperations":["SELECT"]},"sql":{"allowedSystemTables":["RDB$PROCEDURES"]}}'
+node dist/cli.js
 ```
 
-## Implementación del enmascaramiento de datos
+The JSON limit is 64 KiB in UTF-8; your OS may impose a lower environment-variable limit. Empty, oversized or invalid JSON prevents initialization. Unset the variable to disable it. The loader does not log JSON contents or validation details containing secrets.
 
-El enmascaramiento de datos se implementa a nivel de aplicación, aplicando reglas de transformación a los resultados de las consultas antes de devolverlos al cliente:
+Only a trusted administrator/launcher may supply the policy. HTTP/SSE clients cannot change it through requests. For `appsettings.json`, your application must read and serialize the configuration, then pass that string to the child process environment. The MCP does not read `appsettings.json` itself. File settings take precedence: remove them to select inline JSON.
 
-```typescript
-// Ejemplo de implementación de enmascaramiento de datos
-function maskSensitiveData(results: any[]): any[] {
-    if (!securityConfig.dataMasking || securityConfig.dataMasking.length === 0) {
-        return results;
-    }
+## SQL security options
 
-    try {
-        // Crear una copia profunda de los resultados para evitar modificar el original
-        const maskedResults = JSON.parse(JSON.stringify(results));
+| Setting | Default | Enforcement |
+| --- | --- | --- |
+| `sql.allowSystemTables` | Unset | Historical catalog access. Set `false` to restrict `RDB$`, `MON$` and `SEC$` reads to the allowlist; `true` allows broad reads without bypassing other permissions. |
+| `sql.allowedSystemTables` | Unset | Setting a list activates a catalog allowlist unless `allowSystemTables=true`; `[]` allows none. |
+| `sql.allowDDL` | Unset | Historical raw-write gate. `false` denies CREATE, ALTER, DROP, RECREATE, GRANT, REVOKE and COMMENT. `true` permits consideration of DDL, still requiring `ALLOW_RAW_SQL=true` and any configured operation permissions. |
+| `sql.allowUnsafeQueries` | Unset | Historical SQL validation and routine support. `false` enables conservative parsing and blocks UNION/opaque routines; `true` allows trusted SQL such as UNION when no scoped/catalog policy conflicts. It never bypasses operation, table, row, masking, role or DDL restrictions. |
 
-        // Aplicar cada regla de enmascaramiento
-        for (const rule of securityConfig.dataMasking) {
-            const { columns, pattern, replacement } = rule;
+Multiple statements remain rejected. Conservative parsing activates for scoped table/row/masking/role policies, catalog restrictions or `allowUnsafeQueries=false`; it also rejects direct system-relation writes, dynamic SQL, procedural blocks and syntax it cannot verify (including comma joins/selectable procedures). These restrictions do not activate just by configuring a limit or audit log. Internal metadata reads are fixed/parameterized server SQL, not an exemption that a tool caller can request. With `allowedTables`, include any explicitly queried catalog relation there as well: permissions are cumulative.
 
-            // Convertir patrón de string a RegExp si es necesario
-            const regex = typeof pattern === 'string' ? new RegExp(pattern) : pattern;
+DDL example, for a trusted administrator with matching Firebird privileges:
 
-            // Aplicar la regla a cada fila
-            for (const row of maskedResults) {
-                for (const column of columns) {
-                    if (column in row && row[column] !== null && row[column] !== undefined) {
-                        // Aplicar el enmascaramiento
-                        const originalValue = String(row[column]);
-                        row[column] = originalValue.replace(regex, replacement);
-                    }
-                }
-            }
-        }
-
-        return maskedResults;
-    } catch (error) {
-        logger.error(`Error al enmascarar datos sensibles: ${error.message}`);
-        return results;
-    }
+```json
+{
+  "security": {
+    "allowedOperations": ["SELECT", "CREATE"],
+    "forbiddenOperations": ["DROP", "ALTER", "GRANT", "REVOKE"]
+  },
+  "sql": { "allowDDL": true }
 }
 ```
 
-## Mejores prácticas
+Also set `ALLOW_RAW_SQL=true`. If you configured `forbiddenOperations`, remove an operation from that list before permitting it; denials always win. SQL writes otherwise remain disabled. Without a SQL policy, no additional DDL switch is required.
 
-1. **No exponer credenciales**: No incluyas credenciales de base de datos en el código fuente.
-2. **Usar variables de entorno**: Almacena información sensible en variables de entorno o archivos `.env` que no se incluyan en el control de versiones.
-3. **Actualizar regularmente**: Mantén MCP Firebird y sus dependencias actualizadas.
-4. **Auditoría**: Implementa registro de auditoría para operaciones sensibles.
-5. **Backup**: Realiza copias de seguridad regulares de tus bases de datos.
-6. **Principio de mínimo privilegio**: Configura cada instancia de MCP Firebird con acceso solo a las tablas y operaciones que realmente necesita.
-7. **Segmentación**: Usa diferentes instancias de MCP Firebird para diferentes casos de uso, cada una con su propia configuración de seguridad.
+Opaque functions and `EXECUTE PROCEDURE` keep their historical availability without restrictive policies; they do not require a new flag. They are blocked with scoped table/row/masking/role policies, catalog restrictions or `allowUnsafeQueries=false`, even if another switch is permissive: their bodies could evade those controls. Their bodies may have side effects and are not inspected. This is not a complete Firebird SQL parser or an injection-proof sandbox. Use parameterized values and database grants. The compatibility path retains the previous heuristic validation (including rejecting comments and UNION unless trusted-query opt-in is selected).
 
-## Ejemplo de configuración segura
+## Table and operation permissions
+
+`allowedTables`, `forbiddenTables` and `tableNamePattern` apply at the query boundary, to table metadata access, and to listing visibility. Names are exact database identifiers: normal unquoted SQL identifiers resolve to uppercase; quoted names retain case. Table metadata tools that normalize input to uppercase check that normalized name. Routine metadata uses object names for these restrictions; trigger metadata uses its parent table.
+
+Operation lists are unset by default: the historical raw-write gate permits SELECT/EXECUTE without `ALLOW_RAW_SQL`, and requires that flag for other operations. Configure `allowedOperations`/`forbiddenOperations` explicitly to narrow permissions; use uppercase names. An empty allowlist denies all operations; an empty denylist adds no denials. Global denials apply even with `ALLOW_RAW_SQL=true` or a permissive role. Routine metadata tools retain their `EXECUTE` gate and also require `SELECT` for the internal catalog read.
+
+Scoped policies accept single-table statements only. Joins, CTEs, nested SELECTs, selectable procedures and DDL are rejected in this mode. Use a database-enforced view for complex reporting; the view itself must implement the required row/column restrictions. Views, triggers and routines can have indirect dependencies that text checks cannot authorize for you.
+
+An operation policy that excludes or forbids EXECUTE also selects conservative parsing to prevent opaque routine calls hidden inside SELECT. It does not activate resource quotas or a catalog denylist.
+
+Starting with alpha.4, builtin argument separators such as `EXTRACT(MONTH FROM T.CREATED_AT)`, `SUBSTRING(T.NAME FROM 1 FOR 3)` and `TRIM(BOTH FROM T.NAME)` are distinguished from table FROM clauses, including nested expressions. Aliased columns do not require `allowUnsafeQueries=true` or disabling security. Actual table references and nested subqueries remain subject to the policy; schema-qualified relations remain unsupported in conservative mode. If data masking is enabled, expression projections are still rejected as described below. Opt-in defaults are unchanged from alpha.3.
+
+## Row filtering and masking
+
+```json
+{
+  "security": {
+    "allowedTables": ["EMPLOYEES"],
+    "allowedOperations": ["SELECT"],
+    "rowFilters": { "EMPLOYEES": "IS_PUBLIC_PROFILE = 1" },
+    "dataMasking": [
+      { "columns": ["SSN"], "pattern": "^.*$", "replacement": "[REDACTED]" }
+    ]
+  }
+}
+```
+
+Row predicates are trusted administrator-authored SQL, applied inside a derived table **before** user filtering, pagination and aggregation. User `OR` clauses cannot remove them. Parameter placeholders/subqueries in configured predicates are not supported. Tables with row filters are read-only through user SQL: inserts, updates and deletes are rejected rather than pretending to implement database-level write checks.
+
+Masking runs after BLOB resolution and before responses or response auditing. Direct column aliases retain their source-column masking rule. `SELECT *` and simple column projections with optional aliases are supported; expression projections, duplicate output names and writes are rejected when masking is enabled. Invalid masking fails closed, never returning the unmasked original. Use trusted, efficient regex patterns. Masking is output redaction, not protection against inference from predicates/timing; use restricted database views for that threat model.
+
+The structured `get-table-data` filters (`eq`, `ne`, `gt`, `gte`, `lt`, `lte`, `like`, `in`, `isNull`, `isNotNull`) remain parameterized. Free-form `where`/`orderBy` strings are not supported. Analysis/statistics requests are subject to the same policy and can be rejected under masking if they require expression projections.
+
+## Resource limits
+
+```json
+{
+  "security": {
+    "maxRows": 1000,
+    "queryTimeout": 5000,
+    "resourceLimits": {
+      "maxRowsPerQuery": 5000,
+      "maxResponseSize": 5242880,
+      "maxQueryCpuTime": 10000,
+      "maxQueriesPerSession": 100,
+      "rateLimit": { "queriesPerMinute": 60, "burstLimit": 20 }
+    }
+  }
+}
+```
+
+This is an **opt-in example, not the defaults**. Every limit is inactive when omitted, even inside a partially populated `resourceLimits` object. Use positive integers; remove a property to disable it (zero/null are invalid). When both row limits are configured, the lower wins. Oversized results are rejected, not silently truncated. Size is measured using UTF-8 JSON bytes; tool/resource wrappers also check aggregate responses. Row/size checks occur after driver materialization, so they are **not a database memory quota**. Use `FIRST`/`ROWS` and database-side controls to bound work.
+
+The lower of `queryTimeout` and the legacy `maxQueryCpuTime` is a **wall-clock deadline**, including attachment/query/BLOB reading. Timed-out connections are discarded; late attachments are also closed. This does not measure Firebird CPU time or guarantee immediate server-side cancellation. A timed-out write may already have committed: never automatically retry it.
+
+Rate limiting uses a token bucket, initially filled to `burstLimit`, refilling at `queriesPerMinute`. Each physical query—including batch iterations and metadata reads—consumes a query count. Security-session identity is process-lifetime STDIO, authenticated OAuth subject, shared API key, or unauthenticated socket IP. Opening another MCP session does not reset quotas. Counters reset on process restart; maps have a 10,000-identity ceiling and reject new identities at capacity. Increase limits deliberately for large schemas or long-running deployments.
+
+## HTTP/SSE authentication and role permissions
+
+Static Bearer authentication remains available through `FIREBIRD_API_KEY` (or its existing alias). Never put keys in URL parameters. Use HTTPS at your reverse proxy.
 
 ```bash
-# Configuración de base de datos con usuario de privilegios limitados
-export FIREBIRD_USER=app_user
-export FIREBIRD_PASSWORD=strong_password
-export FIREBIRD_DATABASE=/path/to/database.fdb
-
-# Configuración de transporte seguro
-export TRANSPORT_TYPE=sse
-export SSE_PORT=3003
-export FIREBIRD_API_KEY=mi_super_secreto_123
-
-# Iniciar MCP Firebird
-npx -y mcp-firebird
+export FIREBIRD_API_KEY="replace-with-a-strong-secret"
 ```
+
+With `authorization.type="basic"`, this shared key maps to the `user` role; configure its `rolePermissions`. This is static Bearer authentication, not an HTTP Basic password database. Without role configuration, authenticated requests have no database permissions.
+
+For OAuth2:
+
+```json
+{
+  "security": {
+    "authorization": {
+      "type": "oauth2",
+      "oauth2": {
+        "tokenVerifyUrl": "https://auth.example.com/introspect",
+        "clientId": "mcp-firebird",
+        "clientSecret": "configure-securely",
+        "scope": "database:read"
+      },
+      "rolePermissions": {
+        "analyst": { "tables": ["SALES"], "operations": ["SELECT"] }
+      }
+    }
+  }
+}
+```
+
+HTTP requests use the Bearer token with an HTTPS introspection endpoint: form-encoded `token`, HTTP Basic client credentials, no redirects, five-second timeout. The endpoint must return `active:true`, a non-empty `sub`/`user_id`, and a `role` (or first `roles` entry). Required space-separated scopes and any provided expiry are checked. Your trusted authorization server must validate token audience and issuance policy. Missing identity, inactive/expired tokens, missing scopes and service failures deny access.
+
+In OAuth mode the Bearer token is an OAuth token, not the static API key. Verified identity flows to role checks; global restrictions and role permissions both apply. HTTP/SSE sessions are bound to the originating security identity. STDIO cannot supply an HTTP identity and database requests are denied when such authorization is configured. Use a separate STDIO policy instead of disabling checks silently.
+
+## CORS
+
+Defaults remain wildcard origin `*`, Authorization header allowed, browser credentials disabled. STDIO and server-side clients do not depend on CORS. Restrict browser origins with:
+
+```bash
+export MCP_ALLOWED_ORIGIN="https://app.example.com,https://admin.example.com"
+```
+
+CORS is not authentication. Do not expose an unauthenticated HTTP service to the Internet.
+
+## Auditing
+
+```json
+{
+  "security": {
+    "audit": {
+      "enabled": true,
+      "destination": "file",
+      "auditFile": "./logs/security-audit.jsonl",
+      "detailLevel": "medium",
+      "logQueries": true,
+      "logParameters": false,
+      "logResponses": false
+    }
+  }
+}
+```
+
+Destinations are `file`, `database`, `both`. File entries are newline-delimited JSON. Database auditing uses a validated `auditTable` name (default `MCP_AUDIT_LOG`), parameterized inserts and UUID keys. The server creates a missing table with Firebird 2.5-compatible types. The account needs the corresponding rights; this internal setup is explicitly authorized by enabling database auditing. Use a new table name if an older incompatible audit schema exists; initialization does not silently ignore setup failures.
+
+An intent entry precedes execution and a completion/failure entry follows it. `basic` omits SQL/parameters/responses; `medium` can include query text; `full` additionally permits parameters/responses when their flags are enabled. Response auditing receives masked data. Audit logs can still contain sensitive SQL literals or parameters when enabled: protect permissions, rotation and retention externally.
+
+An unavailable audit sink prevents query dispatch or withholds the result. A failure after a write has run does not roll it back; audit and user operations are not one atomic transaction. Denied requests are audited where possible. This is not a tamper-proof compliance log.
+
+## Verification and boundaries
+
+Run `npm test -- --runInBand` and `npm run build`. The opt-in `scripts/security-firebird-smoke.mjs` creates/drops a UUID-named disposable local database; see the review for execution details. Tests cover actual query dispatch, not only JSON schema acceptance.
+
+These controls do not provide OS isolation, TLS termination, database CPU accounting, a complete SQL parser or automatic protection against every indirect database dependency. Keep Firebird grants minimal, protect configuration files and credentials, use HTTPS/firewalls, maintain backups and test migrations before rollout.

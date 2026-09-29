@@ -3,7 +3,8 @@ import { createLogger } from '../utils/logger.js';
 import { validateSql } from '../utils/security.js';
 import { DEFAULT_CONFIG } from './connection.js';
 import { FirebirdError } from '../utils/errors.js';
-import { executeQuery } from './queries.js';
+import { executeMetadataQuery as executeQuery } from './queries.js';
+import { checkAllowedTable } from '../security/authorization.js';
 
 const logger = createLogger('db:schema');
 
@@ -14,6 +15,7 @@ const logger = createLogger('db:schema');
  * @returns {object} Esquema de tabla que incluye columnas, claves primarias y claves foráneas
  */
 export const getTableSchema = async (tableName: string, config = DEFAULT_CONFIG) => {
+    checkAllowedTable(tableName);
     try {
         if (!validateSql(tableName)) {
             throw new FirebirdError(`Invalid table name: ${tableName}`, 'VALIDATION_ERROR');
