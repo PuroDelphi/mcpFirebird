@@ -51,6 +51,8 @@ services:
       FIREBIRD_WIRECRYPT: Disabled
       USE_NATIVE_DRIVER: "false"
       PAGE_SIZE: 100
+      # Opt-in 30-second deadline (honored since 2.12.0-alpha.3); unset/blank to omit.
+      # Explicit security.queryTimeout wins; maxQueryCpuTime can impose a lower cap.
       QUERY_TIMEOUT: 30000
       MAX_CONNECTIONS: 50
       

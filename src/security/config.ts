@@ -199,6 +199,19 @@ function parsePolicy(value: unknown): SecurityConfig {
     };
 }
 
+function applyQueryTimeoutEnvironment(config: SecurityConfig): SecurityConfig {
+    // An explicit policy wins, just as a selected file wins over inline JSON.
+    if (config.queryTimeout !== undefined) return config;
+    const value = process.env.QUERY_TIMEOUT?.trim();
+    if (!value) return config;
+    const timeout = Number(value);
+    // Node clamps overflowing timer delays to 1 ms. Reject them instead.
+    if (!/^[0-9]+$/.test(value) || !Number.isSafeInteger(timeout) || timeout < 1 || timeout > 2147483647) {
+        throw new ConfigError('QUERY_TIMEOUT must be an integer from 1 to 2147483647 milliseconds; unset it or leave it blank to disable the environment fallback.');
+    }
+    return { ...config, queryTimeout: timeout };
+}
+
 export function loadSecurityConfig(configPath?: string): SecurityConfig {
     configPath = configPath || process.env.FIREBIRD_SECURITY_CONFIG || process.env.SECURITY_CONFIG || process.env.SECURITY_CONFIG_PATH;
     if (!configPath && process.env.FIREBIRD_SECURITY_JSON !== undefined) {
@@ -208,7 +221,7 @@ export function loadSecurityConfig(configPath?: string): SecurityConfig {
         try { value = JSON.parse(json); } catch { throw new ConfigError('FIREBIRD_SECURITY_JSON must contain valid JSON.'); }
         const config = parsePolicy(value);
         logger.info('Loaded security configuration from FIREBIRD_SECURITY_JSON');
-        return config;
+        return applyQueryTimeoutEnvironment(config);
     }
     if (configPath) {
         try {
@@ -219,13 +232,13 @@ export function loadSecurityConfig(configPath?: string): SecurityConfig {
             // General CJS files may contain connection properties too.
             const config = parsePolicy(path.extname(absolutePath).toLowerCase() === '.json' ? value : { security: value?.security, sql: value?.sql });
             logger.info(`Loaded security configuration from ${configPath}`);
-            return config;
+            return applyQueryTimeoutEnvironment(config);
         } catch (error) {
             if (error instanceof ConfigError) throw error;
             throw new ConfigError('Unable to load a valid security configuration file.');
         }
     }
-    return structuredClone(DEFAULT_SECURITY_CONFIG);
+    return applyQueryTimeoutEnvironment(structuredClone(DEFAULT_SECURITY_CONFIG));
 }
 export const securityConfig: SecurityConfig = structuredClone(DEFAULT_SECURITY_CONFIG);
 export function initSecurityConfig(configPath?: string): void {

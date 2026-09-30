@@ -165,6 +165,19 @@ The lower of `queryTimeout` and the legacy `maxQueryCpuTime` is a **wall-clock d
 
 Rate limiting uses a token bucket, initially filled to `burstLimit`, refilling at `queriesPerMinute`. Each physical query—including batch iterations and metadata reads—consumes a query count. Security-session identity is process-lifetime STDIO, authenticated OAuth subject, shared API key, or unauthenticated socket IP. Opening another MCP session does not reset quotas. Counters reset on process restart; maps have a 10,000-identity ceiling and reject new identities at capacity. Increase limits deliberately for large schemas or long-running deployments.
 
+### Configuring the query timeout
+
+Starting in **2.12.0-alpha.3**, `QUERY_TIMEOUT` is read at security initialization. Earlier versions listed it in examples but did not apply it. This release activates existing nonempty values, including the `30000` value in the environment/Compose examples; review them when upgrading. No timeout is imposed when all timeout settings are absent.
+
+Choose either of these methods, retaining your other connection and security settings:
+
+- Set `QUERY_TIMEOUT=30000` in the MCP server's environment for 30 seconds. In a client's existing `env` object, add `"QUERY_TIMEOUT": "30000"`. PowerShell: `$env:QUERY_TIMEOUT = '30000'`; Bash: `export QUERY_TIMEOUT=30000`.
+- Add `"queryTimeout": 30000` to the `security` object in your existing security JSON/CJS file. If no file is selected, you can instead set `FIREBIRD_SECURITY_JSON` to `{"security":{"queryTimeout":30000}}` (merge with any existing policy rather than replacing it).
+
+The selected file policy takes precedence over inline JSON, as described above. Its explicit `security.queryTimeout` (or the inline value when no file is selected) takes precedence over `QUERY_TIMEOUT`, even if the environment value is lower. When the selected policy omits `queryTimeout`, the environment supplies it without replacing other policy fields. A shadowed environment value is ignored, including its validation. The effective deadline is then the **smaller** of the resulting `queryTimeout` and `security.resourceLimits.maxQueryCpuTime`, if both exist. Despite its historical name, `maxQueryCpuTime` is also measured in elapsed milliseconds, not CPU time.
+
+`QUERY_TIMEOUT` accepts decimal integers from **1 to 2147483647 milliseconds** (surrounding whitespace is allowed). Other nonblank values fail initialization with a configuration error; overflowing Node timers must not silently become 1 ms deadlines. Unset or blank disables only the environment fallback. To disable the deadline entirely, also remove both policy timeout properties. Do not use `0` or `null`. **Restart the MCP process** after changing any setting. This is independent of your MCP client's own request timeout; configure that separately if it ends requests earlier. The server deadline does not cancel SQL execution, as explained above.
+
 ## HTTP/SSE authentication and role permissions
 
 Static Bearer authentication remains available through `FIREBIRD_API_KEY` (or its existing alias). Never put keys in URL parameters. Use HTTPS at your reverse proxy.

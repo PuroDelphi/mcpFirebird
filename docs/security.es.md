@@ -142,6 +142,19 @@ El menor de `queryTimeout` y `maxQueryCpuTime` es un plazo de tiempo transcurrid
 
 La frecuencia utiliza un cubo de tokens con ráfaga inicial `burstLimit` y reposición `queriesPerMinute`. Cada consulta física, incluidas iteraciones de lotes y metadatos, consume cuota. La sesión de seguridad corresponde al proceso STDIO, sujeto OAuth, clave API compartida o IP del socket no autenticado. Abrir otra sesión MCP no reinicia el contador. Se reinicia al reiniciar el proceso; hay un máximo de 10.000 identidades y se rechazan identidades nuevas al alcanzarlo. Ajusta cuotas para esquemas grandes y procesos duraderos.
 
+### Configurar el timeout de las consultas
+
+Desde **2.12.0-alpha.3**, `QUERY_TIMEOUT` se lee al inicializar la seguridad. Antes aparecía en ejemplos pero no se aplicaba. Esta versión activa los valores no vacíos que ya existan, incluido `30000` en los ejemplos de entorno/Compose; revísalos al actualizar. Sin ninguno de los ajustes de timeout no se impone un plazo.
+
+Elige una de estas opciones y conserva el resto de tu conexión y políticas:
+
+- Define `QUERY_TIMEOUT=30000` en el entorno del servidor MCP para 30 segundos. En el objeto `env` existente de tu cliente añade `"QUERY_TIMEOUT": "30000"`. PowerShell: `$env:QUERY_TIMEOUT = '30000'`; Bash: `export QUERY_TIMEOUT=30000`.
+- Añade `"queryTimeout": 30000` al objeto `security` de tu archivo de seguridad JSON/CJS. Si no hay archivo seleccionado, también puedes establecer `FIREBIRD_SECURITY_JSON` a `{"security":{"queryTimeout":30000}}` (combínalo con las políticas existentes, no las reemplaces).
+
+El archivo seleccionado tiene prioridad sobre el JSON del entorno según la precedencia indicada arriba. Su `security.queryTimeout` explícito (o el del JSON cuando no se selecciona archivo) tiene prioridad sobre `QUERY_TIMEOUT`, incluso si la variable contiene un valor menor. Si la política omite `queryTimeout`, la variable lo aporta sin reemplazar otros campos. Una variable desplazada por un valor explícito se ignora, incluida su validación. El plazo efectivo será el **menor** entre el `queryTimeout` resultante y `security.resourceLimits.maxQueryCpuTime`, si existen ambos. Pese a su nombre histórico, `maxQueryCpuTime` mide milisegundos transcurridos, no CPU.
+
+`QUERY_TIMEOUT` acepta enteros decimales de **1 a 2147483647 milisegundos**, con espacios externos opcionales. Otros valores no vacíos impiden la inicialización con un error de configuración; así se evita que un desbordamiento del temporizador de Node se convierta en un plazo de 1 ms. Ausente o vacía desactiva solo el valor de respaldo del entorno. Para desactivar el plazo por completo, elimina también ambas propiedades de timeout de la política. No uses `0` ni `null`. **Reinicia el proceso MCP** tras cada cambio. El timeout propio del cliente MCP es independiente: ajústalo por separado si termina antes. El plazo del servidor no cancela la ejecución SQL, como se explica arriba.
+
 ## Autenticación y roles HTTP/SSE
 
 `FIREBIRD_API_KEY` conserva autenticación `Authorization: Bearer ...`. No utilices claves en URL y protege el transporte con HTTPS. Con `authorization.type="basic"`, esa clave representa el rol `user`; configura sus permisos. No es un directorio de contraseñas HTTP Basic. Sin permisos de rol, se deniega acceso a la base.

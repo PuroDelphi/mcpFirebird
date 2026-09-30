@@ -11,7 +11,7 @@ jest.mock('../../security/audit.js', () => ({ createAuditTable: jest.fn() }));
 
 describe('security configuration file loading', () => {
     const envKeys = ['FIREBIRD_SECURITY_CONFIG', 'SECURITY_CONFIG', 'SECURITY_CONFIG_PATH'];
-    const allEnvKeys = [...envKeys, 'FIREBIRD_SECURITY_JSON'];
+    const allEnvKeys = [...envKeys, 'FIREBIRD_SECURITY_JSON', 'QUERY_TIMEOUT'];
     let directory: string;
     let savedEnv: Array<string | undefined>;
     let originalConfig: typeof securityConfig;
@@ -39,6 +39,51 @@ describe('security configuration file loading', () => {
         fs.writeFileSync(filename, JSON.stringify({ security: { maxRows, forbiddenTables: ['PRIVATE_DATA'] } }));
         return filename;
     }
+
+    it.each(['1', '30000', ' 60000 ', '2147483647'])('loads QUERY_TIMEOUT=%s without enabling other limits', async value => {
+        process.env.QUERY_TIMEOUT = value;
+        await initSecurity();
+        expect(securityConfig).toEqual({ ...DEFAULT_SECURITY_CONFIG, queryTimeout: Number(value) });
+    });
+
+    it.each(['', '   '])('keeps blank QUERY_TIMEOUT=%j inactive', value => {
+        process.env.QUERY_TIMEOUT = value;
+        expect(loadSecurityConfig()).toEqual(DEFAULT_SECURITY_CONFIG);
+    });
+
+    it.each(['0', '-1', '1.5', '30s', '1e3', '0x10', 'NaN', 'Infinity', '2147483648', '9007199254740993', 'secret-value'])('rejects invalid QUERY_TIMEOUT=%s before initializing security', async value => {
+        process.env.QUERY_TIMEOUT = value;
+        await expect(initSecurity()).rejects.toThrow('QUERY_TIMEOUT must be an integer');
+        expect(createAuditTable).not.toHaveBeenCalled();
+        expect(securityConfig).toEqual(originalConfig);
+        try { loadSecurityConfig(); } catch (error) {
+            expect(String(error)).not.toContain('secret-value');
+        }
+    });
+
+    it.each(['inline', 'json', 'cjs'])('uses the environment fallback with %s policies without dropping restrictions', mode => {
+        process.env.QUERY_TIMEOUT = '30000';
+        const policy = { security: { forbiddenTables: ['PRIVATE_DATA'], resourceLimits: { maxQueryCpuTime: 5000 } } };
+        let filename: string | undefined;
+        if (mode === 'inline') process.env.FIREBIRD_SECURITY_JSON = JSON.stringify(policy);
+        else {
+            filename = path.join(directory, `timeout.${mode}`);
+            fs.writeFileSync(filename, mode === 'json' ? JSON.stringify(policy) : `module.exports = ${JSON.stringify(policy)};`);
+        }
+        expect(loadSecurityConfig(filename)).toMatchObject({ ...policy.security, queryTimeout: 30000 });
+    });
+
+    it.each(['inline', 'json', 'cjs'])('prioritizes explicit %s queryTimeout over even an invalid environment fallback', mode => {
+        process.env.QUERY_TIMEOUT = 'invalid ignored lower-priority value';
+        const policy = { security: { queryTimeout: 60000 } };
+        let filename: string | undefined;
+        if (mode === 'inline') process.env.FIREBIRD_SECURITY_JSON = JSON.stringify(policy);
+        else {
+            filename = path.join(directory, `timeout.${mode}`);
+            fs.writeFileSync(filename, mode === 'json' ? JSON.stringify(policy) : `module.exports = ${JSON.stringify(policy)};`);
+        }
+        expect(loadSecurityConfig(filename).queryTimeout).toBe(60000);
+    });
 
     it('loads inline JSON during initialization and enforces its restrictions', async () => {
         process.env.FIREBIRD_SECURITY_JSON = JSON.stringify({ security: { forbiddenTables: ['PRIVATE_DATA'], maxRows: 7 } });

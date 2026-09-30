@@ -5,14 +5,21 @@ import { spawnSync } from 'node:child_process';
 // A real Node subprocess with fatal unhandled rejections: do not mask the
 // regression by installing a global uncaughtException/unhandledRejection hook.
 for (const outcome of ['success', 'rejection', 'cleanup-rejection']) {
-    test(`timeout keeps MCP process alive after late driver ${outcome}`, () => {
+  for (const timeoutSource of ['environment', 'policy', 'legacy-cap']) {
+    test(`${timeoutSource} timeout keeps MCP process alive after late driver ${outcome}`, () => {
         const source = `
             import assert from 'node:assert/strict';
             import { DriverFactory } from './dist/db/driver-factory.js';
             import { executeQuery } from './dist/db/queries.js';
             import { closePool } from './dist/db/connection.js';
-            import { securityConfig } from './dist/security/config.js';
+            import { securityConfig, initSecurityConfig } from './dist/security/config.js';
             const outcome = ${JSON.stringify(outcome)};
+            const timeoutSource = ${JSON.stringify(timeoutSource)};
+            for (const key of ['FIREBIRD_SECURITY_CONFIG', 'SECURITY_CONFIG', 'SECURITY_CONFIG_PATH', 'FIREBIRD_SECURITY_JSON']) delete process.env[key];
+            process.env.QUERY_TIMEOUT = timeoutSource === 'environment' ? '20' : '5000';
+            if (timeoutSource === 'policy') process.env.FIREBIRD_SECURITY_JSON = '{"security":{"queryTimeout":20}}';
+            if (timeoutSource === 'legacy-cap') process.env.FIREBIRD_SECURITY_JSON = '{"security":{"resourceLimits":{"maxQueryCpuTime":20}}}';
+            initSecurityConfig();
             process.env.FIREBIRD_POOL_MAX = '1';
             process.env.LOG_LEVEL = 'error';
             let finish, detached = 0, attached = 0;
@@ -33,10 +40,12 @@ for (const outcome of ['success', 'rejection', 'cleanup-rejection']) {
                 };
             } });
             const config = { host: '127.0.0.1', port: 3050, database: 'mock-only', user: 'test', password: 'test' };
-            securityConfig.queryTimeout = 20;
+            const started = Date.now();
             await assert.rejects(executeQuery('SELECT * FROM T', [], config), /deadline/);
+            assert.ok(Date.now() - started < 3000, 'the shorter policy deadline must win over the 5000 ms fallback');
             assert.equal(detached, 0);
             delete securityConfig.queryTimeout;
+            delete securityConfig.resourceLimits.maxQueryCpuTime;
             const next = executeQuery('SELECT * FROM T', [], config);
             await new Promise(resolve => setTimeout(resolve, 10));
             assert.equal(attached, 1, 'pending operation must still occupy its pool slot');
@@ -55,4 +64,5 @@ for (const outcome of ['success', 'rejection', 'cleanup-rejection']) {
         assert.equal(child.status, 0, child.stderr || child.error?.message);
         assert.match(child.stdout, /timeout survived; next query succeeded/);
     });
+  }
 }

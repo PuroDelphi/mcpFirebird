@@ -1,5 +1,20 @@
 # Changelog
 
+## [2.12.0-alpha.3] - 2026-09-30
+
+### Fixed
+- Honor `QUERY_TIMEOUT` as an opt-in environment fallback for `security.queryTimeout` during security initialization, including JSON and CommonJS policies.
+- Preserve explicit policy timeout precedence and the independent lower `resourceLimits.maxQueryCpuTime` cap. Reject malformed or overflowing environment deadlines rather than silently using unsafe timer values.
+- Test environment configuration, policy precedence and legacy caps through strict-unhandled-rejection subprocesses, retaining the #38 safe attachment lifecycle fix.
+
+### Configuration and compatibility
+- Units are milliseconds; `QUERY_TIMEOUT` accepts decimal integers from 1 to 2147483647. Unset/blank means no environment fallback; no implicit timeout is introduced. Restart the MCP process to apply changes.
+- Previously ignored nonempty `QUERY_TIMEOUT` values now take effect, including the 30000 ms environment/Compose examples. Explicit `security.queryTimeout` takes priority; remove both policy deadlines and unset/blank the variable to disable the limit completely. Zero is not a disable switch.
+- Document environment, inline JSON and file configuration in the [English security guide](docs/security.md#configuring-the-query-timeout) and [Spanish guide](docs/security.es.md#configurar-el-timeout-de-las-consultas). Requires Node.js 20.19+; stable/latest and driver selection remain unchanged.
+
+### Validation
+- 342 unit tests, 42 protocol/regression tests, compiled security smoke checks and TypeScript build passed. Lint: no errors. Production dependency audit: zero vulnerabilities. Timeout regressions use controlled driver adapters, not a live Firebird connection.
+
 ## [2.12.0-alpha.2] - 2026-09-30
 
 ### Fixed
