@@ -58,6 +58,28 @@ describe('MCP tool contracts', () => {
         }
     });
 
+    it.each([{ tables: [] }, { tables: ['CUSTOMERS'] }, { tables: ['CUSTOMERS', 'ORDERS'] }])('preserves table names for list and database info: %j', async ({ tables }) => {
+        jest.mocked(db.listTables).mockResolvedValue(tables);
+        for (const name of ['list-tables', 'get-database-info']) {
+            const tool = setupDatabaseTools().get(name)!;
+            const response = await tool.handler({});
+            expect(response.isError).not.toBe(true);
+            expect(response.structuredContent.result).toEqual(name === 'list-tables'
+                ? { tables } : { tables, totalTables: tables.length });
+            expect(JSON.parse(response.content[0].text)).toEqual(response.structuredContent.result);
+            expect(tool.outputSchema.safeParse({ success: true, result: { tables: [{ name: 'CUSTOMERS', uri: 'firebird://CUSTOMERS' }], totalTables: 1 } }).success).toBe(false);
+        }
+    });
+
+    it('preserves recursive JSON error details without unconstrained value schemas', () => {
+        const details = { queryIndex: 2, retry: false, value: null, nested: { values: ['text', 3, { reason: 'denied' }] } };
+        const response = toolError(new FirebirdError('Failure', 'QUERY_ERROR', undefined, details));
+        expect(response.structuredContent.error?.details).toEqual(details);
+        for (const tool of setupDatabaseTools().values()) {
+            expect(tool.outputSchema.parse(response.structuredContent)).toEqual(response.structuredContent);
+        }
+    });
+
     it.each([{ rows: [] }, { rows: [{ success: false, error: 'This is ordinary row data' }] }])(
         'treats valid query data as successful, including empty rows and error-like fields: %j', async ({ rows }) => {
             jest.mocked(db.executeQuery).mockResolvedValue(rows);

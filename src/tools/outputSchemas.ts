@@ -2,15 +2,19 @@ import { z } from 'zod';
 
 // SQL column names and values depend on the user's database and driver. Do not
 // invent fixed columns or coerce their values in the advertised contract.
-const Row = z.record(z.string(), z.unknown());
+// toolResult serializes first, so dynamic fields contain JSON values, not
+// arbitrary JavaScript objects. Explicit recursive types avoid empty schemas
+// while preserving nulls, scalars, arrays and driver-normalized objects.
+const JsonValue = z.json();
+const Row = z.record(z.string(), JsonValue);
 const Rows = z.array(Row);
-const Table = z.object({ name: z.string(), uri: z.string() });
-const Tables = z.array(Table);
+// listTables returns names; getTables (used by resources) returns name/URI pairs.
+const Tables = z.array(z.string());
 const Column = z.object({
     field_name: z.string(), field_type: z.string(),
     field_length: z.number().nullable().optional(), field_scale: z.number().optional(),
-    nullable: z.boolean(), default_value: z.unknown().optional(),
-    primary_key: z.boolean(), description: z.unknown().optional()
+    nullable: z.boolean(), default_value: JsonValue.optional(),
+    primary_key: z.boolean(), description: JsonValue.optional()
 });
 const Columns = z.array(Column);
 const ToolSummary = z.object({
@@ -20,20 +24,20 @@ const ToolSummary = z.object({
 const Trigger = z.object({
     name: z.string(), tableName: z.string(), triggerType: z.string(),
     sequence: z.number(), inactive: z.boolean(),
-    source: z.unknown(), description: z.unknown().optional()
+    source: JsonValue, description: JsonValue.optional()
 });
 const Procedure = z.object({
     name: z.string(), inputParams: z.number(), outputParams: z.number(),
-    source: z.unknown(), description: z.unknown().optional(), validBlr: z.boolean()
+    source: JsonValue, description: JsonValue.optional(), validBlr: z.boolean()
 });
 const FunctionInfo = z.object({
     name: z.string(), moduleName: z.string().nullable().optional(),
     entryPoint: z.string().nullable().optional(), returnArgument: z.number(),
-    source: z.unknown().optional(), description: z.unknown().optional(), validBlr: z.boolean()
+    source: JsonValue.optional(), description: JsonValue.optional(), validBlr: z.boolean()
 });
 const Package = z.object({
-    name: z.string(), headerSource: z.unknown(), bodySource: z.unknown().optional(),
-    description: z.unknown().optional(), validBodyFlag: z.boolean()
+    name: z.string(), headerSource: JsonValue, bodySource: JsonValue.optional(),
+    description: JsonValue.optional(), validBodyFlag: z.boolean()
 });
 
 // Only these handlers execute SQL supplied by the caller. Plan retrieval and
@@ -47,7 +51,7 @@ export const databaseResultSchemas: Record<string, z.ZodType> = {
     'list-tables': z.object({ tables: Tables }),
     'describe-table': z.object({ schema: Columns }),
     'get-field-descriptions': z.object({
-        fieldDescriptions: z.array(z.object({ name: z.string(), description: z.unknown() }))
+        fieldDescriptions: z.array(z.object({ name: z.string(), description: JsonValue }))
     }),
     'get-table-indexes': z.object({
         tableName: z.string(),
@@ -78,7 +82,7 @@ export const databaseResultSchemas: Record<string, z.ZodType> = {
         success: z.boolean(), error: z.string().optional(), analysis: z.string()
     }),
     'get-execution-plan': z.object({
-        query: z.string(), plan: z.string(), planDetails: z.array(z.unknown()),
+        query: z.string(), plan: z.string(), planDetails: z.array(JsonValue),
         success: z.boolean(), error: z.string().optional(), analysis: z.string()
     }),
     'analyze-missing-indexes': z.object({
@@ -100,7 +104,7 @@ export const databaseResultSchemas: Record<string, z.ZodType> = {
         tableName: z.string(), rowCount: z.union([z.number(), z.string()]),
         columnCount: z.number(), sampleSize: z.number(),
         columns: z.array(z.object({
-            name: z.string().optional(), type: z.string().optional(),
+            name: z.string(), type: z.string(),
             nullable: z.boolean(), hasDefault: z.boolean()
         }))
     }),

@@ -51,7 +51,7 @@ export const sqlExecutionAnnotations: ToolAnnotations = {
 const ErrorSchema = z.object({
     message: z.string(),
     type: z.string(),
-    details: z.record(z.string(), z.unknown()).optional()
+    details: z.record(z.string(), z.json()).optional()
 });
 
 export function toolOutputSchema(resultSchema: z.ZodType): z.ZodObject {

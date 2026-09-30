@@ -15,6 +15,11 @@ This branch explicitly opts into MCP 2026-07-28 using SDK v2 `createMcpHandler` 
 
 Tools now publish `outputSchema`, `structuredContent`, and truthful annotations. Existing JSON text remains available. Failures, including partial batch failures, use `isError: true`. See [tool contract](tool-contract.md). SQL authorization remains opt-in; this migration does not change the administrator's SQL policy.
 
+For upgrades from an earlier 2.12 alpha, use **2.12.0-alpha.4** or newer: it fixes
+the #39 table-list output schema regression and the empty-value-schema warnings.
+Table names remain strings in both legacy text and structured results; no policy
+or client payload change is required. See [schema compatibility details](tool-contract.md#alpha4-schema-compatibility-correction-39).
+
 ## HTTP compatibility and opt-in hardening
 
 `MCP_HTTP_SECURITY_MODE=compat` is the default. It preserves the old `0.0.0.0` bind, wildcard non-cookie CORS (unset, empty or `MCP_ALLOWED_ORIGIN=*`), and OAuth introspection-only configurations. HTTP startup emits a warning. This migration bridge does **not** provide the Host/browser-origin isolation of strict mode. Use authentication, a trusted network/firewall and least-privilege database credentials; never expose an unauthenticated MCP publicly.

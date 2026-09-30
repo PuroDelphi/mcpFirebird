@@ -42,7 +42,7 @@ describe('database tool output shape', () => {
     });
 
     it('wraps execute-batch-queries results in an object', async () => {
-        const results = [{ success: true, result: [{ ID: 1 }] }];
+        const results = [{ success: true, data: [{ ID: 1 }] }];
         mockedExecuteBatchQueries.mockResolvedValue(results);
 
         const response = await setupDatabaseTools().get('execute-batch-queries')!.handler({

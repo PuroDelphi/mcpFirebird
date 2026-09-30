@@ -1,5 +1,18 @@
 # Changelog
 
+## [2.12.0-alpha.4] - 2026-09-30
+
+### Fixed
+- Fix #39: `list-tables` and `get-database-info` now advertise arrays of table-name strings, matching their unchanged runtime/legacy text payloads. The initial MCP 2026 alpha output schema confused these with resource name/URI objects and rejected nonempty lists.
+- Replace unconstrained empty value schemas with explicit recursive JSON types for rows, metadata, plan details and error context. Preserve nested JSON data and output validation while removing the reported Inspector warning.
+- Correct `analyze-table-statistics` to read normalized column metadata, restoring column names, types, nullability and default presence.
+
+### Regression coverage and compatibility
+- Add nonempty driver-boundary fixtures for all 30 database, metadata and echo handlers, exercising production mapping instead of mocking helper return values. Check catalog schemas and call every handler through SDK 1 and SDK 2 legacy/2026 clients over STDIO and HTTP.
+- Retain the #38 lifecycle and configurable-timeout fixes, legacy text formats, opt-in security defaults and unchanged driver dependencies. Node.js 20.19+ required; stable/latest remains unchanged. GitHub Actions stays disabled.
+- See [tool contract](docs/tool-contract.md) for payload examples and validation details. No client configuration migration is required for this fix. Live Firebird integration could not be repeated because the local test service refused connections; controlled-driver tests are not claimed as live coverage.
+- Validation: 346 unit tests, 80 protocol/regression tests, compiled security smoke checks and TypeScript build passed. Lint: no errors. Production dependency audit: zero vulnerabilities.
+
 ## [2.12.0-alpha.3] - 2026-09-30
 
 ### Fixed

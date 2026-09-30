@@ -484,11 +484,11 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
                     rowCount,
                     columnCount: schema.length,
                     sampleSize: sampleData.length,
-                    columns: schema.map((col: any) => ({
-                        name: col.FIELD_NAME,
-                        type: col.FIELD_TYPE,
-                        nullable: col.NULL_FLAG === 'YES',
-                        hasDefault: !!col.DEFAULT_VALUE
+                    columns: schema.map(col => ({
+                        name: col.field_name,
+                        type: col.field_type,
+                        nullable: col.nullable,
+                        hasDefault: col.default_value != null
                     }))
                 };
 

@@ -24,10 +24,34 @@ content remains the original message.
 Each tool's schema describes its own payload, including row arrays, table
 metadata, performance measurements, runtime information, and batch items. SQL
 row keys and values remain database-dependent. Driver-provided BLOB/default
-values use open JSON values rather than promising an inaccurate string type.
+values use explicit recursive JSON types rather than promising an inaccurate string type.
 Dates and Buffers receive the same JSON serialization as in the text response.
 Non-JSON values such as unsupported BigInts produce a tool error instead of a
 misleading successful response.
+
+### Alpha.4 schema compatibility correction (#39)
+
+Starting in **2.12.0-alpha.4**, the `list-tables` and `get-database-info` output
+schemas correctly describe `tables` as an array of **strings**, matching the
+existing helper and legacy JSON text. Earlier 2.12 alphas incorrectly required
+`{name, uri}` objects (the separate database-resource representation) and rejected
+nonempty results. No client payload migration or configuration change is needed:
+
+```json
+{"success":true,"result":{"tables":["CUSTOMERS","ORDERS"]}}
+```
+
+`get-database-info` additionally includes `totalTables` inside `result`.
+Resource name/URI objects are unchanged. `analyze-table-statistics` now reads
+the normalized column metadata, so column names, types, nullability and default
+presence are reported correctly instead of being missing or incorrect.
+
+Dynamic row values, metadata values, plan details and error context use explicit
+JSON types (string, number, boolean, null, array, object), with local recursive
+schema references. This removes the empty `{}` value schemas behind the reported
+Inspector warning without dropping nested data or disabling output validation.
+JSON Schema-capable clients must support those standard types and local references.
+The response envelope, SQL permissions, timeouts and driver selection are unchanged.
 
 ## Errors and partial batches
 
@@ -77,7 +101,11 @@ the opt-in SQL authorization policy or grant permission to execute writes.
 ## Regression checks
 
 Run `npm test -- --runInBand src/__tests__/tools` for handler-level contracts,
-then `npm run build && node --test tests/tool-contracts.test.mjs` for ESM metadata
-coverage. Protocol integration should assert that `tools/list` advertises output
-schemas/annotations and `tools/call` carries both compatible text and the
-structured result across stdio and HTTP protocol versions.
+then `npm run build` and `npm run test:protocol` for ESM and protocol coverage.
+`tests/output-contracts-regression.test.mjs` exercises all 30 database, metadata
+and echo handlers with nonempty fixtures at the driver boundary, keeping production
+SQL/metadata transformations and policies in the path. It also calls them through
+SDK 1 and SDK 2 legacy/2026 clients over STDIO and HTTP, with client output validation
+enabled after catalog discovery. Catalog checks include the event-tool schemas;
+event behavior has its separate regression suite. These are controlled-driver
+tests, not a substitute for live Firebird integration tests.
