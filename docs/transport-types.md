@@ -1,5 +1,7 @@
 # Transport Types in MCP Firebird
 
+> **Alpha update:** Read [MCP 2026 migration](mcp-2026-migration.md) first. These examples describe 2025 clients; `/mcp` also serves MCP 2026-07-28. Default `compat` mode preserves the historical HTTP bind/CORS behavior. Opt into loopback and Host/Origin defenses with `MCP_HTTP_SECURITY_MODE=strict`; strict remote/container exposure requires `MCP_ALLOW_REMOTE=true` and `MCP_ALLOWED_HOSTS`. `HTTP_HOST` controls the MCP listener; `--host` controls the database host. `/mcp-auto` is obsolete; use `/mcp`. SDK v2 requires Node.js 20.19+.
+
 This document provides comprehensive examples and configuration for the different transport types supported by MCP Firebird.
 
 ## Overview
@@ -1135,7 +1137,7 @@ STREAMABLE_STATELESS_MODE=true npx -y mcp-firebird \
 - ⚠️ Use environment variables for credentials
 
 **SSE/HTTP Streamable/Unified:**
-- ✅ Bind to localhost only: `--host 127.0.0.1`
+- ✅ Bind MCP HTTP to localhost: `HTTP_HOST=127.0.0.1`
 - ✅ Use firewall to block external access
 - ⚠️ Don't expose to internet
 

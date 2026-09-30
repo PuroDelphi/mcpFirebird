@@ -2,11 +2,11 @@
 
 [Español](security.es.md)
 
-This guide describes enforcement in **2.11.0-alpha.4**, not older npm releases. See the [security implementation review](security-implementation-review.md) and [changelog](../CHANGELOG.md).
+This guide describes SQL enforcement from stable **2.11.0** and the opt-in HTTP/OAuth additions in **2.12.0-alpha.1**. The new HTTP mode and OAuth discovery require the alpha; they are not available in stable 2.11.0. See the [security implementation review](security-implementation-review.md) and [changelog](../CHANGELOG.md).
 
 ## Important migration notice
 
-**Advanced security is opt-in.** With no security configuration (or empty `security`/`sql` objects), this alpha preserves historical SQL support: catalog reads, stored/selectable procedures, functions, joins and CTEs remain available. There is no new implicit row/size cap, five-second deadline, 100-query quota or rate limit. Existing raw-write validation, parameterized tool filters, API-key authentication and CORS behavior remain in place. `ALLOW_RAW_SQL=true` continues to enable direct writes, including DDL, when no explicit policy forbids them.
+**Advanced security is opt-in.** With no security configuration (or empty `security`/`sql` objects), this release preserves historical SQL support: catalog reads, stored/selectable procedures, functions, joins and CTEs remain available. There is no new implicit row/size cap, five-second deadline, 100-query quota or rate limit. Existing raw-write validation, parameterized tool filters, API-key authentication and CORS behavior remain in place. `ALLOW_RAW_SQL=true` continues to enable direct writes, including DDL, when no explicit policy forbids them.
 
 Earlier documentation incorrectly presented disconnected security helpers as enforced protections. They are now implemented, **but apply only when configured**. Important boundaries when opting in:
 
@@ -17,7 +17,7 @@ Earlier documentation incorrectly presented disconnected security helpers as enf
 - Policies restricting tables, rows, masking or roles use a conservative single-table SQL subset. Unsupported joins, CTEs, nested queries and opaque routines are rejected under these policies.
 - Shared event subscriptions are unavailable with scoped policies because the legacy event manager is not isolated per user.
 
-Do not deploy an alpha directly into production without testing representative queries. **Use a least-privilege Firebird account, not SYSDBA.** Application checks complement, but do not replace, database privileges. A permitted view may expose underlying objects; configure database views and grants accordingly.
+Test representative queries and existing policies before upgrading production. **Use a least-privilege Firebird account, not SYSDBA.** Application checks complement, but do not replace, database privileges. A permitted view may expose underlying objects; configure database views and grants accordingly.
 
 To keep compatibility, leave security sources unset. To enable only a row cap, set `FIREBIRD_SECURITY_JSON='{"security":{"maxRows":1000}}'`; this does not activate a timeout, query quota, catalog restriction or SQL subset. Remove the property (or the selected policy source) and restart to disable it. A configured policy from an older release is still explicit: previously dormant options in that policy now take effect. Do not remove a policy indiscriminately if you depend on its permissions.
 
@@ -186,6 +186,8 @@ For OAuth2:
         "tokenVerifyUrl": "https://auth.example.com/introspect",
         "clientId": "mcp-firebird",
         "clientSecret": "configure-securely",
+        "resourceUrl": "https://mcp.example.com/mcp",
+        "authorizationServers": ["https://auth.example.com"],
         "scope": "database:read"
       },
       "rolePermissions": {
@@ -196,19 +198,40 @@ For OAuth2:
 }
 ```
 
-HTTP requests use the Bearer token with an HTTPS introspection endpoint: form-encoded `token`, HTTP Basic client credentials, no redirects, five-second timeout. The endpoint must return `active:true`, a non-empty `sub`/`user_id`, and a `role` (or first `roles` entry). Required space-separated scopes and any provided expiry are checked. Your trusted authorization server must validate token audience and issuance policy. Missing identity, inactive/expired tokens, missing scopes and service failures deny access.
+HTTP requests use the Bearer token with an HTTPS introspection endpoint: form-encoded `token`, HTTP Basic client credentials, no redirects, five-second timeout. The endpoint must return `active:true`, a non-empty `sub`/`user_id`, a `role` (or first `roles` entry), and `aud` as a string or array of strings containing the **exact configured `resourceUrl`**. The server validates the audience itself; `active:true` alone or an audience equal only to `clientId` is insufficient. Required space-separated scopes, any provided expiry (`exp`), and not-before (`nbf`) are also checked. Missing identity, malformed/foreign audience, inactive/expired tokens and service failures return HTTP 401; otherwise valid tokens lacking required scopes return HTTP 403.
+
+**OAuth migration:** compatibility-mode configurations omitting **both** `resourceUrl` and `authorizationServers` retain the old introspection checks, with a startup warning. They do not perform local audience validation or publish discovery: use a trusted, resource-specific introspection provider. To enable the hardened flow above, configure both fields together. Partial/invalid settings fail validation. Once configured, audience checks apply in either HTTP mode and never fall back to legacy behavior. Strict HTTP requires both fields before listening. `resourceUrl` is the canonical public MCP endpoint without a query or fragment. Use HTTPS (HTTP is accepted only on loopback); issuers and introspection endpoints require HTTPS. Configure your provider to return the resource audience in introspection and route public discovery paths through your proxy.
+
+OAuth mode publishes credential-free [RFC 9728 protected resource metadata](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/authorization-server-discovery) before authentication at `/.well-known/oauth-protected-resource`, and at the resource-specific path (for `/mcp`, `/.well-known/oauth-protected-resource/mcp`). Responses include the resource identifier, authorization server issuers, supported scopes, and header-only bearer usage. HTTP 401/403 challenges include `WWW-Authenticate: Bearer resource_metadata="..."`, the required scope, and the appropriate OAuth error when applicable. Discovery and challenges use configured URLs, never request Host or forwarded headers. The external authorization server must provide OAuth/OIDC discovery and handle client registration, consent and token issuance; this database server does not implement those flows.
 
 In OAuth mode the Bearer token is an OAuth token, not the static API key. Verified identity flows to role checks; global restrictions and role permissions both apply. HTTP/SSE sessions are bound to the originating security identity. STDIO cannot supply an HTTP identity and database requests are denied when such authorization is configured. Use a separate STDIO policy instead of disabling checks silently.
 
-## CORS
+## HTTP binding, Host/Origin validation and CORS
 
-Defaults remain wildcard origin `*`, Authorization header allowed, browser credentials disabled. STDIO and server-side clients do not depend on CORS. Restrict browser origins with:
+By default, `MCP_HTTP_SECURITY_MODE=compat` preserves HTTP/SSE/unified binding to `0.0.0.0` and non-cookie wildcard CORS when `MCP_ALLOWED_ORIGIN` is unset, empty or `*`. No Host allowlist is imposed unless configured. This compatibility bridge warns at startup and is **not equivalent to strict-mode browser/DNS-rebinding isolation**. Use authentication and a trusted network; do not expose unauthenticated database access. Explicit Host/Origin lists are enforced even in compat mode, and `MCP_ALLOW_REMOTE=false` explicitly denies non-loopback binding.
+
+Set `MCP_HTTP_SECURITY_MODE=strict` to opt into loopback (`127.0.0.1`) defaults and Host/Origin validation before authentication, including OPTIONS. Default accepted hosts are `localhost`, `127.0.0.1` and `[::1]`. Native clients may omit Origin; browser origins must match the request origin or an explicit allowed origin. Malformed, opaque `null`, or foreign origins and foreign hosts receive HTTP 403. Browser credentials remain disabled. STDIO is unaffected. Unknown modes fail startup. To return to compatibility defaults, unset the variable or set it to `compat` and restart; explicit lists and SQL/OAuth policies remain enforced.
+
+**Strict HTTP migration:** remove the old `MCP_ALLOWED_ORIGIN=*` (rejected only in strict mode). Leave it unset/empty for same-origin access or list exact origins, including scheme and optional port but no path, trailing slash or wildcard:
 
 ```bash
 export MCP_ALLOWED_ORIGIN="https://app.example.com,https://admin.example.com"
 ```
 
-CORS is not authentication. Do not expose an unauthenticated HTTP service to the Internet.
+To expose the service beyond loopback in strict mode, configure all of:
+
+```bash
+export HTTP_HOST="0.0.0.0"
+export MCP_HTTP_SECURITY_MODE="strict"
+export MCP_ALLOW_REMOTE="true"
+export MCP_ALLOWED_HOSTS="mcp.example.com"
+export MCP_ALLOWED_ORIGIN="https://mcp.example.com,https://app.example.com"
+export FIREBIRD_API_KEY="replace-with-a-strong-secret" # or configure OAuth2
+```
+
+Host entries are exact hostnames/IP addresses, without ports; bracket IPv6 (`[2001:db8::1]`). Request Host headers may contain a valid port. Do not add wildcard bind addresses such as `0.0.0.0` as a substitute for the hostname clients actually use. `X-Forwarded-Host` and `X-Forwarded-Proto` never bypass validation. A TLS-terminating proxy must set an allowed direct Host and the public HTTPS browser origin must be in `MCP_ALLOWED_ORIGIN`. Docker/container listeners likewise need the deliberate remote settings; network publishing alone does not change the bind address.
+
+CORS allows the protocol version/method/name headers for 2026 requests, legacy session and event-resumption headers, and conditional-cache request headers. It exposes session, protocol, authentication challenge and cache response headers. This does not grant browser access beyond the origin allowlist, enable cookies or implement new cache behavior. CORS and Host/Origin checks are not authentication: protect remote exposure with a key or OAuth, HTTPS, firewall rules and least-privilege database credentials. These transport defaults do not change any opt-in SQL policy or database limit.
 
 ## Auditing
 
@@ -238,4 +261,4 @@ An unavailable audit sink prevents query dispatch or withholds the result. A fai
 
 Run `npm test -- --runInBand` and `npm run build`. The opt-in `scripts/security-firebird-smoke.mjs` creates/drops a UUID-named disposable local database; see the review for execution details. Tests cover actual query dispatch, not only JSON schema acceptance.
 
-These controls do not provide OS isolation, TLS termination, database CPU accounting, a complete SQL parser or automatic protection against every indirect database dependency. Keep Firebird grants minimal, protect configuration files and credentials, use HTTPS/firewalls, maintain backups and test alpha migrations before rollout.
+These controls do not provide OS isolation, TLS termination, database CPU accounting, a complete SQL parser or automatic protection against every indirect database dependency. Keep Firebird grants minimal, protect configuration files and credentials, use HTTPS/firewalls, maintain backups and test migrations before rollout.

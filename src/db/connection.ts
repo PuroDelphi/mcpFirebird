@@ -3,7 +3,6 @@
  * Provides functionality for connecting to Firebird databases
  */
 
-import Firebird from 'node-firebird';
 import { createLogger } from '../utils/logger.js';
 import { FirebirdError, ErrorTypes } from '../utils/errors.js';
 import { DriverFactory } from './driver-factory.js';
@@ -223,7 +222,7 @@ export class ConnectionPool {
      */
     private _hardDetach(db: FirebirdDatabase): void {
         this.activeCount = Math.max(0, this.activeCount - 1);
-        const realDetach: Function = (db as any)._realDetach || db.detach;
+        const realDetach: (callback: (error: Error | null) => void) => void = (db as any)._realDetach || db.detach;
         try {
             realDetach.call(db, (err: Error | null) => {
                 if (err) logger.warn(`Error al cerrar conexión descartada: ${err.message}`);
@@ -535,7 +534,7 @@ export const testConnection = async (config = getDefaultConfig()): Promise<void>
         throw error;
     } finally {
         if (db) {
-            await new Promise<void>((resolve, reject) => {
+            await new Promise<void>(resolve => {
                 db?.detach((detachErr: Error | null) => {
                     if (detachErr) {
                         logger.warn(`Error al cerrar conexión de prueba: ${detachErr.message}`);

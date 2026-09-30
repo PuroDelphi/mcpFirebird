@@ -1,5 +1,7 @@
 # MCP Firebird
 
+> **Migración alpha:** soporte MCP 2026-07-28 y SDK v2, manteniendo clientes 2025 y las configuraciones HTTP/CORS/OAuth anteriores por defecto. El endurecimiento HTTP se activa con `MCP_HTTP_SECURITY_MODE=strict`. Consulta la [guía de migración](docs/mcp-2026-migration.md) y sus limitaciones de seguridad. **El nuevo SDK requiere Node.js 20.19+**; con versiones anteriores de Node conserva la estable 2.11.0 hasta actualizar el entorno.
+
 
 Implementación del protocolo MCP (Model Context Protocol) de Anthropic para bases de datos Firebird.
 
@@ -572,7 +574,7 @@ end.
 
 ## Configuración de seguridad
 
-Desde **2.11.0-alpha.2**, las opciones SQL, restricciones, filtros de filas, enmascaramiento, límites, auditoría y autorización se comprueban en la ejecución, no solo al leer la configuración. Los ejemplos anteriores se sustituyen por la [guía actualizada en español](docs/security.es.md) y su [versión inglesa](docs/security.md).
+La versión estable **2.11.0** incluye todos los cambios de 2.11.0-alpha.1 a alpha.4: JSON de seguridad en el entorno, controles optativos efectivos y la corrección de EXTRACT/SUBSTRING/TRIM. Instala con `npm install -g mcp-firebird@latest` o fija `mcp-firebird@2.11.0`. Las opciones SQL, restricciones, filtros, enmascaramiento, límites, auditoría y autorización se comprueban en la ejecución cuando se configuran. Consulta la [guía en español](docs/security.es.md) y su [versión inglesa](docs/security.md), especialmente si tu política ya contiene opciones antes inactivas.
 
 Usa `--security-config /ruta/politica.json` o `FIREBIRD_SECURITY_JSON`. Ambas fuentes admiten `security` y `sql`; una configuración seleccionada inválida detiene el inicio. En **2.11.0-alpha.3** las restricciones avanzadas son optativas: no hay cuotas, plazos, bloqueo de catálogo ni restricciones nuevas de rutinas implícitas. Se conserva `ALLOW_RAW_SQL=true` para escrituras, incluido DDL; los permisos configurados expresamente y `sql.allowDDL=false` no se pueden omitir.
 

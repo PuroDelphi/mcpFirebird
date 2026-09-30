@@ -1,370 +1,163 @@
-/**
- * Streamable HTTP transport implementation for MCP Firebird
- * Implements the modern MCP protocol (2025-03-26) with session management
- * and backwards compatibility support
- */
-
+/** Legacy 2025 Streamable HTTP sessions, isolated by authenticated principal. */
 import express from 'express';
 import { randomUUID } from 'node:crypto';
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
-import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
+import type { McpServer } from '@modelcontextprotocol/server';
+import { isInitializeRequest } from '@modelcontextprotocol/server';
+import { NodeStreamableHTTPServerTransport as StreamableHTTPServerTransport } from '@modelcontextprotocol/node';
 import { createLogger } from '../utils/logger.js';
 import { currentSecurityContext } from '../security/context.js';
 
 const logger = createLogger('server:streamable-http');
-
 interface SessionInfo {
     owner: string;
     transport: StreamableHTTPServerTransport;
-    server: McpServer;
-    createdAt: Date;
-    lastActivity: Date;
+    response: express.Response;
+    server?: McpServer;
+    ready: Promise<void>;
+    connected: boolean;
+    closed: boolean;
+    transportClosed: boolean;
+    closing?: Promise<void>;
+    lastActivity: number;
 }
+export type StreamableHttpRouter = express.Router & { cleanup: () => Promise<void> };
 
-/**
- * Creates a Streamable HTTP router for modern MCP clients
- * @param createServerInstance Function to create a new McpServer instance
- * @returns Express router configured for Streamable HTTP
- */
-export function createStreamableHttpRouter(createServerInstance: () => Promise<McpServer>): express.Router {
-    const router = express.Router();
+export function createStreamableHttpRouter(createServerInstance: () => Promise<McpServer>): StreamableHttpRouter {
+    const router = express.Router() as StreamableHttpRouter;
+    const activeSessions = new Map<string, SessionInfo>();
+    // Includes initialization and stateless requests, not just sessions with IDs.
+    const allSessions = new Set<SessionInfo>();
+    const sessionTimeout = Number(process.env.STREAMABLE_SESSION_TIMEOUT_MS || '1800000');
+    const stateless = process.env.STREAMABLE_STATELESS_MODE === 'true';
+    let shuttingDown = false;
 
-    // Session storage for stateful mode
-    const activeSessions: Record<string, SessionInfo> = {};
-
-    // Configuration
-    const SESSION_TIMEOUT_MS = parseInt(process.env.STREAMABLE_SESSION_TIMEOUT_MS || '1800000', 10); // 30 minutes
-    const CLEANUP_INTERVAL_MS = 60000; // 1 minute
-    // Default to stateless mode for better compatibility with MCP Inspector and most clients
-    const STATELESS_MODE = process.env.STREAMABLE_STATELESS_MODE === 'true';
-
-    logger.info(`Streamable HTTP router initialized in ${STATELESS_MODE ? 'stateless' : 'stateful'} mode`);
-
-    // Periodic cleanup of expired sessions (only in stateful mode)
-    let cleanupInterval: NodeJS.Timeout | null = null;
-    if (!STATELESS_MODE) {
-        cleanupInterval = setInterval(() => {
-            const now = new Date();
-            const expiredSessions = Object.entries(activeSessions)
-                .filter(([_, info]) => now.getTime() - info.lastActivity.getTime() > SESSION_TIMEOUT_MS);
-
-            for (const [sessionId, info] of expiredSessions) {
-                logger.info(`Cleaning up expired session: ${sessionId}`);
-                try {
-                    info.transport.close();
-                    info.server.close();
-                } catch (error) {
-                    logger.warn(`Error closing expired session ${sessionId}:`, { error });
-                }
-                delete activeSessions[sessionId];
+    function closeSession(info: SessionInfo): Promise<void> {
+        info.closed = true;
+        if (info.transport.sessionId) activeSessions.delete(info.transport.sessionId);
+        if (!info.closing) info.closing = Promise.resolve().then(async () => {
+            if (!info.connected && !info.response.destroyed && !info.response.writableEnded) {
+                if (!info.response.headersSent) info.response.status(503);
+                info.response.end();
             }
-
-            if (expiredSessions.length > 0) {
-                logger.info(`Cleaned up ${expiredSessions.length} expired sessions`);
+            await info.ready.catch(() => undefined);
+            let serverCloseFailed = false;
+            if (info.server) {
+                try { await info.server.close(); }
+                catch (error) { serverCloseFailed = true; logger.warn('Error closing legacy MCP server', { error }); }
             }
-        }, CLEANUP_INTERVAL_MS);
+            if ((!info.connected || serverCloseFailed) && !info.transportClosed) {
+                try { await info.transport.close(); }
+                catch (error) { logger.warn('Error closing legacy MCP transport', { error }); }
+            }
+            if (!info.response.destroyed && !info.response.writableEnded) info.response.end();
+            allSessions.delete(info);
+        });
+        return info.closing;
     }
 
-    // Health check endpoint
-    router.get('/health', (req, res) => {
-        res.json({
-            status: 'healthy'
-        });
-    });
-
-    // Main MCP endpoint - handles POST requests for client-to-server communication
-    router.post('/mcp', async (req, res) => {
-        logger.debug('Received POST request to /mcp');
-
-        try {
-            if (STATELESS_MODE) {
-                // A protocol instance must not be shared by concurrent principals/transports.
-                await handleStatelessRequest(req, res, createServerInstance);
-            } else {
-                // Stateful mode: manage sessions
-                await handleStatefulRequest(req, res, createServerInstance, activeSessions);
-            }
-        } catch (error) {
-            logger.error('Error handling MCP request:', { error });
-            if (!res.headersSent) {
-                res.status(500).json({
-                    jsonrpc: '2.0',
-                    error: {
-                        code: -32603,
-                        message: 'Internal server error',
-                    },
-                    id: null,
-                });
-            }
+    const cleanupInterval = stateless ? undefined : setInterval(() => {
+        for (const info of activeSessions.values()) {
+            if (Date.now() - info.lastActivity > sessionTimeout) void closeSession(info);
         }
-    });
+    }, 60000);
+    cleanupInterval?.unref();
 
-    // Handle GET requests for server-to-client notifications via SSE (stateful mode only)
-    router.get('/mcp', async (req, res) => {
-        logger.debug('Received GET request to /mcp');
-        
-        if (STATELESS_MODE) {
-            logger.warn('GET request to /mcp in stateless mode');
-            res.status(405).json({
-                jsonrpc: "2.0",
-                error: {
-                    code: -32000,
-                    message: "Method not allowed in stateless mode."
-                },
-                id: null
-            });
-            return;
-        }
-
-        const sessionId = req.headers['mcp-session-id'] as string | undefined;
-        logger.debug(`GET /mcp sessionId=${sessionId}`);
-        
-        if (!sessionId || !activeSessions[sessionId]) {
-            logger.warn('GET /mcp missing or invalid session ID');
-            res.status(400).json({
-                jsonrpc: "2.0",
-                error: {
-                    code: -32602,
-                    message: "Invalid or missing session ID"
-                },
-                id: null
-            });
-            return;
-        }
-
-        const sessionInfo = activeSessions[sessionId];
-        if (sessionInfo.owner !== currentSecurityContext().sessionId) { res.status(403).json({ error: 'Forbidden' }); return; }
-        sessionInfo.lastActivity = new Date();
-
-        try {
-            await sessionInfo.transport.handleRequest(req, res);
-        } catch (error) {
-            logger.error(`Error handling GET request for session ${sessionId}:`, { error });
-            if (!res.headersSent) {
-                res.status(500).json({
-                    jsonrpc: "2.0",
-                    error: {
-                        code: -32603,
-                        message: "Internal server error"
-                    },
-                    id: null
-                });
-            }
-        }
-    });
-
-
-
-    // Handle DELETE requests for session termination (stateful mode only)
-    router.delete('/mcp', async (req, res) => {
-        if (STATELESS_MODE) {
-            logger.warn('DELETE request to /mcp in stateless mode');
-            res.status(405).json({
-                jsonrpc: "2.0",
-                error: {
-                    code: -32000,
-                    message: "Method not allowed in stateless mode."
-                },
-                id: null
-            });
-            return;
-        }
-
-        const sessionId = req.headers['mcp-session-id'] as string | undefined;
-        if (!sessionId || !activeSessions[sessionId]) {
-            res.status(400).json({
-                jsonrpc: "2.0",
-                error: {
-                    code: -32602,
-                    message: "Invalid or missing session ID"
-                },
-                id: null
-            });
-            return;
-        }
-        
-        const sessionInfo = activeSessions[sessionId];
-        if (sessionInfo.owner !== currentSecurityContext().sessionId) { res.status(403).json({ error: 'Forbidden' }); return; }
-        
-        try {
-            await sessionInfo.transport.handleRequest(req, res);
-            
-            // Clean up session after handling the DELETE request
-            setTimeout(() => {
-                if (activeSessions[sessionId]) {
-                    logger.info(`Terminating session: ${sessionId}`);
-                    try {
-                        sessionInfo.transport.close();
-                        sessionInfo.server.close();
-                    } catch (error) {
-                        logger.warn(`Error closing session ${sessionId}:`, { error });
-                    }
-                    delete activeSessions[sessionId];
-                }
-            }, 100); // Small delay to ensure response is sent
-            
-        } catch (error) {
-            logger.error(`Error handling DELETE request for session ${sessionId}:`, { error });
-            if (!res.headersSent) {
-                res.status(500).json({
-                    jsonrpc: "2.0",
-                    error: {
-                        code: -32603,
-                        message: "Internal server error"
-                    },
-                    id: null
-                });
-            }
-        }
-    });
-
-    // Cleanup function for graceful shutdown
-    (router as any).cleanup = () => {
-        logger.info('Cleaning up Streamable HTTP router...');
-        
-        if (cleanupInterval) {
-            clearInterval(cleanupInterval);
-        }
-        
-        // Close all active sessions
-        for (const [sessionId, info] of Object.entries(activeSessions)) {
-            try {
-                info.transport.close();
-                info.server.close();
-            } catch (error) {
-                logger.warn(`Error closing session ${sessionId} during cleanup:`, { error });
-            }
-        }
-        
-        // Clear sessions
-        Object.keys(activeSessions).forEach(key => delete activeSessions[key]);
-        logger.info('Streamable HTTP router cleanup completed');
-    };
-
-    return router;
-}
-
-/**
- * Handles requests in stateless mode following the official SDK pattern:
- * - Create a server instance for each request
- * - Create a new transport for EACH request to prevent request ID collisions
- * - Connect the server to the new transport for each request
- */
-async function handleStatelessRequest(
-    req: express.Request,
-    res: express.Response,
-    getServer: () => Promise<McpServer>
-) {
-    logger.debug('Handling request in stateless mode');
-
-    try {
-        // Create a new transport for this request (required to prevent ID collisions)
+    function createSession(res: express.Response): SessionInfo {
         const transport = new StreamableHTTPServerTransport({
-            sessionIdGenerator: undefined,
-            enableJsonResponse: true
+            sessionIdGenerator: stateless ? undefined : () => randomUUID(),
+            ...(stateless ? { enableJsonResponse: true } : {}),
+            onsessioninitialized: id => { if (!info.closed) activeSessions.set(id, info); }
         });
-
-        // Clean up transport when response closes
-        res.on('close', () => {
-            transport.close();
-        });
-
-        // The server is request-local, including its protocol request IDs and transport.
-        const server = await getServer();
-        await server.connect(transport);
-
-        // Handle the request
-        await transport.handleRequest(req, res, req.body);
-    } catch (error) {
-        logger.error('Error in stateless request handling:', {
-            error: error instanceof Error ? error.message : String(error)
-        });
-        throw error;
-    }
-}
-
-/**
- * Handles requests in stateful mode - manages sessions
- */
-async function handleStatefulRequest(
-    req: express.Request,
-    res: express.Response,
-    createServerInstance: () => Promise<McpServer>,
-    activeSessions: Record<string, SessionInfo>
-) {
-    const sessionId = req.headers['mcp-session-id'] as string | undefined;
-    let sessionInfo: SessionInfo;
-
-    if (sessionId && activeSessions[sessionId]) {
-        // Reuse existing session
-        logger.debug(`Reusing existing session: ${sessionId}`);
-        sessionInfo = activeSessions[sessionId];
-        if (sessionInfo.owner !== currentSecurityContext().sessionId) { res.status(403).json({ error: 'Forbidden' }); return; }
-        sessionInfo.lastActivity = new Date();
-    } else if (!sessionId && isInitializeRequest(req.body)) {
-        // New initialization request
-        logger.debug('Creating new session for initialize request');
-
-        const server = await createServerInstance();
-        const transport = new StreamableHTTPServerTransport({
-            sessionIdGenerator: () => randomUUID(),
-            onsessioninitialized: (newSessionId) => {
-                logger.info(`Session initialized: ${newSessionId}`);
-                // Store the session info
-                activeSessions[newSessionId] = {
-                    owner: currentSecurityContext().sessionId,
-                    transport,
-                    server,
-                    createdAt: new Date(),
-                    lastActivity: new Date()
-                };
-            }
-        });
-
-        // Clean up transport when closed
+        const info: SessionInfo = {
+            owner: currentSecurityContext().sessionId, transport, response: res, ready: Promise.resolve(),
+            connected: false, closed: false, transportClosed: false, lastActivity: Date.now()
+        };
+        allSessions.add(info);
         transport.onclose = () => {
-            if (transport.sessionId && activeSessions[transport.sessionId]) {
-                logger.info(`Transport closed for session: ${transport.sessionId}`);
-                // The SDK closes its protocol state when the transport closes.
-                // Calling server.close() here re-enters transport.close().
-                delete activeSessions[transport.sessionId];
-            }
+            info.transportClosed = true;
+            // closeSession is deferred and idempotent, so SDK onclose may finish
+            // clearing its protocol state before any server-level disposal runs.
+            void closeSession(info);
         };
-
-        sessionInfo = {
-            owner: currentSecurityContext().sessionId,
-            transport,
-            server,
-            createdAt: new Date(),
-            lastActivity: new Date()
-        };
-
-        try {
-            await server.connect(transport);
-        } catch (error) {
-            logger.error('Error connecting server to transport:', { error });
-            throw error;
-        }
-    } else {
-        // Invalid request
-        logger.warn('Invalid request: no valid session ID or initialize request');
-        res.status(400).json({
-            jsonrpc: '2.0',
-            error: {
-                code: -32602,
-                message: 'Bad Request: No valid session ID provided or not an initialize request',
-            },
-            id: null,
+        res.once('close', () => {
+            // A completed initialize response does not end a stateful session.
+            if (stateless || !res.writableFinished || !transport.sessionId) void closeSession(info);
         });
-        return;
+        res.once('error', () => { void closeSession(info); });
+        info.ready = Promise.resolve().then(async () => {
+            info.server = await createServerInstance();
+            if (info.closed || res.destroyed || res.writableEnded) return;
+            await info.server.connect(transport);
+            info.connected = true;
+        });
+        return info;
     }
 
-    // Handle the request
-    try {
-        await sessionInfo.transport.handleRequest(req, res, req.body);
-    } catch (error) {
-        logger.error('Error handling stateful request:', { error });
-        throw error;
+    function reject(res: express.Response, status: number, message: string): void {
+        if (!res.headersSent && !res.destroyed) res.status(status).json({
+            jsonrpc: '2.0', error: { code: status === 500 ? -32603 : -32602, message }, id: null
+        });
     }
+
+    function ownedSession(req: express.Request, res: express.Response): SessionInfo | undefined {
+        const id = req.headers['mcp-session-id'];
+        const info = typeof id === 'string' ? activeSessions.get(id) : undefined;
+        if (!info || info.closed) { reject(res, 400, 'Invalid or missing session ID'); return; }
+        if (info.owner !== currentSecurityContext().sessionId) { reject(res, 403, 'Forbidden'); return; }
+        info.lastActivity = Date.now();
+        return info;
+    }
+
+    router.use((_req, res, next) => {
+        if (shuttingDown) { res.status(503).json({ error: 'Server is shutting down' }); return; }
+        next();
+    });
+    router.get('/health', (_req, res) => res.json({ status: 'healthy' }));
+    router.post('/mcp', async (req, res) => {
+        let info: SessionInfo | undefined;
+        let created = false;
+        try {
+            if (stateless || (!req.headers['mcp-session-id'] && isInitializeRequest(req.body))) {
+                info = createSession(res);
+                created = true;
+                await info.ready;
+                if (info.closed || res.destroyed) { await closeSession(info); return; }
+            } else {
+                info = ownedSession(req, res);
+                if (!info) return;
+            }
+            await info.transport.handleRequest(req, res, req.body);
+        } catch (error) {
+            logger.error('Error handling legacy MCP request', { error });
+            reject(res, 500, 'Internal server error');
+            if (created && info) await closeSession(info);
+        } finally {
+            if (info && (stateless || (created && !info.transport.sessionId))) await closeSession(info);
+        }
+    });
+
+    router.get('/mcp', async (req, res) => {
+        if (stateless) { reject(res, 405, 'Method not allowed in stateless mode'); return; }
+        const info = ownedSession(req, res);
+        if (!info) return;
+        try { await info.transport.handleRequest(req, res); }
+        catch (error) { logger.error('Error handling legacy MCP stream', { error }); reject(res, 500, 'Internal server error'); }
+    });
+
+    router.delete('/mcp', async (req, res) => {
+        if (stateless) { reject(res, 405, 'Method not allowed in stateless mode'); return; }
+        const info = ownedSession(req, res);
+        if (!info) return;
+        try {
+            await info.transport.handleRequest(req, res);
+            if (res.statusCode < 400) await closeSession(info);
+        } catch (error) { logger.error('Error deleting legacy MCP session', { error }); reject(res, 500, 'Internal server error'); }
+    });
+
+    router.cleanup = async () => {
+        shuttingDown = true;
+        if (cleanupInterval) clearInterval(cleanupInterval);
+        await Promise.all([...allSessions].map(closeSession));
+    };
+    return router;
 }

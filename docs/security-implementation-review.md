@@ -1,6 +1,6 @@
-# Security implementation review — 2.11.0-alpha.3
+# Security implementation review — 2.11.0
 
-Date: 2026-09-24. Scope: security claims in `README.md`, `README.es.md`, `docs/security.md`, its Spanish counterpart, metadata/transport documentation, and the source paths implementing those claims. This is an implementation review and regression suite, not an independent penetration-test certification.
+Initial review: 2026-09-24; promoted with all alpha.1–alpha.4 changes to stable 2.11.0 on 2026-09-29. Scope: security claims in `README.md`, `README.es.md`, `docs/security.md`, its Spanish counterpart, metadata/transport documentation, and the source paths implementing those claims. This is an implementation review and regression suite, not an independent penetration-test certification.
 
 ## Findings and changes
 
@@ -36,6 +36,8 @@ Compatibility regressions additionally cover catalog reads, executable/selectabl
 
 An additional **real Firebird 2.5.9** smoke test passed on a disposable local database, covering filtering, alias masking, metadata visibility, catalog reads, DDL denial/permission and both audit destinations. No application database was used. Run it only when you intend to create/drop a temporary database on `127.0.0.1:3050`:
 
+For stable 2.11.0 on 2026-09-29, the expanded live test also passed the #36 EXTRACT query, nested SUBSTRING/TRIM syntax, row filtering of the real relation and default compatibility. The automated suite contains 173 passing tests. This does not establish coverage of every native-driver/Firebird-version combination.
+
 ```powershell
 $env:RUN_FIREBIRD_SECURITY_SMOKE = 'true'
 # Optional local test account overrides; do not put production credentials here:
@@ -56,4 +58,4 @@ The script creates a unique UUID-named file below the repository's ignored `temp
 - Audit is fail-closed for dispatch/response, but **not** atomic with user writes, tamper-proof, or automatically rotated.
 - TLS termination, OS isolation and Firebird wire-encryption configuration remain deployment responsibilities. The `verify-wire-encryption` tool reports configuration, not a cryptographic verification of the active connection.
 
-See the [English configuration guide](security.md) or [Spanish guide](security.es.md) for defaults and migration instructions. This review describes the alpha source; npm availability must be checked separately rather than assuming a Git push changes npm tags.
+The alpha.4 parser correction also distinguishes builtin FROM separators from actual relation clauses, preserving table/catalog checks and masking restrictions (#36). See the [English configuration guide](security.md) or [Spanish guide](security.es.md) for stable 2.11.0 defaults and migration instructions.

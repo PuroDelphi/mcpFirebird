@@ -5,6 +5,8 @@
 
 import { z } from 'zod';
 import { createLogger } from '../utils/logger.js';
+import { finalizeTools, toolResult, type ToolDraft } from './contracts.js';
+export type { ToolDefinition } from './contracts.js';
 
 const logger = createLogger('tools:simple');
 
@@ -12,7 +14,7 @@ const logger = createLogger('tools:simple');
  * Tool definitions for simple tools
  */
 export const setupSimpleTools = () => {
-    const tools = new Map();
+    const tools = new Map<string, ToolDraft>();
 
     // Simple echo tool - returns exactly what it receives
     tools.set('echo', {
@@ -24,25 +26,11 @@ export const setupSimpleTools = () => {
         handler: async (args: { message: string }) => {
             logger.info(`Echo tool called with message: ${args.message}`);
 
-            return {
-                content: [
-                    {
-                        type: "text",
-                        text: args.message
-                    }
-                ]
-            };
+            return toolResult({ message: args.message }, { text: args.message });
         }
     });
 
     // Mantener solo la herramienta echo
 
-    return tools;
-};
-
-export type ToolDefinition = {
-    name: string;
-    description: string;
-    inputSchema: z.ZodType<any>;
-    handler: (args: any) => Promise<any>;
+    return finalizeTools(tools, { echo: z.object({ message: z.string() }) });
 };

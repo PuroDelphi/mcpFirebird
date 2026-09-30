@@ -2,11 +2,11 @@
 
 [English](security.md)
 
-Esta guía corresponde a **2.11.0-alpha.4**, no a versiones anteriores de npm. Consulta también la [revisión de implementación](security-implementation-review.md) y el [historial de cambios](../CHANGELOG.md).
+Esta guía describe los controles SQL de la estable **2.11.0** y las nuevas opciones HTTP/OAuth de **2.12.0-alpha.1**. El modo HTTP y el descubrimiento OAuth nuevos requieren la alpha; no existen en la estable 2.11.0. Consulta también la [revisión de implementación](security-implementation-review.md) y el [historial de cambios](../CHANGELOG.md).
 
 ## Aviso de migración
 
-**La seguridad avanzada es optativa.** Sin configuración (o con objetos `security`/`sql` vacíos) se conserva el soporte anterior de catálogo, procedimientos ejecutables/seleccionables, funciones, joins y CTE. No se imponen límites nuevos de filas/tamaño, plazos de cinco segundos, cuotas de 100 consultas ni frecuencia. Se mantienen la validación anterior, filtros parametrizados, autenticación por clave API y CORS. `ALLOW_RAW_SQL=true` sigue habilitando escrituras, incluido DDL, si ninguna política explícita las prohíbe.
+**La seguridad avanzada es optativa.** Sin configuración (o con objetos `security`/`sql` vacíos) se conserva el soporte anterior de catálogo, procedimientos, funciones, joins y CTE. No se imponen límites nuevos de filas/tamaño, tiempo, cantidad de consultas ni frecuencia. Se mantienen los filtros parametrizados, autenticación por clave API y compatibilidad HTTP/CORS/OAuth. `ALLOW_RAW_SQL=true` sigue habilitando escrituras y DDL si ninguna política explícita las prohíbe. El endurecimiento HTTP se activa expresamente, como se explica más abajo.
 
 Las funciones de seguridad antes desconectadas ahora están implementadas, pero solo se aplican al configurarlas. Consideraciones al activarlas:
 
@@ -17,7 +17,7 @@ Las funciones de seguridad antes desconectadas ahora están implementadas, pero 
 - Con restricciones de tablas, filas, enmascaramiento o roles se admite un subconjunto conservador de SQL de una sola tabla. Joins, CTE, subconsultas y rutinas opacas se rechazan.
 - Las suscripciones compartidas a eventos no están disponibles con políticas restringidas: el gestor anterior no aísla usuarios.
 
-Prueba tus consultas antes de desplegar la alpha. **Utiliza una cuenta Firebird con privilegios mínimos, no SYSDBA.** Las comprobaciones del MCP no sustituyen los permisos de la base ni inspeccionan todas las dependencias de vistas y rutinas.
+Prueba tus consultas y políticas existentes antes de actualizar producción. **Utiliza una cuenta Firebird con privilegios mínimos, no SYSDBA.** Las comprobaciones del MCP no sustituyen los permisos de la base ni inspeccionan todas las dependencias de vistas y rutinas.
 
 Para conservar la compatibilidad, deja sin establecer las fuentes de seguridad. Para activar únicamente un límite de filas usa `FIREBIRD_SECURITY_JSON='{"security":{"maxRows":1000}}'`: no activa plazos, cuotas ni restricciones SQL adicionales. Para desactivar un control elimina su propiedad y reinicia. Si una configuración antigua ya contiene opciones antes inactivas, ahora sí se aplican porque se han especificado expresamente. No elimines indiscriminadamente políticas cuyos permisos necesites conservar.
 
@@ -146,15 +146,23 @@ La frecuencia utiliza un cubo de tokens con ráfaga inicial `burstLimit` y repos
 
 `FIREBIRD_API_KEY` conserva autenticación `Authorization: Bearer ...`. No utilices claves en URL y protege el transporte con HTTPS. Con `authorization.type="basic"`, esa clave representa el rol `user`; configura sus permisos. No es un directorio de contraseñas HTTP Basic. Sin permisos de rol, se deniega acceso a la base.
 
-OAuth2 usa `authorization.type="oauth2"`, la sección `oauth2` con `tokenVerifyUrl` HTTPS, `clientId`, `clientSecret` y `scope` opcional, y `rolePermissions`. Ejemplo completo en la [guía inglesa](security.md#httpsse-authentication-and-role-permissions).
+OAuth2 usa `authorization.type="oauth2"`, `tokenVerifyUrl` HTTPS, `clientId`, `clientSecret`, `scope` opcional y `rolePermissions`. En modo compat se aceptan las políticas antiguas sin `resourceUrl` ni `authorizationServers`, con un aviso: no validan localmente la audiencia ni ofrecen descubrimiento, por lo que requieren un proveedor de introspección confiable y dedicado a este recurso. Para activar ambas protecciones configura los dos campos juntos. Una configuración parcial o inválida se rechaza. En modo HTTP estricto son obligatorios. Ejemplo completo en la [guía inglesa](security.md#httpsse-authentication-and-role-permissions).
 
-El servidor envía `token` como formulario al endpoint, con credenciales Basic del cliente, sin redirecciones y con un plazo de cinco segundos. Exige `active:true`, identidad sub/user_id y role o primer elemento de roles; comprueba expiración informada y scopes requeridos. El servidor de autorización debe validar audiencia y condiciones de emisión. Tokens inválidos, identidad ausente y fallos del servicio deniegan acceso.
+El servidor envía `token` como formulario al endpoint, con credenciales Basic del cliente, sin redirecciones y con un plazo de cinco segundos. Exige `active:true`, identidad sub/user_id y role o primer elemento de roles; comprueba audiencia, expiración informada, nbf y scopes requeridos. Tokens inválidos, identidad ausente y fallos del servicio deniegan acceso.
 
 En modo OAuth el Bearer es el token OAuth, no la clave estática. Identidad verificada, permisos de rol y restricciones globales se aplican juntos. Las sesiones HTTP/SSE pertenecen a su identidad original. STDIO no puede aportar esa identidad HTTP: utiliza una política independiente. Las suscripciones compartidas a eventos se deshabilitan con políticas restringidas.
 
-## CORS
+## HTTP, Host/Origin y CORS
 
-Se conserva origen `*`, cabecera Authorization permitida y credenciales del navegador desactivadas. STDIO y clientes de servidor no dependen de CORS. Para limitar navegadores configura `MCP_ALLOWED_ORIGIN="https://app.example.com,https://admin.example.com"`. CORS no sustituye autenticación; no expongas HTTP sin autenticación a Internet.
+Desde 2.12.0-alpha.1, `MCP_HTTP_SECURITY_MODE=compat` es el valor predeterminado: mantiene la escucha en `0.0.0.0`, CORS sin credenciales y comodín cuando `MCP_ALLOWED_ORIGIN` está vacío, ausente o vale `*`. No impone una lista de Host si no se configura. Emite un aviso: este modo no ofrece el aislamiento de navegador/DNS rebinding del modo estricto. Usa autenticación y una red confiable; no expongas la base sin protección. Las listas explícitas se respetan en ambos modos y `MCP_ALLOW_REMOTE=false` impide escuchar fuera de loopback.
+
+Con `MCP_HTTP_SECURITY_MODE=strict` se activa loopback por defecto y se validan Host/Origin antes de cualquier petición, incluyendo OPTIONS. Se permiten inicialmente `localhost`, `127.0.0.1`, `[::1]` y el mismo origen. Los clientes nativos pueden omitir Origin; los orígenes inválidos, `null` o ajenos reciben HTTP 403. Un modo desconocido impide arrancar. Para volver a compatibilidad, elimina la variable o usa `compat` y reinicia; las listas y políticas explícitas siguen aplicándose.
+
+Solo en modo estricto, `MCP_ALLOWED_ORIGIN=*` se rechaza. Déjalo sin definir/vacío para el mismo origen o configura orígenes exactos como `https://app.example.com`, sin rutas ni barra final. Para exposición remota estricta, incluso Docker, configura `HTTP_HOST=0.0.0.0`, `MCP_ALLOW_REMOTE=true` y `MCP_ALLOWED_HOSTS=mcp.example.com`. Los hosts no incluyen puertos; IPv6 usa corchetes. Un proxy TLS debe enviar un Host permitido; agrega el origen público HTTPS a la lista. Las cabeceras reenviadas no omiten estos controles.
+
+Al configurar `resourceUrl` y `authorizationServers`, OAuth publica metadatos en `/.well-known/oauth-protected-resource` y la ruta del recurso, e incluye su URL en `WWW-Authenticate`. La introspección debe devolver `aud` con el `resourceUrl` exacto: se exige en ambos modos HTTP y nunca se vuelve automáticamente al comportamiento antiguo. Un token inválido da HTTP 401; scopes insuficientes dan HTTP 403. Consulta los detalles en la [guía inglesa](security.md#httpsse-authentication-and-role-permissions).
+
+CORS permite las cabeceras de protocolo 2026, sesión heredada y caché, y expone las de sesión, desafío OAuth y caché. No sustituye autenticación: protege la exposición remota con HTTPS y clave API u OAuth. STDIO y las políticas SQL optativas no cambian.
 
 ## Auditoría
 

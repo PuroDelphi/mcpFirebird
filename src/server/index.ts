@@ -1,433 +1,95 @@
-/**
- * MCP Firebird Server Implementation
- * Main server module that initializes and configures the MCP server
- */
-
-import { z } from 'zod';
-
-// --- Global Error Handlers ---
-import { createLogger } from '../utils/logger.js';
-import { MCPError } from '../utils/errors.js';
-
-const logger = createLogger('server:index');
-
-// Set up global error handlers
-process.on('uncaughtException', (err, origin) => {
-    logger.error(`Uncaught exception: ${err instanceof Error ? err.message : String(err)}`, {
-        error: err,
-        origin
-    });
-    logger.error('Server will exit due to uncaught exception');
-    process.exit(1);
-});
-
-process.on('unhandledRejection', (reason, promise) => {
-    logger.error('Unhandled promise rejection', {
-        reason,
-        promise
-    });
-});
-// ------------------------------------
-
-// --- SDK Imports ---
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
-import express from "express";
-import cors from "cors";
-import crypto from "crypto";
-// SDK types will be imported as needed
-import { createStreamableHttpRouter } from './streamable-http.js';
-
-// --- Local Imports ---
-import { type ToolDefinition as DbToolDefinition } from '../tools/database.js';
-import { type ToolDefinition as MetaToolDefinition } from '../tools/metadata.js';
-import { type PromptDefinition } from '../prompts/types.js';
-import { setupDatabaseResources, registerDatabaseResources } from '../resources/database.js';
+/** One server definition shared by every entry point and protocol era. */
+import { McpServer, type GetPromptResult, type McpRequestContext } from '@modelcontextprotocol/server';
+import { serveStdio } from '@modelcontextprotocol/server/stdio';
 import { setupDatabaseTools } from '../tools/database.js';
 import { setupMetadataTools } from '../tools/metadata.js';
+import { setupSimpleTools } from '../tools/simple.js';
 import { setupDatabasePrompts } from '../prompts/database.js';
 import { setupSqlPrompts } from '../prompts/sql.js';
 import { setupTemplatePrompts } from '../prompts/templates.js';
 import { setupAdvancedTemplatePrompts } from '../prompts/advanced-templates.js';
+import { registerDatabaseResources } from '../resources/database.js';
 import { setupEventResources, closeEventManager } from '../resources/events.js';
 import { initSecurity } from '../security/index.js';
-import { ConfigError } from '../utils/errors.js';
 import { closePool } from '../db/connection.js';
+import { createLogger } from '../utils/logger.js';
+import { createHttpApplication } from './http-server.js';
+import { loadHttpSecurityConfig } from './http-security.js';
 import pkg from '../../package.json' with { type: 'json' };
-import { buildCorsOptions, createBearerAuthMiddleware } from './http-security.js';
-import { currentSecurityContext } from '../security/context.js';
 
-/**
- * Factory function to create a configured MCP server instance
- * @returns A configured McpServer instance
- */
-async function createMcpServerInstance(): Promise<any> {
-    logger.debug('Creating new MCP server instance...');
+const logger = createLogger('server');
 
-    // Load tools, prompts and resources
+export async function createMcpServerInstance(context?: McpRequestContext): Promise<McpServer> {
+    const server = new McpServer({ name: pkg.name, version: pkg.version });
     const databaseTools = setupDatabaseTools();
-    const metadataTools = setupMetadataTools(databaseTools);
-    const databasePrompts = setupDatabasePrompts();
-    const sqlPrompts = setupSqlPrompts();
-    const templatePrompts = setupTemplatePrompts();
-    const advancedTemplatePrompts = setupAdvancedTemplatePrompts();
-    const allResources = setupDatabaseResources();
-    const allPrompts = new Map<string, PromptDefinition>([
-        ...databasePrompts,
-        ...sqlPrompts,
-        ...templatePrompts,
-        ...advancedTemplatePrompts
+    const tools = new Map([...databaseTools, ...setupMetadataTools(databaseTools), ...setupSimpleTools()]);
+    for (const [name, tool] of tools) {
+        server.registerTool(name, {
+            title: tool.title || name,
+            description: tool.description,
+            inputSchema: tool.inputSchema,
+            outputSchema: tool.outputSchema,
+            annotations: tool.annotations
+        }, async args => {
+            try { return await tool.handler(args); }
+            catch (error) {
+                const message = error instanceof Error ? error.message : 'Unknown tool error';
+                return { isError: true, content: [{ type: 'text' as const, text: message }] };
+            }
+        });
+    }
+    const prompts = new Map([
+        ...setupDatabasePrompts(), ...setupSqlPrompts(),
+        ...setupTemplatePrompts(), ...setupAdvancedTemplatePrompts()
     ]);
-    const allTools = new Map<string, DbToolDefinition | MetaToolDefinition>([...databaseTools, ...metadataTools]);
-
-    // Create MCP server instance
-    const { McpServer } = await import("@modelcontextprotocol/sdk/server/mcp.js");
-    const server = new McpServer(
-        {
-            name: pkg.name,
-            version: pkg.version
-        },
-        {
-            capabilities: {
-                tools: {
-                    listChanged: true
-                },
-                prompts: {
-                    listChanged: true
-                },
-                resources: {
-                    listChanged: true,
-                    subscribe: true
-                }
-            }
-        }
-    );
-
-    // Register tools, prompts and resources
-    logger.debug('Registering tools, prompts and resources...');
-
-    // Tools - using registerTool (modern method)
-    for (const [name, tool] of allTools.entries()) {
-        server.registerTool(
-            name,
-            {
-                title: tool.title || name,
-                description: tool.description,
-                inputSchema: (tool.inputSchema && tool.inputSchema instanceof z.ZodObject) ? tool.inputSchema.shape : {}
-            },
-            async (args: any): Promise<{ content: any[], isError?: boolean }> => {
-                try {
-                    const result = await tool.handler(args);
-                    if (typeof result === 'object' && result !== null && 'content' in result) {
-                        return result;
-                    }
-                    return { content: [{ type: 'text', text: JSON.stringify(result) }] };
-                } catch (error) {
-                    logger.error(`Error executing tool ${name}: ${error instanceof Error ? error.message : String(error)}`, { error });
-                    const message = error instanceof Error ? error.message : 'Unknown error';
-                    return {
-                        content: [{ type: "text", text: `Error executing tool ${name}: ${message}` }],
-                        isError: true
-                    };
-                }
-            }
-        );
+    for (const [name, prompt] of prompts) {
+        server.registerPrompt(name, {
+            title: prompt.title || name, description: prompt.description,
+            argsSchema: prompt.inputSchema
+        }, async args => await prompt.handler(args) as GetPromptResult);
     }
-
-    // Prompts - using registerPrompt (modern method)
-    for (const [name, promptDef] of allPrompts.entries()) {
-        server.registerPrompt(
-            name,
-            {
-                title: promptDef.title || name,
-                description: promptDef.description,
-                argsSchema: (promptDef.inputSchema && promptDef.inputSchema instanceof z.ZodObject) ? promptDef.inputSchema.shape : {}
-            },
-            async (args: any) => {
-                try {
-                    let result;
-                    if (!args || Object.keys(args).length === 0) {
-                        result = {
-                            messages: [
-                                {
-                                    role: 'assistant',
-                                    content: { type: 'text', text: `Prompt '${name}' metadata: ${promptDef.description}` }
-                                }
-                            ]
-                        };
-                    } else {
-                        result = await promptDef.handler(args);
-                    }
-
-                    if (!result || !result.messages || !Array.isArray(result.messages)) {
-                        return {
-                            messages: [
-                                {
-                                    role: 'assistant',
-                                    content: { type: 'text', text: `Internal error: invalid response format` }
-                                }
-                            ]
-                        };
-                    }
-
-                    const safeMessages = result.messages.map((msg: any) => ({
-                        role: (msg.role === 'user' || msg.role === 'assistant') ? msg.role : 'assistant',
-                        content: (msg.content && typeof msg.content === 'object' && msg.content.type === 'text')
-                            ? msg.content
-                            : { type: 'text', text: String(msg.content) }
-                    }));
-
-                    return { messages: safeMessages };
-                } catch (error) {
-                    logger.error(`Error executing prompt ${name}: ${error instanceof Error ? error.message : String(error)}`, { error });
-                    return {
-                        messages: [
-                            {
-                                role: 'assistant',
-                                content: { type: 'text', text: `Error executing prompt: ${error instanceof Error ? error.message : String(error)}` }
-                            }
-                        ]
-                    };
-                }
-            }
-        );
-    }
-
-    logger.debug('Registering database resources...');
-    registerDatabaseResources(server, allResources);
-    
-    // Register Event resources explicitly (these don't use the old pattern)
-    logger.debug('Registering Firebird event resources...');
-    setupEventResources(server);
-    
-    logger.debug(`Server instance created with ${allTools.size} tools, ${allPrompts.size} prompts, ${allResources.size} resources`);
+    registerDatabaseResources(server);
+    setupEventResources(server, { era: context?.era || 'legacy', eventLifetime: context?.requestInfo ? 'request' : 'connection' });
     return server;
 }
 
-/**
- * Main function to start the MCP Firebird server
- * @returns A promise that resolves when the server is started
- */
-export async function main() {
-    logger.info(`Starting MCP Firebird Server - Name: ${pkg.name}, Version: ${pkg.version}`);
-
-    try {
-        // Initialize security module
-        logger.info('Initializing security module...');
-        await initSecurity();
-
-        // Determine transport type
-        const transportType = process.env.TRANSPORT_TYPE?.toLowerCase() || 'stdio';
-        logger.info(`Configuring ${transportType} transport...`);
-
-        if (transportType === 'stdio') {
-            // Use stdio transport with a single server instance
-            logger.info('Starting stdio transport...');
-            const server = await createMcpServerInstance();
-            const transport = new StdioServerTransport();
-
-            await server.connect(transport);
-
-            // Setup cleanup for stdio
-            const cleanup = async () => {
-                logger.info('Closing stdio transport...');
-                closeEventManager();
-                await closePool();
-                await server.close();
-                logger.info('Server closed successfully');
-            };
-
-            process.on('SIGINT', async () => {
-                logger.info('Received SIGINT signal, cleaning up...');
-                await cleanup();
-                process.exit(0);
-            });
-
-            process.on('SIGTERM', async () => {
-                logger.info('Received SIGTERM signal, cleaning up...');
-                await cleanup();
-                process.exit(0);
-            });
-
-            logger.info('MCP Firebird server with stdio transport ready to receive requests.');
-
-        } else if (transportType === 'sse' || transportType === 'http' || transportType === 'unified') {
-            // Use backwards compatible server for HTTP-based transports
-            logger.info('Starting backwards compatible server with SSE and Streamable HTTP...');
-
-            // Prioritize the port based on transport type
-            let portEnvVar: string;
-            if (transportType === 'http') {
-                portEnvVar = process.env.HTTP_PORT || process.env.SSE_PORT || '3003';
-            } else if (transportType === 'sse') {
-                portEnvVar = process.env.SSE_PORT || process.env.HTTP_PORT || '3003';
-            } else {
-                // unified - use either
-                portEnvVar = process.env.HTTP_PORT || process.env.SSE_PORT || '3003';
-            }
-
-            const port = parseInt(portEnvVar, 10);
-            if (isNaN(port)) {
-                throw new ConfigError(`Invalid port: ${portEnvVar}`);
-            }
-
-            await startBackwardsCompatibleServer(port);
-
-            // Setup cleanup for backwards compatible server
-            process.on('SIGINT', async () => {
-                logger.info('Received SIGINT signal, cleaning up...');
-                closeEventManager();
-                await closePool();
-                process.exit(0);
-            });
-
-            process.on('SIGTERM', async () => {
-                logger.info('Received SIGTERM signal, cleaning up...');
-                closeEventManager();
-                await closePool();
-                process.exit(0);
-            });
-
-            logger.info('MCP Firebird backwards compatible server ready to receive requests.');
-
-        } else {
-            throw new ConfigError(
-                `Unsupported transport type: ${transportType}. Supported types are 'stdio', 'sse', 'http', and 'unified'.`,
-                undefined,
-                { transportType }
-            );
-        }
-
-    } catch (error) {
-        if (error instanceof MCPError) {
-            logger.error(`Fatal error during server initialization: ${error.message}`, {
-                type: error.type,
-                context: error.context,
-                originalError: error.originalError
-            });
-        } else if (error instanceof Error) {
-            logger.error(`Fatal error during server initialization: ${error.message}`, {
-                stack: error.stack
-            });
-        } else {
-            logger.error(`Fatal error during server initialization: ${String(error)}`);
-        }
-
-        // Exit with error code
-        process.exit(1);
-    }
-}
-
-/**
- * Starts a backwards compatible server that supports both Streamable HTTP and SSE transports
- * Based on the official MCP TypeScript SDK documentation
- */
-async function startBackwardsCompatibleServer(port: number): Promise<void> {
-    const app = express();
-
-    // Configure CORS to allow web clients but with more restrictive settings if possible
-    // Defaulting to '*' for MCP compatibility, but can be restricted via env
-    app.use(cors(buildCorsOptions()));
-
-    app.use(express.json({ limit: '1mb' }));
-
-    // EMA Authentication Middleware for HTTP transports
-    const serverApiKey = process.env.FIREBIRD_API_KEY || process.env.FB_API_KEY;
-    app.use(createBearerAuthMiddleware(serverApiKey, message => logger.warn(`${message} from HTTP client`)));
-    if (serverApiKey) {
-        logger.info('EMA HTTP Authentication enabled (Bearer Token required)');
-    } else {
-        logger.warn('WARNING: Running HTTP server without FIREBIRD_API_KEY. Endpoints are exposed without authentication.');
-    }
-
-    // Store transports for SSE (Streamable HTTP uses its own router)
-    const transports = {
-        sse: {} as Record<string, SSEServerTransport>
+export async function main(): Promise<void> {
+    await initSecurity();
+    const transport = (process.env.TRANSPORT_TYPE || 'stdio').toLowerCase();
+    let close: () => Promise<void>;
+    if (transport === 'stdio') {
+        const handle = serveStdio(createMcpServerInstance, { onerror: error => logger.error(error.message) });
+        close = () => handle.close();
+    } else if (['http', 'sse', 'unified'].includes(transport)) {
+        const config = loadHttpSecurityConfig();
+        const value = process.env.PORT || (transport === 'sse'
+            ? process.env.SSE_PORT || process.env.HTTP_PORT
+            : process.env.HTTP_PORT || process.env.SSE_PORT) || '3003';
+        const port = Number(value);
+        if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Error(`Invalid HTTP port: ${value}`);
+        const http = createHttpApplication(createMcpServerInstance, config);
+        const listener = await new Promise<ReturnType<typeof http.app.listen>>((resolve, reject) => {
+            const listener = http.app.listen(port, config.host, () => resolve(listener));
+            listener.once('error', reject);
+        });
+        logger.info(`MCP HTTP server listening on ${config.host}:${port} (/mcp, /sse)`);
+        close = async () => {
+            await http.close();
+            await new Promise<void>((resolve, reject) => listener.close(error => error ? reject(error) : resolve()));
+        };
+    } else throw new Error(`Unsupported transport: ${transport}. Use stdio, http, sse, or unified.`);
+    let closing = false;
+    const cleanup = async () => {
+        if (closing) return;
+        closing = true;
+        const results = await Promise.allSettled([close(), Promise.resolve(closeEventManager()), closePool()]);
+        const failed = results.find(result => result.status === 'rejected');
+        if (failed?.status === 'rejected') throw failed.reason;
     };
-    const owners = new Map<string, string>();
-
-    // Modern Streamable HTTP endpoint - use the dedicated router with stateless support
-    const streamableRouter = createStreamableHttpRouter(createMcpServerInstance);
-    app.use('/', streamableRouter);
-
-    // Legacy SSE endpoint for older clients
-    app.get('/sse', async (req, res) => {
-        try {
-            logger.info('Creating SSE transport for legacy client');
-
-            // Create SSE transport for legacy clients
-            const transport = new SSEServerTransport('/messages', res);
-            const sessionId = transport.sessionId || crypto.randomUUID();
-            transports.sse[sessionId] = transport;
-            owners.set(sessionId, currentSecurityContext().sessionId);
-
-            res.on("close", () => {
-                delete transports.sse[sessionId];
-                owners.delete(sessionId);
-                logger.debug(`Cleaned up SSE transport for session: ${sessionId}`);
-            });
-
-            // Create and connect server
-            const server = await createMcpServerInstance();
-            await server.connect(transport);
-
-            logger.info(`SSE transport connected for session: ${sessionId}`);
-        } catch (error) {
-            logger.error('Error establishing SSE connection:', { error });
-            if (!res.headersSent) {
-                res.status(500).json({
-                    jsonrpc: '2.0',
-                    error: {
-                        code: -32603,
-                        message: 'Internal server error',
-                    },
-                    id: null,
-                });
-            }
-        }
-    });
-
-    // Legacy message endpoint for older clients
-    app.post('/messages', async (req, res) => {
-        try {
-            const sessionId = req.query.sessionId as string;
-            const transport = transports.sse[sessionId];
-            if (transport && owners.get(sessionId) !== currentSecurityContext().sessionId) {
-                res.status(403).json({ error: 'Forbidden' }); return;
-            }
-            if (transport) {
-                await transport.handlePostMessage(req, res, req.body);
-            } else {
-                res.status(400).json({
-                    jsonrpc: '2.0',
-                    error: {
-                        code: -32000,
-                        message: 'No transport found for sessionId',
-                    },
-                    id: null,
-                });
-            }
-        } catch (error) {
-            logger.error('Error handling SSE message:', { error });
-            if (!res.headersSent) {
-                res.status(500).json({
-                    jsonrpc: '2.0',
-                    error: {
-                        code: -32603,
-                        message: 'Internal server error',
-                    },
-                    id: null,
-                });
-            }
-        }
-    });
-
-    // Start the server
-    app.listen(port, () => {
-        logger.info(`MCP Backwards Compatible Server listening on port ${port}`);
-        logger.info('Endpoints:');
-        logger.info('  - Modern Streamable HTTP: POST/GET/DELETE /mcp');
-        logger.info('  - Legacy SSE: GET /sse');
-        logger.info('  - Legacy Messages: POST /messages');
-    });
+    for (const signal of ['SIGINT', 'SIGTERM'] as const) {
+        process.once(signal, () => { void cleanup().then(() => process.exit(0), error => {
+            logger.error(`Shutdown failed: ${String(error)}`); process.exit(1);
+        }); });
+    }
+    if (transport === 'stdio') process.stdin.once('end', () => { void cleanup().catch(error => logger.error(String(error))); });
 }

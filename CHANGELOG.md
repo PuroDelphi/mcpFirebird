@@ -1,6 +1,55 @@
 # Changelog
 
+
+## [2.12.0-alpha.1] - 2026-09-29
+
+- Opt into MCP 2026-07-28 via SDK v2 factories while retaining 2025 stdio/HTTP and legacy SSE clients
+- Share one server implementation across executable entry points
+- Preserve historical HTTP binding, wildcard non-cookie CORS and introspection-only OAuth in the default `compat` mode; warn about the security trade-offs
+- Add opt-in `MCP_HTTP_SECURITY_MODE=strict`: loopback defaults, Host/Origin validation and explicit remote exposure; explicit allowlists and OAuth audiences are enforced in either mode
+- Add protected-resource OAuth discovery, token audience checks, and MCP browser headers
+- Add structured tool results, output schemas, honest annotations, and consistent protocol errors
+- Isolate event subscribers and release listeners on disconnect
+- Retain dependency security fixes from stable 2.11.0; leave GitHub Actions disabled and exclude the proposed CI workflow
+- Isolate protocol test subprocesses from developer .env files and configured ports
+- Preserve the authenticated root health endpoint; test real pure-JS Firebird events, subscriber isolation, cleanup and reconnect against a disposable Firebird 2.5.9 database
+- Require Node.js 20.19+ for SDK v2. Older runtimes should remain on stable 2.11.0 until upgraded; database drivers and SQL opt-in defaults are unchanged
+
+See [migration notes](docs/mcp-2026-migration.md) for opt-in HTTP/OAuth hardening and upgrade requirements.
+
+Validation: 312 unit tests and 33 protocol/event/contract tests passed on Node 24.14.1, plus compiled security smoke checks and real SQL/pure-JS events on Firebird 2.5.9. TypeScript build and lint passed (182 existing warnings, no errors); production dependency audit reported zero vulnerabilities. Native event delivery still requires deployment validation.
+
 All notable changes to this project will be documented in this file.
+
+## [2.11.0] - 2026-09-29
+
+Promote all changes from `2.11.0-alpha.1` through `2.11.0-alpha.4` since stable `2.10.0`. The reporter confirmed the original query in #36 now works correctly.
+
+### Added
+- Configure security without a file through validated `FIREBIRD_SECURITY_JSON`, including SQL options at the root or inside `security` (#34). Existing file-source precedence is retained.
+- Enforce explicitly configured table/operation permissions, catalog policies, row filters, alias-aware masking, resource limits, auditing and OAuth2/role permissions at query execution and transport boundaries.
+- Include English and Spanish configuration guides, compatibility examples and a security implementation review.
+
+### Fixed
+- Distinguish FROM inside EXTRACT, SUBSTRING and TRIM arguments from actual table clauses, preserving authorization and row filters (#36).
+- Normalize stored-procedure result objects before BLOB resolution and output controls.
+- Fix HTTP transport shutdown recursion, isolate request identity and bind authenticated HTTP/SSE sessions to their owner.
+- Reject invalid selected security configurations rather than silently weakening policy. Make masking/audit failures withhold results and handle timed-out connections safely.
+- Exclude temporary test/cache files and tarballs from npm packages.
+
+### Compatibility and migration
+- Advanced controls remain **opt-in**: no new implicit row/size/deadline/rate/query-count limits or catalog/routine restrictions without an explicit policy. Empty or partial configurations do not activate unrelated controls.
+- Preserve the historical `ALLOW_RAW_SQL=true` write/DDL gate, CORS behavior and driver selection. Explicit denials still win over permissive switches.
+- Existing policies containing formerly dormant settings now enforce those settings. Review limits and SQL restrictions before upgrading. Scoped policies reject SQL they cannot safely analyze; masked projections remain restricted and row-filtered tables are read-only.
+- Invalid or missing selected policy files now prevent startup. Incompatible legacy audit tables need a new configured table name; no destructive migration is performed.
+- `maxQueryCpuTime` is a wall-clock deadline, not Firebird CPU accounting or guaranteed server-side cancellation. Database privileges remain essential.
+
+### Validation
+- 173 automated tests, TypeScript build and compiled CLI/MCP smoke checks passed.
+- Disposable Firebird 2.5.9 integration passed, including the #36 query, related functions, default compatibility and explicitly configured security controls.
+
+### Maintenance
+- Refresh compatible locked transitive dependencies: fast-uri 3.1.8, ip-address 10.7.2 and undici 6.29.0. Production dependency audit reports no known vulnerabilities after the update; Firebird driver versions are unchanged.
 
 ## [2.11.0-alpha.4] - 2026-09-28
 

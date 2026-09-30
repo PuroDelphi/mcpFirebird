@@ -86,6 +86,41 @@ try {
     assert.equal(auditRows.length,2);
     assert.equal(readFileSync(auditFile,'utf8').trim().split('\n').length,2);
     console.log('PASS: issue #36 EXTRACT/SUBSTRING/TRIM, legacy compatibility and opt-in filtering, masking, visibility, catalog policy, DDL gating, database/file audit');
+    reset();
+    // Real pure-JS driver events, independent owners, cleanup and reattachment.
+    const { createEventClient } = await import('../dist/resources/events.js');
+    const eventName = `MCP_${randomUUID().replaceAll('-', '')}`;
+    const uri = `firebird://events/${eventName}`;
+    const receivedA = [], receivedB = [];
+    const a = createEventClient(value => { receivedA.push(value); });
+    const b = createEventClient(value => { receivedB.push(value); });
+    const waitFor = async predicate => {
+        const deadline = Date.now() + 5000;
+        while (!predicate()) {
+            if (Date.now() > deadline) throw new Error('Timed out waiting for a real Firebird POST_EVENT');
+            await new Promise(resolve => setTimeout(resolve, 20));
+        }
+    };
+    try {
+        await a.subscribe([eventName]);
+        await b.subscribe([eventName]);
+        await raw(`EXECUTE BLOCK AS BEGIN POST_EVENT '${eventName}'; END`);
+        await waitFor(() => receivedA.includes(uri) && receivedB.includes(uri));
+        await a.close();
+        const previousA = receivedA.length, previousB = receivedB.length;
+        await raw(`EXECUTE BLOCK AS BEGIN POST_EVENT '${eventName}'; END`);
+        await waitFor(() => receivedB.length > previousB);
+        assert.equal(receivedA.length, previousA);
+        await b.close();
+        const reconnected = createEventClient(value => { receivedB.push(value); });
+        try {
+            await reconnected.subscribe([eventName]);
+            const before = receivedB.length;
+            await raw(`EXECUTE BLOCK AS BEGIN POST_EVENT '${eventName}'; END`);
+            await waitFor(() => receivedB.length > before);
+        } finally { await reconnected.close(); }
+        console.log('PASS: real POST_EVENT delivery, independent owners, disconnect cleanup and reconnect (pure-JS driver)');
+    } finally { await Promise.all([a.close(), b.close()]); }
 } finally {
     delete globalThis.MCP_FIREBIRD_CONFIG;
     await closePool();

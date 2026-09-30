@@ -174,7 +174,7 @@ export function prepareUserQuery(sql: string): PreparedQuery {
         if (securityConfig.dataMasking?.length) {
             if (operation !== 'SELECT') deny('Writes are disabled when data masking is configured');
             const from = tokens.findIndex((t, i) => t.kind === 'word' && t.value === 'FROM' && t.depth === 0 && !argumentSeparators.has(i));
-            let projection = sql.slice(first.end, tokens[from].start).trim().replace(/^(?:FIRST\s+\d+\s*)?(?:SKIP\s+\d+\s*)?/i, '').trim();
+            const projection = sql.slice(first.end, tokens[from].start).trim().replace(/^(?:FIRST\s+\d+\s*)?(?:SKIP\s+\d+\s*)?/i, '').trim();
             const ident = '(?:[A-Za-z_][A-Za-z0-9_$]*|"(?:[^"]|"")+")';
             const direct = new RegExp(`^(${ident})(?:\\s+(?:AS\\s+)?(${ident}))?$`, 'i');
             if (projection !== '*') for (const column of projection.split(',')) {
