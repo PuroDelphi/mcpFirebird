@@ -1,5 +1,18 @@
 # Changelog
 
+
+## Unreleased (alpha)
+
+- Opt into MCP 2026-07-28 via SDK v2 factories while retaining 2025 stdio/HTTP and legacy SSE clients
+- Share one server implementation across executable entry points
+- Bind HTTP to loopback by default; validate Host/Origin and require explicit remote exposure
+- Add protected-resource OAuth discovery, token audience checks, and MCP browser headers
+- Add structured tool results, output schemas, honest annotations, and consistent protocol errors
+- Isolate event subscribers and release listeners on disconnect
+- Add Node 20/22/24 protocol/security CI; live Firebird validation remains manual
+
+See [migration notes](docs/mcp-2026-migration.md) for new HTTP/OAuth configuration requirements.
+
 All notable changes to this project will be documented in this file.
 
 ## [2.11.0-alpha.4] - 2026-09-28

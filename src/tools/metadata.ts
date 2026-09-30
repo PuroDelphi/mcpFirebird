@@ -1,7 +1,10 @@
 // Herramientas para metadatos e información del sistema
 import { createLogger } from '../utils/logger.js';
-import { formatForClaude, wrapError } from '../utils/jsonHelper.js';
-import { z, ZodTypeAny } from 'zod';
+import { wrapError } from '../utils/jsonHelper.js';
+import { z } from 'zod';
+import { finalizeTools, toolResult, toolError, type ToolDraft, type ToolDefinition } from './contracts.js';
+import { metadataResultSchemas } from './outputSchemas.js';
+export type { ToolDefinition } from './contracts.js';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
@@ -17,16 +20,7 @@ import {
     listAvailableEvents
 } from '../db/metadata.js';
 import { checkAllowedOperation } from '../security/authorization.js';
-import { checkResponseSizeLimit } from '../security/resourceLimits.js';
 
-// Definición local de ToolDefinition basada en el uso
-export interface ToolDefinition {
-    name?: string;
-    title?: string;
-    inputSchema: ZodTypeAny;
-    description: string;
-    handler: (...args: any[]) => Promise<any>; // Ajustar según sea necesario
-}
 
 const logger = createLogger('tools:metadata');
 
@@ -41,8 +35,8 @@ const pkg = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
  * @param databaseTools - Mapa de herramientas de base de datos ya configuradas.
  * @returns Map<string, ToolDefinition> - Mapa con las herramientas de metadatos.
  */
-export function setupMetadataTools(databaseTools: Map<string, any>): Map<string, ToolDefinition> {
-    const tools = new Map<string, ToolDefinition>();
+export function setupMetadataTools(databaseTools: Map<string, ToolDefinition>): Map<string, ToolDefinition> {
+    const tools = new Map<string, ToolDraft>();
 
     // Herramienta para obtener información del servidor
     tools.set('get-server-info', {
@@ -72,21 +66,10 @@ export function setupMetadataTools(databaseTools: Map<string, any>): Map<string,
                     }
                 };
 
-                return {
-                    content: [{
-                        type: 'text',
-                        text: `Firebird MCP server information:\n\n${formatForClaude(serverInfo)}`
-                    }]
-                };
+                return toolResult(serverInfo, { prefix: `Firebird MCP server information:\n\n` });
             } catch (error) {
                 logger.error('Error getting server info:', { error });
-                return {
-                    content: [{
-                        type: 'text',
-                        text: `Error getting server information: ${error instanceof Error ? error.message : String(error)}`
-                    }],
-                    isError: true
-                };
+                return toolError(error, { text: `Error getting server information: ${error instanceof Error ? error.message : String(error)}` });
             }
         }
     });
@@ -118,21 +101,12 @@ export function setupMetadataTools(databaseTools: Map<string, any>): Map<string,
                     category: databaseTools.has(name) ? 'database' : 'metadata'
                 }));
 
-                return {
-                    content: [{
-                        type: 'text',
-                        text: `Available tools${args.category ? ` (category: ${args.category})` : ''}:\n\n${formatForClaude(toolsInfo)}`
-                    }]
-                };
+                return toolResult(toolsInfo, {
+                    prefix: `Available tools${args.category ? ` (category: ${args.category})` : ''}:\n\n`
+                });
             } catch (error) {
                 logger.error('Error listing tools:', { error });
-                return {
-                    content: [{
-                        type: 'text',
-                        text: `Error listing tools: ${error instanceof Error ? error.message : String(error)}`
-                    }],
-                    isError: true
-                };
+                return toolError(error, { text: `Error listing tools: ${error instanceof Error ? error.message : String(error)}` });
             }
         }
     });
@@ -150,13 +124,8 @@ export function setupMetadataTools(databaseTools: Map<string, any>): Map<string,
                 const tool = allTools.get(args.toolName);
 
                 if (!tool) {
-                    return {
-                        content: [{
-                            type: 'text',
-                            text: `Tool '${args.toolName}' not found. Use 'list-available-tools' to see the available tools.`
-                        }],
-                        isError: true
-                    };
+                    const message = `Tool '${args.toolName}' not found. Use 'list-available-tools' to see the available tools.`;
+                    return toolError(new Error(message), { text: message });
                 }
 
                 const helpInfo = {
@@ -168,21 +137,10 @@ export function setupMetadataTools(databaseTools: Map<string, any>): Map<string,
                     usage: `To use this tool, call '${args.toolName}' with the appropriate parameters.`
                 };
 
-                return {
-                    content: [{
-                        type: 'text',
-                        text: `Help for tool: ${args.toolName}\n\n${formatForClaude(helpInfo)}`
-                    }]
-                };
+                return toolResult(helpInfo, { prefix: `Help for tool: ${args.toolName}\n\n` });
             } catch (error) {
                 logger.error('Error getting tool help:', { error });
-                return {
-                    content: [{
-                        type: 'text',
-                        text: `Error getting tool help: ${error instanceof Error ? error.message : String(error)}`
-                    }],
-                    isError: true
-                };
+                return toolError(error, { text: `Error getting tool help: ${error instanceof Error ? error.message : String(error)}` });
             }
         }
     });
@@ -190,7 +148,7 @@ export function setupMetadataTools(databaseTools: Map<string, any>): Map<string,
     // Herramienta para verificar el estado del sistema
     tools.set('system-health-check', {
         title: 'System Health Check',
-        description: 'Checks system health and database connectivity',
+        description: 'Reports process health and runtime information; does not probe database connectivity',
         inputSchema: z.object({}),
         handler: async () => {
             try {
@@ -215,21 +173,10 @@ export function setupMetadataTools(databaseTools: Map<string, any>): Map<string,
                     }
                 };
 
-                return {
-                    content: [{
-                        type: 'text',
-                        text: `System health status:\n\n${formatForClaude(healthInfo)}`
-                    }]
-                };
+                return toolResult(healthInfo, { prefix: `System health status:\n\n` });
             } catch (error) {
                 logger.error('Error in health check:', { error });
-                return {
-                    content: [{
-                        type: 'text',
-                        text: `Error during health check: ${error instanceof Error ? error.message : String(error)}`
-                    }],
-                    isError: true
-                };
+                return toolError(error, { text: `Error during health check: ${error instanceof Error ? error.message : String(error)}` });
             }
         }
     });
@@ -243,21 +190,9 @@ export function setupMetadataTools(databaseTools: Map<string, any>): Map<string,
             try {
                 checkAllowedOperation('EXECUTE');
                 const events = await listAvailableEvents();
-                return {
-                    content: [{
-                        type: 'text',
-                        text: `Available Firebird events (POST_EVENT):\n\n${formatForClaude(events)}`
-                    }]
-                };
+                return toolResult(events, { prefix: `Available Firebird events (POST_EVENT):\n\n` });
             } catch (error) {
-                const errorResponse = wrapError(error);
-                return {
-                    content: [{
-                        type: "text",
-                        text: formatForClaude(errorResponse)
-                    }],
-                    isError: true
-                };
+                return toolError(error);
             }
         }
     });
@@ -277,26 +212,15 @@ export function setupMetadataTools(databaseTools: Map<string, any>): Map<string,
                 const triggers = await listTriggers();
                 logger.info(`Retrieved ${triggers.length} triggers`);
 
-                return {
-                    content: [{
-                        type: "text",
-                        text: `Database triggers:\n\n${formatForClaude({
+                return toolResult({
                             totalTriggers: triggers.length,
                             triggers: triggers
-                        })}`
-                    }]
-                };
+                        }, { prefix: `Database triggers:\n\n` });
             } catch (error) {
                 const errorResponse = wrapError(error);
                 logger.error(`Error listing triggers: ${errorResponse.error}`);
 
-                return {
-                    content: [{
-                        type: "text",
-                        text: formatForClaude(errorResponse)
-                    }],
-                    isError: true
-                };
+                return toolError(error);
             }
         }
     });
@@ -319,23 +243,12 @@ export function setupMetadataTools(databaseTools: Map<string, any>): Map<string,
                 const trigger = await describeTrigger(triggerName);
                 logger.info(`Retrieved trigger details for: ${triggerName}`);
 
-                return {
-                    content: [{
-                        type: "text",
-                        text: `Details for trigger '${triggerName}':\n\n${formatForClaude(trigger)}`
-                    }]
-                };
+                return toolResult(trigger, { prefix: `Details for trigger '${triggerName}':\n\n` });
             } catch (error) {
                 const errorResponse = wrapError(error);
                 logger.error(`Error describing trigger ${triggerName}: ${errorResponse.error}`);
 
-                return {
-                    content: [{
-                        type: "text",
-                        text: formatForClaude(errorResponse)
-                    }],
-                    isError: true
-                };
+                return toolError(error);
             }
         }
     });
@@ -355,26 +268,15 @@ export function setupMetadataTools(databaseTools: Map<string, any>): Map<string,
                 const procedures = await listProcedures();
                 logger.info(`Retrieved ${procedures.length} procedures`);
 
-                return {
-                    content: [{
-                        type: "text",
-                        text: `Stored procedures in the database:\n\n${formatForClaude({
+                return toolResult({
                             totalProcedures: procedures.length,
                             procedures: procedures
-                        })}`
-                    }]
-                };
+                        }, { prefix: `Stored procedures in the database:\n\n` });
             } catch (error) {
                 const errorResponse = wrapError(error);
                 logger.error(`Error listing procedures: ${errorResponse.error}`);
 
-                return {
-                    content: [{
-                        type: "text",
-                        text: formatForClaude(errorResponse)
-                    }],
-                    isError: true
-                };
+                return toolError(error);
             }
         }
     });
@@ -397,23 +299,12 @@ export function setupMetadataTools(databaseTools: Map<string, any>): Map<string,
                 const procedure = await describeProcedure(procedureName);
                 logger.info(`Retrieved procedure details for: ${procedureName}`);
 
-                return {
-                    content: [{
-                        type: "text",
-                        text: `Details for procedure '${procedureName}':\n\n${formatForClaude(procedure)}`
-                    }]
-                };
+                return toolResult(procedure, { prefix: `Details for procedure '${procedureName}':\n\n` });
             } catch (error) {
                 const errorResponse = wrapError(error);
                 logger.error(`Error describing procedure ${procedureName}: ${errorResponse.error}`);
 
-                return {
-                    content: [{
-                        type: "text",
-                        text: formatForClaude(errorResponse)
-                    }],
-                    isError: true
-                };
+                return toolError(error);
             }
         }
     });
@@ -433,26 +324,15 @@ export function setupMetadataTools(databaseTools: Map<string, any>): Map<string,
                 const functions = await listFunctions();
                 logger.info(`Retrieved ${functions.length} functions`);
 
-                return {
-                    content: [{
-                        type: "text",
-                        text: `Functions in the database:\n\n${formatForClaude({
+                return toolResult({
                             totalFunctions: functions.length,
                             functions: functions
-                        })}`
-                    }]
-                };
+                        }, { prefix: `Functions in the database:\n\n` });
             } catch (error) {
                 const errorResponse = wrapError(error);
                 logger.error(`Error listing functions: ${errorResponse.error}`);
 
-                return {
-                    content: [{
-                        type: "text",
-                        text: formatForClaude(errorResponse)
-                    }],
-                    isError: true
-                };
+                return toolError(error);
             }
         }
     });
@@ -475,23 +355,12 @@ export function setupMetadataTools(databaseTools: Map<string, any>): Map<string,
                 const func = await describeFunction(functionName);
                 logger.info(`Retrieved function details for: ${functionName}`);
 
-                return {
-                    content: [{
-                        type: "text",
-                        text: `Details for function '${functionName}':\n\n${formatForClaude(func)}`
-                    }]
-                };
+                return toolResult(func, { prefix: `Details for function '${functionName}':\n\n` });
             } catch (error) {
                 const errorResponse = wrapError(error);
                 logger.error(`Error describing function ${functionName}: ${errorResponse.error}`);
 
-                return {
-                    content: [{
-                        type: "text",
-                        text: formatForClaude(errorResponse)
-                    }],
-                    isError: true
-                };
+                return toolError(error);
             }
         }
     });
@@ -511,26 +380,15 @@ export function setupMetadataTools(databaseTools: Map<string, any>): Map<string,
                 const packages = await listPackages();
                 logger.info(`Retrieved ${packages.length} packages`);
 
-                return {
-                    content: [{
-                        type: "text",
-                        text: `Packages in the database:\n\n${formatForClaude({
+                return toolResult({
                             totalPackages: packages.length,
                             packages: packages
-                        })}`
-                    }]
-                };
+                        }, { prefix: `Packages in the database:\n\n` });
             } catch (error) {
                 const errorResponse = wrapError(error);
                 logger.error(`Error listing packages: ${errorResponse.error}`);
 
-                return {
-                    content: [{
-                        type: "text",
-                        text: formatForClaude(errorResponse)
-                    }],
-                    isError: true
-                };
+                return toolError(error);
             }
         }
     });
@@ -553,35 +411,16 @@ export function setupMetadataTools(databaseTools: Map<string, any>): Map<string,
                 const pkg = await describePackage(packageName);
                 logger.info(`Retrieved package details for: ${packageName}`);
 
-                return {
-                    content: [{
-                        type: "text",
-                        text: `Details for package '${packageName}':\n\n${formatForClaude(pkg)}`
-                    }]
-                };
+                return toolResult(pkg, { prefix: `Details for package '${packageName}':\n\n` });
             } catch (error) {
                 const errorResponse = wrapError(error);
                 logger.error(`Error describing package ${packageName}: ${errorResponse.error}`);
 
-                return {
-                    content: [{
-                        type: "text",
-                        text: formatForClaude(errorResponse)
-                    }],
-                    isError: true
-                };
+                return toolError(error);
             }
         }
     });
 
     logger.info(`Configured ${tools.size} metadata tools`);
-    for (const tool of tools.values()) {
-        const handler = tool.handler;
-        tool.handler = async (...args: any[]) => {
-            const result = await handler(...args);
-            checkResponseSizeLimit(result);
-            return result;
-        };
-    }
-    return tools;
+    return finalizeTools(tools, metadataResultSchemas);
 }

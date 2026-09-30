@@ -1,5 +1,7 @@
 # MCP Firebird
 
+> **Migración alpha:** soporte MCP 2026-07-28 y SDK v2, manteniendo clientes 2025. HTTP escucha en loopback por defecto; la exposición remota y los orígenes del navegador se configuran explícitamente. Consulta la [guía de migración](docs/mcp-2026-migration.md) antes de actualizar. Requiere Node.js 20.19+.
+
 
 Implementación del protocolo MCP (Model Context Protocol) de Anthropic para bases de datos Firebird.
 

@@ -13,7 +13,6 @@ import {
 } from './connection.js';
 import { FirebirdError } from '../utils/errors.js';
 import { validateSql } from '../utils/security.js';
-import { withCorrectConfig } from './wrapper.js';
 import { resolveBlobFields } from './blob.js';
 import { securityConfig } from '../security/config.js';
 import { prepareUserQuery } from '../security/sqlPolicy.js';
@@ -669,8 +668,8 @@ export const analyzeQueryPerformance = async (
  */
 export const getExecutionPlan = async (
     sql: string,
-    params: any[] = [],
-    config = getGlobalConfig() || DEFAULT_CONFIG
+    _params: any[] = [],
+    _config = getGlobalConfig() || DEFAULT_CONFIG
 ): Promise<ExecutionPlanResult> => {
     try {
         // Validate the SQL query to prevent injection
@@ -758,6 +757,8 @@ export const getExecutionPlan = async (
 /**
  * Analyzes a Firebird execution plan and provides insights
  */
+// Retained plan formatter for driver support; current API returns estimates.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function analyzePlan(plan: string): string {
     const analysis: string[] = [];
     const upperPlan = plan.toUpperCase();
@@ -805,7 +806,7 @@ function analyzePlan(plan: string): string {
  */
 export const analyzeMissingIndexes = async (
     sql: string,
-    config = DEFAULT_CONFIG
+    _config = DEFAULT_CONFIG
 ): Promise<{missingIndexes: string[], recommendations: string[], success: boolean, error?: string}> => {
     try {
         // Validate the SQL query to prevent injection

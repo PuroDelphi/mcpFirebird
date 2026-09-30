@@ -1,0 +1,27 @@
+name: MCP compatibility and security
+on:
+  pull_request:
+    branches: [alpha, main]
+  push:
+    branches: [alpha, main]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [20, 22, 24]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run build
+      - run: npm test -- --runInBand
+      - run: npm run test:protocol

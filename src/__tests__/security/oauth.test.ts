@@ -10,10 +10,11 @@ describe('OAuth2 HTTP enforcement', () => {
     beforeEach(() => {
         Object.assign(securityConfig, structuredClone(DEFAULT_SECURITY_CONFIG));
         securityConfig.authorization = {
-            type:'oauth2', oauth2:{tokenVerifyUrl:'https://auth.example/introspect', clientId:'client', clientSecret:'secret', scope:'db:read'},
+            type:'oauth2', oauth2:{tokenVerifyUrl:'https://auth.example/introspect', clientId:'client', clientSecret:'secret', scope:'db:read',
+                resourceUrl:'https://mcp.example/mcp', authorizationServers:['https://auth.example']},
             rolePermissions:{ analyst:{tables:['PUBLIC'],operations:['SELECT']} }
         };
-        global.fetch = jest.fn().mockResolvedValue({ok:true,json:async()=>({active:true,sub:'person',role:'analyst',scope:'db:read'})});
+        global.fetch = jest.fn().mockResolvedValue({ok:true,json:async()=>({active:true,sub:'person',role:'analyst',scope:'db:read',aud:'https://mcp.example/mcp'})});
     });
     afterEach(() => { global.fetch = originalFetch; delete securityConfig.authorization; });
     function app() {
@@ -31,10 +32,16 @@ describe('OAuth2 HTTP enforcement', () => {
         expect(global.fetch).toHaveBeenCalledWith('https://auth.example/introspect', expect.objectContaining({body:'token=valid',redirect:'error'}));
         await request(app()).get('/private').set('Authorization','Bearer valid').expect(403);
     });
-    it.each([{active:false,sub:'p',role:'analyst',scope:'db:read'}, {active:true,sub:'p',role:'analyst',scope:'wrong'},
+    it.each([{active:false,sub:'p',role:'analyst',scope:'db:read'},
         {active:true,sub:'p',role:'analyst',scope:'db:read',exp:1}, {active:true,sub:'p',scope:'db:read'}])('rejects invalid introspection claims %#', async claims => {
         jest.mocked(global.fetch).mockResolvedValue({ok:true,json:async()=>claims} as any);
         await request(app()).get('/who').set('Authorization','Bearer invalid').expect(401);
+    });
+    it('returns the OAuth insufficient_scope challenge for an otherwise valid token', async () => {
+        jest.mocked(global.fetch).mockResolvedValue({ok:true,json:async()=>({active:true,sub:'p',role:'analyst',scope:'wrong',aud:'https://mcp.example/mcp'})} as any);
+        const response = await request(app()).get('/who').set('Authorization','Bearer valid').expect(403);
+        expect(response.headers['www-authenticate']).toContain('error="insufficient_scope"');
+        expect(response.headers['www-authenticate']).toContain('scope="db:read"');
     });
     it('fails closed on authorization service outages', async () => {
         jest.mocked(global.fetch).mockRejectedValue(new Error('secret service detail'));

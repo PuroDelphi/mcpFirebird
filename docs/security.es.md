@@ -6,7 +6,7 @@ Esta guía corresponde a **2.11.0-alpha.4**, no a versiones anteriores de npm. C
 
 ## Aviso de migración
 
-**La seguridad avanzada es optativa.** Sin configuración (o con objetos `security`/`sql` vacíos) se conserva el soporte anterior de catálogo, procedimientos ejecutables/seleccionables, funciones, joins y CTE. No se imponen límites nuevos de filas/tamaño, plazos de cinco segundos, cuotas de 100 consultas ni frecuencia. Se mantienen la validación anterior, filtros parametrizados, autenticación por clave API y CORS. `ALLOW_RAW_SQL=true` sigue habilitando escrituras, incluido DDL, si ninguna política explícita las prohíbe.
+**La seguridad avanzada de base de datos es optativa.** Sin configuración (o con objetos `security`/`sql` vacíos) se conserva el soporte anterior de catálogo, procedimientos ejecutables/seleccionables, funciones, joins y CTE. No se imponen límites nuevos de filas/tamaño, plazos de cinco segundos, cuotas de 100 consultas ni frecuencia. Se mantienen la validación anterior, filtros parametrizados y autenticación por clave API. `ALLOW_RAW_SQL=true` sigue habilitando escrituras, incluido DDL, si ninguna política explícita las prohíbe. HTTP ahora usa loopback/mismo origen por defecto; OAuth exige metadatos y audiencia explícitos, como se detalla más abajo.
 
 Las funciones de seguridad antes desconectadas ahora están implementadas, pero solo se aplican al configurarlas. Consideraciones al activarlas:
 
@@ -146,15 +146,21 @@ La frecuencia utiliza un cubo de tokens con ráfaga inicial `burstLimit` y repos
 
 `FIREBIRD_API_KEY` conserva autenticación `Authorization: Bearer ...`. No utilices claves en URL y protege el transporte con HTTPS. Con `authorization.type="basic"`, esa clave representa el rol `user`; configura sus permisos. No es un directorio de contraseñas HTTP Basic. Sin permisos de rol, se deniega acceso a la base.
 
-OAuth2 usa `authorization.type="oauth2"`, la sección `oauth2` con `tokenVerifyUrl` HTTPS, `clientId`, `clientSecret` y `scope` opcional, y `rolePermissions`. Ejemplo completo en la [guía inglesa](security.md#httpsse-authentication-and-role-permissions).
+OAuth2 usa `authorization.type="oauth2"`, la sección `oauth2` con `tokenVerifyUrl` HTTPS, `clientId`, `clientSecret`, `resourceUrl` (URL pública canónica de MCP), `authorizationServers` (lista no vacía de emisores HTTPS) y `scope` opcional, y `rolePermissions`. Las políticas OAuth anteriores deben agregar los dos nuevos campos; si faltan, el servidor rechaza la configuración. Ejemplo completo en la [guía inglesa](security.md#httpsse-authentication-and-role-permissions).
 
-El servidor envía `token` como formulario al endpoint, con credenciales Basic del cliente, sin redirecciones y con un plazo de cinco segundos. Exige `active:true`, identidad sub/user_id y role o primer elemento de roles; comprueba expiración informada y scopes requeridos. El servidor de autorización debe validar audiencia y condiciones de emisión. Tokens inválidos, identidad ausente y fallos del servicio deniegan acceso.
+El servidor envía `token` como formulario al endpoint, con credenciales Basic del cliente, sin redirecciones y con un plazo de cinco segundos. Exige `active:true`, identidad sub/user_id y role o primer elemento de roles; comprueba audiencia, expiración informada, nbf y scopes requeridos. Tokens inválidos, identidad ausente y fallos del servicio deniegan acceso.
 
 En modo OAuth el Bearer es el token OAuth, no la clave estática. Identidad verificada, permisos de rol y restricciones globales se aplican juntos. Las sesiones HTTP/SSE pertenecen a su identidad original. STDIO no puede aportar esa identidad HTTP: utiliza una política independiente. Las suscripciones compartidas a eventos se deshabilitan con políticas restringidas.
 
-## CORS
+## HTTP, Host/Origin y CORS
 
-Se conserva origen `*`, cabecera Authorization permitida y credenciales del navegador desactivadas. STDIO y clientes de servidor no dependen de CORS. Para limitar navegadores configura `MCP_ALLOWED_ORIGIN="https://app.example.com,https://admin.example.com"`. CORS no sustituye autenticación; no expongas HTTP sin autenticación a Internet.
+HTTP/SSE/unified escuchan en `127.0.0.1` por defecto. Se validan Host y Origin antes de procesar cualquier petición, incluyendo OPTIONS. Sin configuración, se permiten los hosts `localhost`, `127.0.0.1`, `[::1]` y peticiones de navegador del mismo origen. Las peticiones nativas pueden omitir Origin; los orígenes inválidos, `null` o ajenos se rechazan con HTTP 403.
+
+`MCP_ALLOWED_ORIGIN=*` ya no se acepta. Déjalo sin definir/vacío para acceso del mismo origen, o configura orígenes exactos como `MCP_ALLOWED_ORIGIN="https://app.example.com,https://admin.example.com"`, sin rutas ni barra final. Las credenciales del navegador siguen desactivadas. Para exposición remota, incluso Docker, configura `HTTP_HOST=0.0.0.0`, `MCP_ALLOW_REMOTE=true` y `MCP_ALLOWED_HOSTS=mcp.example.com`. Los hosts no incluyen puertos; IPv6 usa corchetes. Un proxy TLS debe enviar un Host permitido; agrega el origen público HTTPS a la lista. No se confía en cabeceras reenviadas para omitir estos controles.
+
+OAuth publica metadatos de recurso protegido en `/.well-known/oauth-protected-resource` y la ruta específica del recurso, e incluye su URL y los scopes en `WWW-Authenticate`. La introspección debe devolver `aud` como cadena o lista que contenga exactamente `resourceUrl`; el servidor lo valida explícitamente. Un token inválido da HTTP 401; scopes insuficientes en un token válido dan HTTP 403. Consulta los detalles y migración en la [guía inglesa](security.md#httpsse-authentication-and-role-permissions).
+
+CORS permite las cabeceras de protocolo 2026, sesión heredada y caché, y expone las de sesión, desafío OAuth y caché. No sustituye autenticación: protege la exposición remota con HTTPS y clave API u OAuth. STDIO y las políticas SQL optativas no cambian.
 
 ## Auditoría
 

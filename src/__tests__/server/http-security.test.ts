@@ -3,9 +3,9 @@ import request from 'supertest';
 import { buildCorsOptions, createBearerAuthMiddleware, tokensMatch } from '../../server/http-security.js';
 
 describe('HTTP security helpers', () => {
-    it('keeps wildcard CORS compatibility without browser credentials', () => {
-        expect(buildCorsOptions(undefined)).toMatchObject({
-            origin: '*',
+    it('defaults to same-origin browser access without browser credentials', () => {
+        expect(buildCorsOptions('')).toMatchObject({
+            origin: false,
             credentials: false
         });
     });

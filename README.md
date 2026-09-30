@@ -1,5 +1,7 @@
 [![Verified on MseeP](https://mseep.ai/badge.svg)](https://mseep.ai/app/1cb2bb07-00f4-4579-b535-1b9de9b451e9)
 
+> **Alpha migration:** MCP 2026-07-28 and SDK v2 are supported alongside 2025 clients. HTTP now binds to loopback by default; remote exposure and browser origins require explicit configuration. See the [migration guide](docs/mcp-2026-migration.md) before upgrading. Node.js 20.19+ is required.
+
 # MCP Firebird
 
 Implementation of Anthropic's MCP (Model Context Protocol) for Firebird databases.
@@ -298,7 +300,7 @@ npx mcp-firebird --transport-type unified --http-port 3003 --database /path/to/d
 
 - **SSE (Legacy)**: `http://localhost:3003/sse`
 - **Streamable HTTP (Modern)**: `http://localhost:3003/mcp`
-- **Auto-Detection**: `http://localhost:3003/mcp-auto`
+- **Protocol auto-detection**: `http://localhost:3003/mcp`
 - **Health Check**: `http://localhost:3003/health`
 
 ### Configuration Examples

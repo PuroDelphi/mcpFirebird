@@ -2,6 +2,7 @@ import { z } from 'zod';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { createRequire } from 'node:module';
+import { isIP } from 'node:net';
 import { createLogger } from '../utils/logger.js';
 import { ConfigError } from '../utils/errors.js';
 
@@ -10,6 +11,92 @@ const regexPattern = z.string().refine(value => {
     try { new RegExp(value); return true; } catch { return false; }
 }, 'Invalid regular expression');
 const identifier = z.string().regex(/^[A-Za-z_][A-Za-z0-9_$]{0,62}$/);
+
+export function isLoopbackHost(host: string): boolean {
+    const value = host.toLowerCase().replace(/^\[|\]$/g, '');
+    return value === 'localhost' || (isIP(value) === 6 && new URL(`http://[${value}]`).hostname === '[::1]') ||
+        (isIP(value) === 4 && value.startsWith('127.'));
+}
+
+// Do not use forwarded headers or DNS resolution to decide which hosts are trusted.
+export function parseHttpAuthority(authority: string): { hostname: string; authority: string } | undefined {
+    if (!/^(?:\[[0-9a-fA-F:.]+\]|[a-zA-Z0-9.-]+)(?::[0-9]{1,5})?$/.test(authority)) return undefined;
+    try {
+        const url = new URL(`http://${authority}`);
+        if (url.port && Number(url.port) === 0) return undefined;
+        // IPv4 abbreviations/integers/hex must not silently alias an exact allowlist entry.
+        if (!authority.startsWith('[') && authority.split(':')[0].toLowerCase() !== url.hostname) return undefined;
+        return { hostname: url.hostname.toLowerCase(), authority: url.host.toLowerCase() };
+    } catch { return undefined; }
+}
+
+export function parseHttpOrigin(origin: string): string | undefined {
+    if (!/^https?:\/\/[^/?#\\\s]+$/i.test(origin)) return undefined;
+    try {
+        const url = new URL(origin);
+        if (url.username || url.password || !parseHttpAuthority(url.host)) return undefined;
+        return url.origin;
+    } catch { return undefined; }
+}
+
+export interface HttpSecurityConfig {
+    host: string;
+    allowedHosts: string[];
+    /** Additional browser origins; the request's own origin is always permitted. */
+    allowedOrigins: string[];
+}
+
+export function parseAllowedOrigins(value?: string): string[] {
+    if (!value?.trim()) return [];
+    return [...new Set(value.split(',').map(item => {
+        const origin = parseHttpOrigin(item.trim());
+        if (!origin) throw new ConfigError('MCP_ALLOWED_ORIGIN must contain exact http(s) origins, without paths or wildcards.');
+        return origin;
+    }))];
+}
+
+/** HTTP-only settings: STDIO and database policy loading do not depend on these. */
+export function loadHttpSecurityConfig(env: NodeJS.ProcessEnv = process.env): HttpSecurityConfig {
+    let host = env.HTTP_HOST?.trim() || '127.0.0.1';
+    if (host.startsWith('[') && host.endsWith(']')) host = host.slice(1, -1);
+    if (!isIP(host) && !/^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?)(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?)*$/.test(host)) {
+        throw new ConfigError('HTTP_HOST must be an IP address or hostname, without a scheme, port or path.');
+    }
+    const remote = !isLoopbackHost(host);
+    if (remote && env.MCP_ALLOW_REMOTE !== 'true') {
+        throw new ConfigError('Non-loopback HTTP_HOST requires MCP_ALLOW_REMOTE=true and MCP_ALLOWED_HOSTS.');
+    }
+    const configuredHosts = env.MCP_ALLOWED_HOSTS?.trim();
+    if (remote && !configuredHosts) throw new ConfigError('Remote HTTP exposure requires an explicit MCP_ALLOWED_HOSTS list.');
+    const allowedHosts = configuredHosts ? configuredHosts.split(',').map(item => {
+        const value = item.trim();
+        const parsed = parseHttpAuthority(value);
+        // Entries are hostnames/IPs, never URLs, wildcard patterns or port-specific authorities.
+        if (!parsed || (value.startsWith('[') ? !value.endsWith(']') : value.includes(':'))) {
+            throw new ConfigError('MCP_ALLOWED_HOSTS must contain exact hostnames or IP addresses without ports or wildcards; bracket IPv6 addresses.');
+        }
+        return parsed.hostname;
+    }) : ['localhost', '127.0.0.1', '[::1]', isIP(host) === 6 ? `[${host}]` : host.toLowerCase()];
+    return { host, allowedHosts: [...new Set(allowedHosts)], allowedOrigins: parseAllowedOrigins(env.MCP_ALLOWED_ORIGIN) };
+}
+
+const httpsEndpoint = z.string().url().refine(value => {
+    try {
+        const url = new URL(value);
+        return url.protocol === 'https:' && !url.username && !url.password && !url.hash;
+    } catch { return false; }
+}, 'An HTTPS URL without credentials or fragment is required');
+const resourceIdentifier = z.string().url().refine(value => {
+    try {
+        const url = new URL(value);
+        return (url.protocol === 'https:' || (url.protocol === 'http:' && isLoopbackHost(url.hostname))) &&
+            !url.username && !url.password && !url.hash && !url.search;
+    } catch { return false; }
+}, 'resourceUrl must be an HTTPS MCP endpoint (HTTP is allowed only on loopback), without credentials, query or fragment');
+const authorizationServerIdentifier = httpsEndpoint.refine(value => {
+    try { return !new URL(value).search; } catch { return false; }
+}, 'Authorization server identifiers cannot contain a query');
+const oauthScope = z.string().regex(/^[\x21\x23-\x5B\x5D-\x7E]+(?: [\x21\x23-\x5B\x5D-\x7E]+)*$/, 'Scopes must be space-separated OAuth scope tokens');
 export const SqlSecuritySchema = z.object({
     allowSystemTables: z.boolean().optional(),
     allowedSystemTables: z.array(identifier).optional(),
@@ -46,10 +133,12 @@ export const ResourceLimitsSchema = z.object({
 export const AuthorizationSchema = z.object({
     type: z.enum(['none', 'basic', 'oauth2']).default('none'),
     oauth2: z.object({
-        tokenVerifyUrl: z.string().url().refine(value => new URL(value).protocol === 'https:', 'HTTPS required'),
+        tokenVerifyUrl: httpsEndpoint,
         clientId: z.string().min(1),
         clientSecret: z.string().min(1),
-        scope: z.string().optional()
+        resourceUrl: resourceIdentifier,
+        authorizationServers: z.array(authorizationServerIdentifier).min(1),
+        scope: oauthScope.optional()
     }).strict().optional(),
     rolePermissions: z.record(z.string(), z.object({
         tables: z.array(z.string()).optional(),
@@ -90,7 +179,12 @@ export const DEFAULT_SECURITY_CONFIG: SecurityConfig = {
 
 function parsePolicy(value: unknown): SecurityConfig {
     const result = PolicySchema.safeParse(value);
-    if (!result.success) throw new ConfigError('Security configuration must contain valid security/sql objects with supported policy fields.');
+    if (!result.success) {
+        if (result.error.issues.some(issue => issue.path.includes('authorization'))) {
+            throw new ConfigError('Invalid authorization configuration. OAuth2 requires an HTTPS tokenVerifyUrl, clientId, clientSecret, a canonical MCP resourceUrl, and at least one HTTPS authorizationServers issuer URL; scope must contain valid OAuth scope tokens.');
+        }
+        throw new ConfigError('Security configuration must contain valid security/sql objects with supported policy fields.');
+    }
     const policy = result.data.security || {};
     return {
         ...structuredClone(DEFAULT_SECURITY_CONFIG), ...policy,
@@ -121,7 +215,8 @@ export function loadSecurityConfig(configPath?: string): SecurityConfig {
             const config = parsePolicy(path.extname(absolutePath).toLowerCase() === '.json' ? value : { security: value?.security, sql: value?.sql });
             logger.info(`Loaded security configuration from ${configPath}`);
             return config;
-        } catch {
+        } catch (error) {
+            if (error instanceof ConfigError) throw error;
             throw new ConfigError('Unable to load a valid security configuration file.');
         }
     }

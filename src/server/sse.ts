@@ -5,7 +5,8 @@
  */
 
 import express from 'express';
-import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
+import type { McpServer } from '@modelcontextprotocol/server';
+import { SSEServerTransport } from '@modelcontextprotocol/server-legacy/sse';
 import { createLogger } from '../utils/logger.js';
 import { currentSecurityContext } from '../security/context.js';
 
@@ -14,6 +15,12 @@ const logger = createLogger('server:sse');
 interface SessionInfo {
     owner: string;
     transport: SSEServerTransport;
+    response: express.Response;
+    server?: McpServer;
+    ready: Promise<void>;
+    connected: boolean;
+    closed: boolean;
+    closing?: Promise<void>;
     createdAt: Date;
     lastActivity: Date;
 }
@@ -23,8 +30,12 @@ interface SessionInfo {
  * @param server Instancia de McpServer
  * @returns Router Express listo para montar
  */
-export function createSseRouter(_createServerInstance?: () => Promise<any>): express.Router {
-    const router = express.Router();
+export type SseRouter = express.Router & { cleanup: () => Promise<void> };
+
+export function createSseRouter(createServerInstance?: () => Promise<McpServer>): SseRouter {
+    const router = express.Router() as SseRouter;
+    let shuttingDown = false;
+    const allSessions = new Set<SessionInfo>();
 
     // Add JSON parsing middleware to the router
     // This is crucial for parsing POST request bodies correctly
@@ -67,7 +78,32 @@ export function createSseRouter(_createServerInstance?: () => Promise<any>): exp
     });
 
     // Enhanced session storage with metadata
-    const activeSessions: Record<string, SessionInfo> = {};
+    const activeSessions = new Map<string, SessionInfo>();
+
+    function closeSession(info: SessionInfo): Promise<void> {
+        info.closed = true;
+        activeSessions.delete(info.transport.sessionId);
+        if (!info.closing) info.closing = Promise.resolve().then(async () => {
+            if (!info.connected && !info.response.destroyed && !info.response.writableEnded) {
+                if (!info.response.headersSent) info.response.status(503);
+                info.response.end();
+            }
+            // A late factory result must be disposed too; never connect it after disconnect.
+            await info.ready.catch(() => undefined);
+            let serverCloseFailed = false;
+            if (info.server) {
+                try { await info.server.close(); }
+                catch (error) { serverCloseFailed = true; logger.warn('Error closing SSE server', { error }); }
+            }
+            if (!info.connected || serverCloseFailed) {
+                try { await info.transport.close(); }
+                catch (error) { logger.warn('Error closing SSE transport', { error }); }
+            }
+            if (!info.response.destroyed && !info.response.writableEnded) info.response.end();
+            allSessions.delete(info);
+        });
+        return info.closing;
+    }
 
     // Configuration
     const SESSION_TIMEOUT_MS = parseInt(process.env.SSE_SESSION_TIMEOUT_MS || '1800000', 10); // 30 minutes
@@ -76,23 +112,20 @@ export function createSseRouter(_createServerInstance?: () => Promise<any>): exp
     // Periodic cleanup of expired sessions
     const cleanupInterval = setInterval(() => {
         const now = new Date();
-        const expiredSessions = Object.entries(activeSessions)
+        const expiredSessions = [...activeSessions.entries()]
             .filter(([_, info]) => now.getTime() - info.lastActivity.getTime() > SESSION_TIMEOUT_MS);
 
         for (const [sessionId, info] of expiredSessions) {
             logger.info(`Cleaning up expired session: ${sessionId}`);
-            try {
-                info.transport.close();
-            } catch (error) {
-                logger.warn(`Error closing expired session ${sessionId}:`, { error });
-            }
-            delete activeSessions[sessionId];
+            void closeSession(info);
         }
 
         if (expiredSessions.length > 0) {
             logger.info(`Cleaned up ${expiredSessions.length} expired sessions`);
         }
     }, CLEANUP_INTERVAL_MS);
+
+    cleanupInterval.unref();
 
     // Health check endpoint
     router.get('/health', (req, res) => {
@@ -101,72 +134,40 @@ export function createSseRouter(_createServerInstance?: () => Promise<any>): exp
         });
     });
 
-    // Main SSE endpoint with improved error handling
-    router.get('/sse', async (req, res) => {
-        logger.info('New SSE connection request');
-
+    // Do not open an SSE stream until a server factory is available.
+    router.get('/sse', async (_req, res) => {
+        if (shuttingDown) { res.status(503).json({ error: 'Server is shutting down' }); return; }
+        if (!createServerInstance) { res.status(503).json({ error: 'An MCP server factory is required' }); return; }
+        const transport = new SSEServerTransport('/messages', res);
+        const info: SessionInfo = {
+            owner: currentSecurityContext().sessionId, transport, response: res,
+            ready: Promise.resolve(), connected: false, closed: false,
+            createdAt: new Date(), lastActivity: new Date()
+        };
+        allSessions.add(info);
+        activeSessions.set(transport.sessionId, info);
+        // Install these before the factory or connect can yield.
+        res.once('close', () => { void closeSession(info); });
+        res.once('error', error => {
+            logger.warn('SSE response failed', { error });
+            void closeSession(info);
+        });
+        info.ready = Promise.resolve().then(async () => {
+            info.server = await createServerInstance();
+            if (info.closed || res.destroyed || res.writableEnded) return;
+            res.set({ 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', 'Connection': 'keep-alive' });
+            await info.server.connect(transport);
+            info.connected = true;
+        });
         try {
-            // Set proper SSE headers before creating transport
-            res.writeHead(200, {
-                'Content-Type': 'text/event-stream',
-                'Cache-Control': 'no-cache',
-                'Connection': 'keep-alive',
-                'Access-Control-Allow-Origin': process.env.MCP_ALLOWED_ORIGIN || '*',
-                'Access-Control-Allow-Headers': 'Authorization, Content-Type, mcp-session-id, Cache-Control'
-            });
-
-            // Create SSE transport
-            const transport = new SSEServerTransport('/messages', res);
-            const sessionId = transport.sessionId;
-
-            logger.info(`Created SSE transport with session ID: ${sessionId}`);
-
-            // Store session info
-            activeSessions[sessionId] = {
-                owner: currentSecurityContext().sessionId,
-                transport,
-                createdAt: new Date(),
-                lastActivity: new Date()
-            };
-
-            // Enhanced cleanup on connection close
-            res.on('close', () => {
-                logger.info(`SSE connection closed for session: ${sessionId}`);
-                if (activeSessions[sessionId]) {
-                    try {
-                        activeSessions[sessionId].transport.close();
-                    } catch (error) {
-                        logger.warn(`Error closing transport for session ${sessionId}:`, { error });
-                    }
-                    delete activeSessions[sessionId];
-                }
-            });
-
-            res.on('error', (error) => {
-                logger.error(`SSE connection error for session ${sessionId}:`, { error });
-                if (activeSessions[sessionId]) {
-                    delete activeSessions[sessionId];
-                }
-            });
-
-            // Connect server to transport
-            // Note: Server connection will be handled by the transport itself
-            logger.info(`SSE transport created for session: ${sessionId}`);
-
+            await info.ready;
+            if (info.closed || res.destroyed) await closeSession(info);
         } catch (error) {
-            logger.error('Error establishing SSE connection:', { error });
-            if (!res.headersSent) {
-                res.status(500).json({
-                    jsonrpc: '2.0',
-                    error: {
-                        code: -32603,
-                        message: 'Internal server error establishing SSE connection'
-                    },
-                    id: null
-                });
-            } else if (!res.writableEnded) {
-                res.end();
-            }
+            logger.error('Error establishing SSE connection', { error });
+            if (!res.headersSent && !res.destroyed) {
+                res.status(500).json({ jsonrpc: '2.0', error: { code: -32603, message: 'Internal server error establishing SSE connection' }, id: null });
+            } else if (!res.writableEnded) res.end();
+            await closeSession(info);
         }
     });
 
@@ -187,7 +188,7 @@ export function createSseRouter(_createServerInstance?: () => Promise<any>): exp
             return;
         }
 
-        const sessionInfo = activeSessions[sessionId];
+        const sessionInfo = activeSessions.get(sessionId);
         if (!sessionInfo || sessionInfo.owner !== currentSecurityContext().sessionId) {
             logger.warn(`POST /messages called with unknown sessionId: ${sessionId}`);
             res.status(404).json({
@@ -251,23 +252,10 @@ export function createSseRouter(_createServerInstance?: () => Promise<any>): exp
         }
     });
 
-    // Cleanup function for graceful shutdown
-    (router as any).cleanup = () => {
-        logger.info('Cleaning up SSE router...');
+    router.cleanup = async () => {
+        shuttingDown = true;
         clearInterval(cleanupInterval);
-
-        // Close all active sessions
-        for (const [sessionId, info] of Object.entries(activeSessions)) {
-            try {
-                info.transport.close();
-            } catch (error) {
-                logger.warn(`Error closing session ${sessionId} during cleanup:`, { error });
-            }
-        }
-
-        // Clear sessions
-        Object.keys(activeSessions).forEach(key => delete activeSessions[key]);
-        logger.info('SSE router cleanup completed');
+        await Promise.all([...allSessions].map(closeSession));
     };
 
     return router;

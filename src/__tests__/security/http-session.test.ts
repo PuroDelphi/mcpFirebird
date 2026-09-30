@@ -1,6 +1,7 @@
 import express from 'express';
+import { z } from 'zod';
 import request from 'supertest';
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { McpServer } from '@modelcontextprotocol/server';
 import { createStreamableHttpRouter } from '../../server/streamable-http.js';
 import { createBearerAuthMiddleware } from '../../server/http-security.js';
 import { securityConfig } from '../../security/config.js';
@@ -12,7 +13,7 @@ describe('OAuth identity through the actual MCP HTTP transport', () => {
         process.env.STREAMABLE_STATELESS_MODE = 'true';
         const create = jest.fn(async () => {
             const server = new McpServer({name:'isolated-test',version:'1'});
-            server.registerTool('identity', {inputSchema:{}}, async () => {
+            server.registerTool('identity', {inputSchema:z.object({})}, async () => {
                 await new Promise(resolve => setTimeout(resolve, 10));
                 return {content:[{type:'text',text:currentSecurityContext().sessionId}]};
             });
@@ -37,11 +38,11 @@ describe('OAuth identity through the actual MCP HTTP transport', () => {
         const authOriginal = securityConfig.authorization;
         const stateless = process.env.STREAMABLE_STATELESS_MODE;
         process.env.STREAMABLE_STATELESS_MODE = 'false';
-        securityConfig.authorization = {type:'oauth2',oauth2:{tokenVerifyUrl:'https://auth.example/introspect',clientId:'c',clientSecret:'s'}};
-        global.fetch = jest.fn().mockImplementation(async (_url, options) => ({ok:true,json:async()=>({active:true,sub:new URLSearchParams(options.body).get('token'),role:'analyst'})}));
+        securityConfig.authorization = {type:'oauth2',oauth2:{tokenVerifyUrl:'https://auth.example/introspect',clientId:'c',clientSecret:'s',resourceUrl:'https://mcp.example/mcp',authorizationServers:['https://auth.example']}};
+        global.fetch = jest.fn().mockImplementation(async (_url, options) => ({ok:true,json:async()=>({active:true,aud:'https://mcp.example/mcp',sub:new URLSearchParams(options.body).get('token'),role:'analyst'})}));
         const router = createStreamableHttpRouter(async () => {
             const server = new McpServer({name:'security-test',version:'1'});
-            server.registerTool('identity', {inputSchema:{}}, async () => ({content:[{type:'text',text:currentSecurityContext().user?.id || 'missing'}]}));
+            server.registerTool('identity', {inputSchema:z.object({})}, async () => ({content:[{type:'text',text:currentSecurityContext().user?.id || 'missing'}]}));
             return server;
         });
         const app = express();
