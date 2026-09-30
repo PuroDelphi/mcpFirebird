@@ -12,6 +12,7 @@
 - Isolate event subscribers and release listeners on disconnect
 - Retain dependency security fixes from stable 2.11.0; leave GitHub Actions disabled and exclude the proposed CI workflow
 - Isolate protocol test subprocesses from developer .env files and configured ports
+- Exclude local proof-of-concept files, test runners and manual smoke scripts from the npm runtime package
 - Preserve the authenticated root health endpoint; test real pure-JS Firebird events, subscriber isolation, cleanup and reconnect against a disposable Firebird 2.5.9 database
 - Require Node.js 20.19+ for SDK v2. Older runtimes should remain on stable 2.11.0 until upgraded; database drivers and SQL opt-in defaults are unchanged
 
