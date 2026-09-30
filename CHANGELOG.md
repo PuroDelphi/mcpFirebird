@@ -1,5 +1,21 @@
 # Changelog
 
+## [2.12.0-alpha.2] - 2026-09-30
+
+### Fixed
+- Fix #38: observe async driver promises as well as callbacks and wait for adapter cleanup before releasing/disconnecting an attachment.
+- Return query deadlines without disconnecting in-flight driver/BLOB work. Keep the attachment checked out until completion, then discard it once; never recycle it or process late results.
+- Drain concurrent BLOB reads before propagating failures so sibling reads cannot race attachment teardown.
+- Add strict-unhandled-rejection subprocess regressions covering late success, rejection and post-callback cleanup failure, plus subsequent successful queries through a one-slot pool.
+
+### Compatibility
+- Existing SQL policies, opt-in deadlines, HTTP compatibility defaults and Firebird driver selection are unchanged. Pending timed-out operations retain their pool slots until completion; this is not server-side cancellation, and timed-out writes must not be retried automatically.
+- Includes the MCP 2026 alpha changes below and requires Node.js 20.19+. Stable/latest remains unchanged. See [English security guide](docs/security.md) / [Spanish guide](docs/security.es.md).
+
+### Validation
+- 319 unit tests, 36 protocol/regression tests, compiled security smoke checks and TypeScript build passed on Node 24.14.1. Lint: no errors. Production dependency audit: zero vulnerabilities.
+- Strict Node subprocess regressions use controlled driver adapters, not a live native Firebird connection. Live integration could not be repeated for this patch because local Firebird port 3050 refused connections; the previous alpha's live results are not claimed for this patch.
+
 
 ## [2.12.0-alpha.1] - 2026-09-29
 

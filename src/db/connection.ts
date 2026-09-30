@@ -470,49 +470,37 @@ export const connectToDatabase = async (config = getDefaultConfig()): Promise<Fi
  * @returns {Promise<any[]>} Resultado de la consulta
  * @throws {FirebirdError} Error categorizado si la consulta falla
  */
-export const queryDatabase = (db: FirebirdDatabase, sql: string, params: any[] = []): Promise<any[]> => {
-    return new Promise((resolve, reject) => {
+export const queryDatabase = async (db: FirebirdDatabase, sql: string, params: any[] = []): Promise<any[]> => {
+    // Native adapters are async even though the public API is callback-based.
+    // Observe their returned promise and wait for finally/handle cleanup before
+    // allowing the caller to release or destroy this attachment (#38).
+    let complete!: (value: { err: Error | null; result: any }) => void;
+    const response = new Promise<{ err: Error | null; result: any }>(resolve => { complete = resolve; });
+    try {
         logger.info(`Ejecutando consulta: ${sql.substring(0, 100)}${sql.length > 100 ? '...' : ''}`);
-
-        db.query(sql, params, (err: Error | null, result: any) => {
-            if (err) {
-                // Categorizar el error para mejor manejo
-                let errorType = 'QUERY_ERROR';
-
-                // Intentar categorizar el error según su contenido
-                if (err.message.includes('syntax error')) {
-                    errorType = 'SYNTAX_ERROR';
-                } else if (err.message.includes('not defined')) {
-                    errorType = 'OBJECT_NOT_FOUND';
-                } else if (err.message.includes('permission')) {
-                    errorType = 'PERMISSION_ERROR';
-                } else if (err.message.includes('deadlock')) {
-                    errorType = 'DEADLOCK_ERROR';
-                } else if (err.message.includes('timeout')) {
-                    errorType = 'TIMEOUT_ERROR';
-                }
-
-                // Crear un error más informativo
-                const error = new FirebirdError(
-                    `Error executing query: ${err.message}`,
-                    errorType,
-                    err
-                );
-
-                logger.error(`${error.message} [${errorType}]`);
-                reject(error);
-                return;
-            }
-
-            // Si no hay resultados, devolver un array vacío
-            if (!result) {
-                result = [];
-            }
-
-            logger.info(`Consulta ejecutada exitosamente, ${result.length} filas obtenidas`);
-            resolve(result);
-        });
-    });
+        await db.query(sql, params, (err: Error | null, result: any) => complete({ err, result }));
+        const { err, result } = await response;
+        if (err) throw err;
+        logger.info(`Consulta ejecutada exitosamente, ${result?.length || 0} filas obtenidas`);
+        return result || [];
+    } catch (failure) {
+        const err = failure instanceof Error ? failure : new Error(String(failure));
+        let errorType = 'QUERY_ERROR';
+        if (err.message.includes('syntax error')) {
+            errorType = 'SYNTAX_ERROR';
+        } else if (err.message.includes('not defined')) {
+            errorType = 'OBJECT_NOT_FOUND';
+        } else if (err.message.includes('permission')) {
+            errorType = 'PERMISSION_ERROR';
+        } else if (err.message.includes('deadlock')) {
+            errorType = 'DEADLOCK_ERROR';
+        } else if (err.message.includes('timeout')) {
+            errorType = 'TIMEOUT_ERROR';
+        }
+        const error = new FirebirdError(`Error executing query: ${err.message}`, errorType, err);
+        logger.error(`${error.message} [${errorType}]`);
+        throw error;
+    }
 };
 
 /**

@@ -35,13 +35,20 @@ export async function resolveBlobFields(rows: any[]): Promise<any[]> {
     }
     if (blobKeys.size === 0) return rows;
 
-    return Promise.all(rows.map(async row => {
+    // Drain every started read before rejecting: otherwise a caller could
+    // disconnect while sibling BLOB callbacks still use the attachment.
+    const results = await Promise.allSettled(rows.map(async row => {
         const resolved = { ...row };
-        await Promise.all(Array.from(blobKeys).map(async key => {
+        const fields = await Promise.allSettled(Array.from(blobKeys).map(async key => {
             resolved[key] = await readBlobField(row[key]);
         }));
+        for (const field of fields) if (field.status === 'rejected') throw field.reason;
         return resolved;
     }));
+    return results.map(result => {
+        if (result.status === 'rejected') throw result.reason;
+        return result.value;
+    });
 }
 
 function isNativeBlob(value: any): boolean {

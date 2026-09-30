@@ -72,10 +72,28 @@ describe('real query boundary with mocked Firebird I/O', () => {
         await executeQuery('SELECT * FROM T');
         expect(releaseMock).toHaveBeenCalledTimes(1);
     });
-    it('discards timed-out connections rather than returning them to the pool', async () => {
+    it('keeps timed-out connections checked out until I/O settles, then discards them', async () => {
         securityConfig.queryTimeout = 10;
-        jest.mocked(queryDatabase).mockImplementation(() => new Promise(() => {}));
+        let finish!: (rows: any[]) => void;
+        const blob = jest.fn();
+        jest.mocked(queryDatabase).mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
         await expect(executeQuery('SELECT * FROM T')).rejects.toThrow('deadline');
+        expect(destroyMock).not.toHaveBeenCalled();
+        expect(releaseMock).not.toHaveBeenCalled();
+        finish([{ DATA: blob }]);
+        await new Promise(resolve => setTimeout(resolve, 0));
+        expect(destroyMock).toHaveBeenCalledTimes(1);
+        expect(releaseMock).not.toHaveBeenCalled();
+        expect(blob).not.toHaveBeenCalled();
+        await expect(executeQuery('SELECT * FROM T')).resolves.toEqual([{ ID: 1 }]);
+    });
+    it('observes a late query rejection after returning QUERY_TIMEOUT', async () => {
+        securityConfig.queryTimeout = 10;
+        let fail!: (error: Error) => void;
+        jest.mocked(queryDatabase).mockImplementationOnce(() => new Promise((_, reject) => { fail = reject; }));
+        await expect(executeQuery('SELECT * FROM T')).rejects.toMatchObject({ type: 'QUERY_TIMEOUT' });
+        fail(new Error('late driver failure'));
+        await new Promise(resolve => setTimeout(resolve, 0));
         expect(destroyMock).toHaveBeenCalledTimes(1);
         expect(releaseMock).not.toHaveBeenCalled();
     });
@@ -87,6 +105,19 @@ describe('real query boundary with mocked Firebird I/O', () => {
         resolveConnection({}); await new Promise(resolve => setTimeout(resolve, 0));
         expect(destroyMock).toHaveBeenCalledTimes(1);
         expect(queryDatabase).not.toHaveBeenCalled();
+    });
+    it('does not detach a connection while a timed-out BLOB stream is active', async () => {
+        const { EventEmitter } = await import('node:events');
+        const stream = new EventEmitter();
+        securityConfig.queryTimeout = 10;
+        jest.mocked(queryDatabase).mockResolvedValueOnce([{ DATA: (cb: any) => cb(null, 'DATA', stream) }]);
+        await expect(executeQuery('SELECT * FROM T')).rejects.toThrow('deadline');
+        expect(destroyMock).not.toHaveBeenCalled();
+        stream.emit('data', Buffer.from('late'));
+        stream.emit('end');
+        await new Promise(resolve => setTimeout(resolve, 0));
+        expect(destroyMock).toHaveBeenCalledTimes(1);
+        expect(releaseMock).not.toHaveBeenCalled();
     });
     it('returns more than 1000 rows and handles more than 100 queries without configured caps', async () => {
         const rows = Array.from({length:1200}, (_, ID) => ({ID}));
