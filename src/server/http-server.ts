@@ -5,6 +5,9 @@ import { toNodeHandler, toWebRequest } from '@modelcontextprotocol/node';
 import { createStreamableHttpRouter } from './streamable-http.js';
 import { createSseRouter } from './sse.js';
 import { withHttpEventSubscriptions } from './event-http.js';
+import { securityConfig } from '../security/config.js';
+import { ConfigError } from '../utils/errors.js';
+import { createLogger } from '../utils/logger.js';
 import {
     buildCorsOptions, createBearerAuthMiddleware, createRequestOriginMiddleware,
     createOAuthDiscoveryMiddleware, loadHttpSecurityConfig
@@ -12,13 +15,20 @@ import {
 
 /** Preserve sessionful 2025 clients while explicitly opting into the 2026 factory. */
 export function createHttpApplication(factory: McpServerFactory, config = loadHttpSecurityConfig(), options: { enableSSE?: boolean; enableStreamableHttp?: boolean; corsOptions?: cors.CorsOptions } = {}) {
+    if (config.mode === 'strict' && securityConfig.authorization?.type === 'oauth2' &&
+        (!securityConfig.authorization.oauth2?.resourceUrl || !securityConfig.authorization.oauth2.authorizationServers?.length)) {
+        throw new ConfigError('Strict HTTP security requires OAuth resourceUrl and authorizationServers.');
+    }
+    if (config.mode === 'compat') createLogger('server:http').warn('HTTP compatibility mode preserves historical network/CORS defaults. Use authentication and a trusted network; configure MCP_HTTP_SECURITY_MODE=strict for Host/Origin hardening.');
     const app = express();
     app.disable('x-powered-by');
     app.use(createRequestOriginMiddleware(config));
-    app.use(cors(options.corsOptions || buildCorsOptions(config.allowedOrigins.join(','))));
+    app.use(cors(options.corsOptions || buildCorsOptions(config.allowedOrigins.join(','), config.mode)));
     app.use(createOAuthDiscoveryMiddleware());
     app.use(express.json({ limit: '1mb' }));
     app.use(createBearerAuthMiddleware(process.env.FIREBIRD_API_KEY || process.env.FB_API_KEY));
+    // Keep the historical root health endpoint without exposing configuration.
+    app.get('/', (_req, res) => res.json({ status: 'healthy' }));
     const modern = createMcpHandler(factory, { legacy: 'reject', maxRequestBodySize: 1024 * 1024 });
     const modernNode = toNodeHandler(withHttpEventSubscriptions(modern));
     const legacyFactory = async () => {

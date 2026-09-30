@@ -2,21 +2,23 @@ import express from 'express';
 import cors from 'cors';
 import request from 'supertest';
 import { buildCorsOptions, createRequestOriginMiddleware } from '../../server/http-security.js';
-import { loadHttpSecurityConfig, parseHttpAuthority } from '../../security/config.js';
+import { loadHttpSecurityConfig as loadConfig, parseHttpAuthority } from '../../security/config.js';
+
+const loadHttpSecurityConfig = (env: NodeJS.ProcessEnv = {}) => loadConfig({ ...env, MCP_HTTP_SECURITY_MODE: 'strict' });
 
 describe('HTTP binding and DNS rebinding defenses', () => {
     function app(env: NodeJS.ProcessEnv = {}) {
         const result = express();
         result.set('trust proxy', true); // Forwarded values must still not bypass our checks.
         result.use(createRequestOriginMiddleware(loadHttpSecurityConfig(env)));
-        result.use(cors(buildCorsOptions(env.MCP_ALLOWED_ORIGIN || '')));
+        result.use(cors(buildCorsOptions(env.MCP_ALLOWED_ORIGIN || '', 'strict')));
         result.all('/mcp', (_req, res) => res.json({ ok: true }));
         return result;
     }
 
     it('defaults to loopback with a same-origin browser policy', () => {
         expect(loadHttpSecurityConfig({})).toEqual({
-            host: '127.0.0.1', allowedHosts: ['localhost', '127.0.0.1', '[::1]'], allowedOrigins: []
+            mode: 'strict', host: '127.0.0.1', allowedHosts: ['localhost', '127.0.0.1', '[::1]'], allowedOrigins: []
         });
     });
 

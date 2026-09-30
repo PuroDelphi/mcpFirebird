@@ -3,6 +3,9 @@ import test from 'node:test';
 import { once } from 'node:events';
 import { request as httpRequest } from 'node:http';
 import { spawn } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { Client, StreamableHTTPClientTransport, SSEClientTransport } from '@modelcontextprotocol/client';
 import { StdioClientTransport } from '@modelcontextprotocol/client/stdio';
 import { createMcpServerInstance } from '../dist/server/index.js';
@@ -12,6 +15,10 @@ import { securityConfig } from '../dist/security/config.js';
 
 process.env.LOG_LEVEL = 'error';
 process.env.USE_NATIVE_DRIVER = 'false';
+// Never import a developer's .env or bind a configured production port.
+process.env.DOTENV_CONFIG_PATH = join(tmpdir(), `mcp-test-${randomUUID()}.env`);
+process.env.PORT = '0';
+process.env.MCP_HTTP_SECURITY_MODE = 'strict';
 
 async function checkCatalog(client) {
     const { tools } = await client.listTools();
@@ -117,7 +124,7 @@ test('SDK 1.29 client remains compatible over HTTP', { timeout: 15000 }, async (
 
 test('real HTTP rejects rebinding and malformed modern headers before dispatch', { timeout: 10000 }, async () => {
     let created = 0;
-    const http = createHttpApplication(async ctx => { created++; return createMcpServerInstance(ctx); }, loadHttpSecurityConfig({ MCP_ALLOWED_ORIGIN: 'https://app.example' }));
+    const http = createHttpApplication(async ctx => { created++; return createMcpServerInstance(ctx); }, loadHttpSecurityConfig({ MCP_HTTP_SECURITY_MODE: 'strict', MCP_ALLOWED_ORIGIN: 'https://app.example' }));
     const listener = http.app.listen(0, '127.0.0.1'); await once(listener, 'listening');
     const base = `http://127.0.0.1:${listener.address().port}`;
     try {

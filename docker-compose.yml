@@ -33,6 +33,8 @@ services:
       FIREBIRD_API_KEY: my_secure_token_123
       # We recommend HTTP Streamable as the standard modern transport
       TRANSPORT_TYPE: http
+      # This development example explicitly opts into strict HTTP security.
+      MCP_HTTP_SECURITY_MODE: strict
       HTTP_HOST: 0.0.0.0
       MCP_ALLOW_REMOTE: "true"
       MCP_ALLOWED_HOSTS: ${MCP_ALLOWED_HOSTS:-localhost,127.0.0.1,mcp-firebird}

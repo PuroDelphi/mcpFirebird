@@ -4,7 +4,7 @@ import { buildCorsOptions, createBearerAuthMiddleware, tokensMatch } from '../..
 
 describe('HTTP security helpers', () => {
     it('defaults to same-origin browser access without browser credentials', () => {
-        expect(buildCorsOptions('')).toMatchObject({
+        expect(buildCorsOptions('', 'strict')).toMatchObject({
             origin: false,
             credentials: false
         });

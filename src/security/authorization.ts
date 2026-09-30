@@ -195,11 +195,11 @@ export async function verifyOAuth2Token(token: string): Promise<UserInfo> {
             (data.nbf !== undefined && (typeof data.nbf !== 'number' || !Number.isFinite(data.nbf) || data.nbf > now))) {
             throw new Error('Inactive or expired token');
         }
-        // Introspection "active" alone is not an audience check. Reject absent,
-        // malformed and foreign audiences; never fall back to the OAuth client ID.
+        // Legacy configurations retain introspection-only behavior. Once a
+        // resource is configured, fail closed: never fall back to legacy mode.
         const audiences = typeof data.aud === 'string' ? [data.aud] : data.aud;
-        if (!resourceUrl || !Array.isArray(audiences) || !audiences.every(audience => typeof audience === 'string') ||
-            !audiences.includes(resourceUrl)) throw new Error('Invalid token audience');
+        if (resourceUrl && (!Array.isArray(audiences) || !audiences.every(audience => typeof audience === 'string') ||
+            !audiences.includes(resourceUrl))) throw new Error('Invalid token audience');
         const scopes = typeof data.scope === 'string' ? data.scope.split(/\s+/) : [];
         const subject = data.sub || data.user_id;
         const role = data.role || (Array.isArray(data.roles) ? data.roles[0] : undefined);

@@ -40,14 +40,16 @@ export function parseHttpOrigin(origin: string): string | undefined {
 }
 
 export interface HttpSecurityConfig {
+    mode: 'compat' | 'strict';
     host: string;
     allowedHosts: string[];
     /** Additional browser origins; the request's own origin is always permitted. */
     allowedOrigins: string[];
 }
 
-export function parseAllowedOrigins(value?: string): string[] {
-    if (!value?.trim()) return [];
+export function parseAllowedOrigins(value?: string, mode: HttpSecurityConfig['mode'] = 'strict'): string[] {
+    if (!value?.trim()) return mode === 'compat' ? ['*'] : [];
+    if (value.trim() === '*' && mode === 'compat') return ['*'];
     return [...new Set(value.split(',').map(item => {
         const origin = parseHttpOrigin(item.trim());
         if (!origin) throw new ConfigError('MCP_ALLOWED_ORIGIN must contain exact http(s) origins, without paths or wildcards.');
@@ -57,17 +59,19 @@ export function parseAllowedOrigins(value?: string): string[] {
 
 /** HTTP-only settings: STDIO and database policy loading do not depend on these. */
 export function loadHttpSecurityConfig(env: NodeJS.ProcessEnv = process.env): HttpSecurityConfig {
-    let host = env.HTTP_HOST?.trim() || '127.0.0.1';
+    const mode = env.MCP_HTTP_SECURITY_MODE || 'compat';
+    if (mode !== 'compat' && mode !== 'strict') throw new ConfigError('MCP_HTTP_SECURITY_MODE must be compat or strict.');
+    let host = env.HTTP_HOST?.trim() || (mode === 'strict' ? '127.0.0.1' : '0.0.0.0');
     if (host.startsWith('[') && host.endsWith(']')) host = host.slice(1, -1);
     if (!isIP(host) && !/^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?)(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?)*$/.test(host)) {
         throw new ConfigError('HTTP_HOST must be an IP address or hostname, without a scheme, port or path.');
     }
     const remote = !isLoopbackHost(host);
-    if (remote && env.MCP_ALLOW_REMOTE !== 'true') {
+    if (remote && (mode === 'strict' ? env.MCP_ALLOW_REMOTE !== 'true' : env.MCP_ALLOW_REMOTE === 'false')) {
         throw new ConfigError('Non-loopback HTTP_HOST requires MCP_ALLOW_REMOTE=true and MCP_ALLOWED_HOSTS.');
     }
     const configuredHosts = env.MCP_ALLOWED_HOSTS?.trim();
-    if (remote && !configuredHosts) throw new ConfigError('Remote HTTP exposure requires an explicit MCP_ALLOWED_HOSTS list.');
+    if (mode === 'strict' && remote && !configuredHosts) throw new ConfigError('Remote HTTP exposure requires an explicit MCP_ALLOWED_HOSTS list.');
     const allowedHosts = configuredHosts ? configuredHosts.split(',').map(item => {
         const value = item.trim();
         const parsed = parseHttpAuthority(value);
@@ -76,8 +80,8 @@ export function loadHttpSecurityConfig(env: NodeJS.ProcessEnv = process.env): Ht
             throw new ConfigError('MCP_ALLOWED_HOSTS must contain exact hostnames or IP addresses without ports or wildcards; bracket IPv6 addresses.');
         }
         return parsed.hostname;
-    }) : ['localhost', '127.0.0.1', '[::1]', isIP(host) === 6 ? `[${host}]` : host.toLowerCase()];
-    return { host, allowedHosts: [...new Set(allowedHosts)], allowedOrigins: parseAllowedOrigins(env.MCP_ALLOWED_ORIGIN) };
+    }) : mode === 'strict' ? ['localhost', '127.0.0.1', '[::1]', isIP(host) === 6 ? `[${host}]` : host.toLowerCase()] : [];
+    return { mode, host, allowedHosts: [...new Set(allowedHosts)], allowedOrigins: parseAllowedOrigins(env.MCP_ALLOWED_ORIGIN, mode) };
 }
 
 const httpsEndpoint = z.string().url().refine(value => {
@@ -136,10 +140,11 @@ export const AuthorizationSchema = z.object({
         tokenVerifyUrl: httpsEndpoint,
         clientId: z.string().min(1),
         clientSecret: z.string().min(1),
-        resourceUrl: resourceIdentifier,
-        authorizationServers: z.array(authorizationServerIdentifier).min(1),
+        resourceUrl: resourceIdentifier.optional(),
+        authorizationServers: z.array(authorizationServerIdentifier).min(1).optional(),
         scope: oauthScope.optional()
-    }).strict().optional(),
+    }).strict().refine(value => Boolean(value.resourceUrl) === Boolean(value.authorizationServers),
+        'Configure resourceUrl and authorizationServers together').optional(),
     rolePermissions: z.record(z.string(), z.object({
         tables: z.array(z.string()).optional(),
         allTablesAllowed: z.boolean().optional(),
@@ -181,7 +186,7 @@ function parsePolicy(value: unknown): SecurityConfig {
     const result = PolicySchema.safeParse(value);
     if (!result.success) {
         if (result.error.issues.some(issue => issue.path.includes('authorization'))) {
-            throw new ConfigError('Invalid authorization configuration. OAuth2 requires an HTTPS tokenVerifyUrl, clientId, clientSecret, a canonical MCP resourceUrl, and at least one HTTPS authorizationServers issuer URL; scope must contain valid OAuth scope tokens.');
+            throw new ConfigError('Invalid authorization configuration. OAuth2 requires an HTTPS tokenVerifyUrl, clientId and clientSecret. Configure a canonical resourceUrl and HTTPS authorizationServers together to enable audience validation and discovery; scope must contain valid OAuth scope tokens.');
         }
         throw new ConfigError('Security configuration must contain valid security/sql objects with supported policy fields.');
     }
@@ -225,6 +230,9 @@ export function loadSecurityConfig(configPath?: string): SecurityConfig {
 export const securityConfig: SecurityConfig = structuredClone(DEFAULT_SECURITY_CONFIG);
 export function initSecurityConfig(configPath?: string): void {
     const config = loadSecurityConfig(configPath);
+    if (config.authorization?.type === 'oauth2' && !config.authorization.oauth2?.resourceUrl) {
+        logger.warn('Legacy OAuth introspection has no local audience validation or discovery. Configure oauth2.resourceUrl and authorizationServers to enable both.');
+    }
     if (config.authorization?.type === 'basic' && !process.env.FIREBIRD_API_KEY) {
         throw new ConfigError('Basic authorization requires FIREBIRD_API_KEY.');
     }

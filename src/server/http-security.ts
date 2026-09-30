@@ -9,11 +9,11 @@ import { securityContext } from '../security/context.js';
 export { loadHttpSecurityConfig } from '../security/config.js';
 export type { HttpSecurityConfig } from '../security/config.js';
 
-export function buildCorsOptions(allowedOrigin = process.env.MCP_ALLOWED_ORIGIN): cors.CorsOptions {
-    const origins = parseAllowedOrigins(allowedOrigin);
+export function buildCorsOptions(allowedOrigin = process.env.MCP_ALLOWED_ORIGIN, mode: HttpSecurityConfig['mode'] = 'compat'): cors.CorsOptions {
+    const origins = parseAllowedOrigins(allowedOrigin, mode);
 
     return {
-        // Same-origin clients need no CORS headers. Cross-origin access is opt-in.
+        // Compatibility keeps wildcard non-cookie CORS; strict is same-origin.
         origin: origins.length === 0 ? false : origins.length === 1 ? origins[0] : origins,
         methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
         allowedHeaders: [
@@ -31,9 +31,9 @@ export function createRequestOriginMiddleware(config: HttpSecurityConfig = loadH
     const allowedOrigins = new Set(config.allowedOrigins);
     return (req, res, next) => {
         const host = req.headers.host && parseHttpAuthority(req.headers.host);
-        if (!host || !allowedHosts.has(host.hostname)) return res.status(403).json({ error: 'Invalid Host header' });
+        if (!host || ((config.mode === 'strict' || allowedHosts.size > 0) && !allowedHosts.has(host.hostname))) return res.status(403).json({ error: 'Invalid Host header' });
         const originHeader = req.headers.origin;
-        if (originHeader !== undefined) {
+        if (originHeader !== undefined && !(config.mode === 'compat' && allowedOrigins.has('*'))) {
             const origin = parseHttpOrigin(originHeader);
             // X-Forwarded-Host/Proto are deliberately not trusted. A TLS-terminating
             // reverse proxy deployment must list its HTTPS origin explicitly.
@@ -59,7 +59,7 @@ export function createOAuthDiscoveryMiddleware(): RequestHandler {
     return (req, res, next) => {
         const authorization = securityConfig.authorization;
         const oauth = authorization?.type === 'oauth2' ? authorization.oauth2 : undefined;
-        if (!oauth || !['GET', 'HEAD'].includes(req.method)) return next();
+        if (!oauth?.resourceUrl || !oauth.authorizationServers || !['GET', 'HEAD'].includes(req.method)) return next();
         const metadataPath = new URL(getOAuthResourceMetadataUrl(oauth.resourceUrl)).pathname;
         if (req.path !== metadataPath && req.path !== resourceMetadataPrefix) return next();
         const metadata = {
@@ -77,7 +77,7 @@ export function createOAuthDiscoveryMiddleware(): RequestHandler {
 function oauthChallenge(error?: 'invalid_token' | 'insufficient_scope'): string {
     const oauth = securityConfig.authorization?.oauth2;
     const parameters: string[] = [];
-    if (oauth) {
+    if (oauth?.resourceUrl) {
         parameters.push(`resource_metadata="${getOAuthResourceMetadataUrl(oauth.resourceUrl)}"`);
         if (oauth.scope) parameters.push(`scope="${oauth.scope}"`);
     }

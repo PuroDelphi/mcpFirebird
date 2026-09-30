@@ -1,6 +1,6 @@
 [![Verified on MseeP](https://mseep.ai/badge.svg)](https://mseep.ai/app/1cb2bb07-00f4-4579-b535-1b9de9b451e9)
 
-> **Alpha migration:** MCP 2026-07-28 and SDK v2 are supported alongside 2025 clients. HTTP now binds to loopback by default; remote exposure and browser origins require explicit configuration. See the [migration guide](docs/mcp-2026-migration.md) before upgrading. Node.js 20.19+ is required.
+> **Alpha migration:** MCP 2026-07-28 and SDK v2 are supported alongside 2025 clients. Historical HTTP/CORS/OAuth configurations remain supported by default; opt into HTTP hardening with `MCP_HTTP_SECURITY_MODE=strict`. See the [migration guide](docs/mcp-2026-migration.md), including the security trade-offs, before upgrading. **Node.js 20.19+ is required** by the new SDK; older Node runtimes must stay on stable 2.11.0 until upgraded.
 
 # MCP Firebird
 
@@ -365,7 +365,9 @@ export MCP_ALLOWED_ORIGIN="https://myapp.com,https://localhost:3000"
 npx mcp-firebird --transport-type sse
 ```
 
-Raw SQL writes are disabled by default. `2.11.0-alpha.3` preserves the historical `ALLOW_RAW_SQL=true` switch for writes, including DDL, without requiring new flags. Explicitly configured operation/table/row/masking/role restrictions and `sql.allowDDL=false` are never bypassed by that switch. See the [security guide](./docs/security.md) for opt-in controls and the structured `get-table-data` filter format.
+**Stable 2.11.0 includes all security and compatibility improvements from 2.11.0-alpha.1 through alpha.4**, including inline JSON configuration and the EXTRACT/SUBSTRING/TRIM parsing fix. Install with `npm install -g mcp-firebird@latest`, or pin `mcp-firebird@2.11.0`. Existing policies containing previously dormant settings now enforce them; review the [migration guide](./docs/security.md#important-migration-notice).
+
+Raw SQL writes are disabled by default. `2.11.0` preserves the historical `ALLOW_RAW_SQL=true` switch for writes, including DDL, without requiring new flags. Explicitly configured operation/table/row/masking/role restrictions and `sql.allowDDL=false` are never bypassed by that switch. See the [security guide](./docs/security.md) for opt-in controls and the structured `get-table-data` filter format.
 
 Custom security files can be loaded with `--security-config /absolute/path/security-config.json` or the `FIREBIRD_SECURITY_CONFIG` environment variable. `SECURITY_CONFIG` and `SECURITY_CONFIG_PATH` are fallback aliases, in that order; the CLI option takes precedence over environment variables. Use a JSON object such as `{"security":{"allowedTables":["EMPLOYEES"],"allowedOperations":["SELECT"],"maxRows":100}}`. Trusted CommonJS files are also supported. Restart after changing the policy and check for `Loaded security configuration from ...`. Starting with `2.11.0-alpha.2`, invalid or missing selected files stop initialization instead of silently applying defaults. See the [security guide](./docs/security.md).
 
