@@ -233,31 +233,30 @@ export class ConnectionPool {
     }
 
     /**
-     * Cheap read-only liveness probe. Resolves false on any error or timeout so
-     * a dead/stale socket is never handed back to a caller.
+     * Cheap read-only liveness probe. Like user queries, native probes must
+     * finish their async cleanup before reuse or disposal (#38, #39).
+     * A timed-out probe keeps its pool slot until the driver settles, but does
+     * not prevent acquire() from trying another available connection.
      */
-    private _probe(db: FirebirdDatabase): Promise<boolean> {
-        return new Promise((resolve) => {
-            let settled = false;
-            const done = (ok: boolean) => {
-                if (settled) return;
-                settled = true;
-                resolve(ok);
-            };
-            const timer = setTimeout(() => {
-                logger.warn('Probe de conexión agotó el tiempo de espera, descartando conexión');
-                done(false);
-            }, PROBE_TIMEOUT_MS);
-            try {
-                db.query(PROBE_SQL, [], (err: Error | null) => {
-                    clearTimeout(timer);
-                    done(!err);
-                });
-            } catch (err) {
-                clearTimeout(timer);
-                done(false);
-            }
+    private async _probe(db: FirebirdDatabase): Promise<boolean> {
+        let expired = false;
+        let timer: NodeJS.Timeout | undefined;
+        // Observe late failures and reserve the connection until all native
+        // handle cleanup has drained. destroy() also wakes a queued acquire.
+        const work = queryDatabase(db, PROBE_SQL).then(() => true, () => false).then(alive => {
+            if (expired) this.destroy(db);
+            return alive;
         });
+        const alive = await Promise.race([work, new Promise<boolean>(resolve => {
+            timer = setTimeout(() => {
+                expired = true;
+                logger.warn('Probe de conexión agotó el tiempo de espera; cierre diferido hasta finalizar la operación');
+                resolve(false);
+            }, PROBE_TIMEOUT_MS);
+        })]);
+        if (timer) clearTimeout(timer);
+        if (!alive && !expired) this._hardDetach(db);
+        return alive;
     }
 
     /**
@@ -298,7 +297,6 @@ export class ConnectionPool {
             const alive = await this._probe(db);
             if (!alive) {
                 logger.warn('Conexión del pool no superó el probe, descartándola');
-                this._hardDetach(db);
                 continue;
             }
 

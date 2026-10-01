@@ -144,6 +144,8 @@ La frecuencia utiliza un cubo de tokens con ráfaga inicial `burstLimit` y repos
 
 ### Configurar el timeout de las consultas
 
+Los probes de conexión del pool también esperan la limpieza asíncrona del driver antes de reutilizar o descartar una conexión (#39). Su plazo independiente de cinco segundos reserva esa conexión para cerrarla cuando termine el trabajo pendiente, sin desconectar operaciones en curso. Las demás plazas disponibles del pool pueden seguir atendiendo peticiones. Si todas están ocupadas, las peticiones esperan y sigue aplicándose su timeout configurado. El plazo del probe no cancela SQL en el servidor.
+
 Desde **2.12.0-alpha.3**, `QUERY_TIMEOUT` se lee al inicializar la seguridad. Antes aparecía en ejemplos pero no se aplicaba. Esta versión activa los valores no vacíos que ya existan, incluido `30000` en los ejemplos de entorno/Compose; revísalos al actualizar. Sin ninguno de los ajustes de timeout no se impone un plazo.
 
 Elige una de estas opciones y conserva el resto de tu conexión y políticas:
