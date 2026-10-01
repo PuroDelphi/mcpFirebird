@@ -75,10 +75,129 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+    jest.useRealTimers();
     jest.clearAllMocks();
 });
 
 describe('ConnectionPool self-healing', () => {
+    test.each([false, true])('waits for native probe cleanup after callback (failure=%s)', async failure => {
+        const pool = new ConnectionPool(config, 1, 60000);
+        const db = await pool.acquire() as FakeDb;
+        pool.release(db);
+        let finish!: () => void;
+        db.query = async (_sql, _params, callback) => {
+            callback(failure ? new Error('probe failed') : null, []);
+            await new Promise<void>(resolve => { finish = resolve; });
+            expect(db.detached).toBe(false);
+        };
+        let acquired = false;
+        const pending = pool.acquire().then(value => { acquired = true; return value; });
+        await new Promise(resolve => setImmediate(resolve));
+        expect(acquired).toBe(false);
+        expect(db.detached).toBe(false);
+        finish();
+        const next = await pending;
+        expect(next === db).toBe(!failure);
+        expect(db.detached).toBe(failure);
+        pool.release(next);
+        await pool.destroyAll();
+    });
+
+    test.each([false, true])('observes native probe rejection (callback first=%s)', async callbackFirst => {
+        const pool = new ConnectionPool(config, 1, 60000);
+        const db = await pool.acquire() as FakeDb;
+        pool.release(db);
+        db.query = async (_sql, _params, callback) => {
+            if (callbackFirst) callback(null, []);
+            throw new Error('probe cleanup rejected');
+        };
+        const next = await pool.acquire();
+        expect(next).not.toBe(db);
+        expect(db.detached).toBe(true);
+        pool.release(next);
+        await pool.destroyAll();
+    });
+
+    test.each(['success', 'rejection'])('timed-out probe reserves its only slot until late %s', async outcome => {
+        jest.useFakeTimers();
+        const pool = new ConnectionPool(config, 1, 60000);
+        const db = await pool.acquire() as FakeDb;
+        pool.release(db);
+        let finish!: () => void;
+        db.query = async (_sql, _params, callback) => {
+            await new Promise<void>(resolve => { finish = resolve; });
+            expect(db.detached).toBe(false);
+            if (outcome === 'rejection') throw new Error('late probe rejection');
+            callback(null, []);
+        };
+        let acquired = false;
+        const pending = pool.acquire().then(value => { acquired = true; return value; });
+        await jest.advanceTimersByTimeAsync(5000);
+        expect(acquired).toBe(false);
+        expect(db.detached).toBe(false);
+        expect(created).toHaveLength(1);
+        finish();
+        const next = await pending;
+        expect(next).not.toBe(db);
+        expect(db.detached).toBe(true);
+        expect(created).toHaveLength(2);
+        pool.release(next);
+        await pool.destroyAll();
+    });
+
+    test('timed-out probe does not block other pool capacity or exceed its limit', async () => {
+        jest.useFakeTimers();
+        const pool = new ConnectionPool(config, 2, 60000);
+        const db = await pool.acquire() as FakeDb;
+        pool.release(db);
+        let finish!: () => void;
+        db.query = async (_sql, _params, callback) => {
+            await new Promise<void>(resolve => { finish = resolve; });
+            expect(db.detached).toBe(false);
+            callback(null, []);
+        };
+        const pending = pool.acquire();
+        await jest.advanceTimersByTimeAsync(5000);
+        const next = await pending;
+        expect(next).not.toBe(db);
+        expect(db.detached).toBe(false);
+        let thirdAcquired = false;
+        const third = pool.acquire().then(value => { thirdAcquired = true; return value; });
+        await jest.advanceTimersByTimeAsync(0);
+        expect(thirdAcquired).toBe(false);
+        expect(created).toHaveLength(2);
+        finish();
+        const replacement = await third;
+        expect(created).toHaveLength(3);
+        expect(db.detached).toBe(true);
+        pool.release(next);
+        pool.release(replacement);
+        await pool.destroyAll();
+    });
+
+    test('shutdown does not disconnect a timed-out probe until cleanup completes', async () => {
+        jest.useFakeTimers();
+        const pool = new ConnectionPool(config, 1, 60000);
+        const db = await pool.acquire() as FakeDb;
+        pool.release(db);
+        let finish!: () => void;
+        db.query = async (_sql, _params, callback) => {
+            await new Promise<void>(resolve => { finish = resolve; });
+            expect(db.detached).toBe(false);
+            callback(null, []);
+        };
+        const pending = pool.acquire();
+        const rejected = expect(pending).rejects.toThrow('shutting down');
+        await jest.advanceTimersByTimeAsync(5000);
+        await pool.destroyAll();
+        await rejected;
+        expect(db.detached).toBe(false);
+        finish();
+        await jest.advanceTimersByTimeAsync(0);
+        expect(db.detached).toBe(true);
+        expect(created).toHaveLength(1);
+    });
+
     test('reuses a healthy pooled connection after probe passes', async () => {
         const pool = new ConnectionPool(config, 5, 60000);
 

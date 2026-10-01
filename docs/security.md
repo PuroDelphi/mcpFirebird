@@ -167,6 +167,8 @@ Rate limiting uses a token bucket, initially filled to `burstLimit`, refilling a
 
 ### Configuring the query timeout
 
+Pool liveness probes also wait for the driver's asynchronous cleanup before reusing or discarding an attachment (#39). A probe's separate five-second deadline reserves that attachment for disposal when its pending work finishes; it does not disconnect in-flight I/O. Other available pool capacity can still serve requests. If all slots are occupied, callers wait and their configured query deadline still applies. The probe deadline is not server-side SQL cancellation.
+
 Starting in **2.12.0-alpha.3**, `QUERY_TIMEOUT` is read at security initialization. Earlier versions listed it in examples but did not apply it. This release activates existing nonempty values, including the `30000` value in the environment/Compose examples; review them when upgrading. No timeout is imposed when all timeout settings are absent.
 
 Choose either of these methods, retaining your other connection and security settings:
