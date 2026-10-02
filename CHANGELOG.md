@@ -1,5 +1,24 @@
 # Changelog
 
+## [2.12.0-alpha.5] - 2026-10-02
+
+### Fixed
+- Address #41 through PR #42: distinguish derived `FROM (SELECT ...)`, `JOIN (SELECT ...)` and named-column `JOIN ... USING (...)` syntax from routine calls. Check nested sources/functions instead of globally allowlisting SQL keywords.
+- Keep catalog/routine denials effective for nested queries, comma sources hidden behind quoted aliases, and package-qualified names resembling builtins. Table, row, masking and role policies retain their conservative single-table boundary.
+- Include the previously merged PR #40: drain asynchronous pooled-connection probe cleanup before disconnecting; retain busy attachments until cleanup completes, including probe deadlines and late failures.
+
+### Regression prevention
+- Add 151 unit cases from PR #42 and a further 230-case syntax/policy matrix covering formatting, comments, quoted identifiers, nesting, the reporter's empty-denylist policy, forbidden constructs and subsequently populated denylists. Retain #36 EXTRACT/SUBSTRING/TRIM coverage and query-boundary checks that preserve SQL/parameters and reject before connection acquisition.
+- Add `npm run verify:release` and a local `prepublishOnly` gate: typecheck, fresh build, lint error checks, all unit/protocol tests and compiled security smoke checks. Limit Jest discovery to `src` to exclude temporary review snapshots. GitHub Actions remains disabled.
+- Expand the opt-in live Firebird smoke test with derived sources, JOIN ON/USING, parameters, nested catalog denial and the populated-denylist boundary.
+- Refresh only the locked transitive Hono dependency from 4.13.5 to 4.13.12, addressing [GHSA-hxh3-vqpv-xpqv](https://github.com/advisories/GHSA-hxh3-vqpv-xpqv). Firebird drivers and direct dependency ranges are unchanged.
+
+### Compatibility and validation
+- No new setting is required: keep the existing connection/security configuration and restart after upgrading. An empty `forbiddenTables` list does not activate table scoping; a nonempty list does. Complex queries with scoped policies still require a database-enforced view. Do not disable required controls to bypass this limit. See the [English](docs/security.md) / [Spanish](docs/security.es.md) guides.
+- Default behavior, opt-in security controls and Node.js 20.19+ requirements are unchanged. This is an alpha release; stable/latest stays at 2.11.0. The parser remains a deliberately limited subset, not a guarantee of support for all Firebird SQL.
+- Validation: 735 unit tests, 88 protocol/regression tests (no skips), compiled security smoke checks, build, typecheck and lint error checks passed. Live integration passed on a disposable Firebird 2.5.9 database with the pure-JS driver, including #36/#41 queries, filtering/masking, auditing and real event delivery/reconnect. This does not claim live native-driver or other Firebird-version coverage.
+- Production dependency audit: zero known vulnerabilities after the Hono refresh. The full development tree still reports three advisory groups in build/test dependencies; those are not installed as this package's production dependencies and are outside this SQL fix.
+
 ## [2.12.0-alpha.4] - 2026-09-30
 
 ### Fixed

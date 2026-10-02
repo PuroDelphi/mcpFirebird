@@ -50,6 +50,30 @@ try {
     assert.deepEqual(await executeQuery('SELECT TRIM(BOTH FROM SUBSTRING(T.NAME FROM (1) FOR (7))) AS NAME FROM MY_TABLE T',[],config),[{NAME:'abc'}]);
     await assert.rejects(executeQuery('SELECT EXTRACT(MONTH FROM T.CREATED_AT) FROM PRIVATE_DATA T',[],config));
     reset();
+    // Issue #41: execute derived sources through the real query boundary under
+    // the reporter's empty-denylist policy, without disabling conservative SQL.
+    Object.assign(securityConfig, {
+        allowedOperations:['SELECT','EXECUTE'],
+        forbiddenOperations:['DROP','TRUNCATE','ALTER','INSERT','UPDATE','DELETE','GRANT','REVOKE'],
+        forbiddenTables:[],
+        resourceLimits:{maxRowsPerQuery:1000,maxQueryCpuTime:30000},
+        sql:{allowSystemTables:false,allowDDL:false,allowUnsafeQueries:false}
+    });
+    const derivedSql = 'SELECT * FROM (SELECT ID, NAME FROM MY_TABLE WHERE ID = ?) T';
+    const derivedRows = await executeQuery(derivedSql,[1],config);
+    assert.equal(derivedRows.length,1);
+    assert.equal(derivedRows[0].ID,1);
+    assert.equal(derivedRows[0].NAME.trim(),'abc');
+    for (const joinCondition of ['ON C.ID = T.ID','USING (ID)']) {
+        const rows = await executeQuery(`SELECT T.ID, C.I_COUNT FROM MY_TABLE T JOIN (SELECT ID, COUNT(ID) AS I_COUNT FROM PUBLIC_DATA GROUP BY ID) C ${joinCondition} ORDER BY T.ID`,[],config);
+        assert.deepEqual(rows,[{ID:1,I_COUNT:1},{ID:2,I_COUNT:1}]);
+    }
+    assert.deepEqual(await executeQuery('SELECT * FROM /* source */ (SELECT EXTRACT(MONTH FROM CREATED_AT) AS MON FROM MY_TABLE WHERE ID = ?) T',[1],config),[{MON:9}]);
+    await assert.rejects(executeQuery('SELECT * FROM (SELECT * FROM RDB$RELATIONS) R',[],config),/System table/);
+    securityConfig.forbiddenTables=['PRIVATE_DATA'];
+    await assert.rejects(executeQuery(derivedSql,[1],config));
+    console.log('PASS: issue #41 derived sources, JOIN ON/USING, parameters, nested catalog denial and populated-denylist boundary');
+    reset();
     // Default compatibility: catalog, opaque functions, stored procedures,
     // joins and long-lived sessions work without enabling advanced controls.
     delete process.env.ALLOW_RAW_SQL;

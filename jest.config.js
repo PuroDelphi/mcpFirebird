@@ -1,6 +1,8 @@
 export default {
   preset: 'ts-jest',
   testEnvironment: 'node',
+  // Never discover copied tests inside ignored review snapshots or npm caches.
+  roots: ['<rootDir>/src'],
   setupFilesAfterEnv: ['<rootDir>/src/__tests__/setup/jest.setup.js'],
   testMatch: ['**/__tests__/**/*.test.ts'],
   moduleFileExtensions: ['ts', 'js'],
