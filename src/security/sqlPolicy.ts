@@ -76,6 +76,39 @@ function functionArgumentSeparators(tokens: Token[]): Set<number> {
     return separators;
 }
 
+/** Recognize only the derived-source shape we can keep checking token by token. */
+function isDerivedRelation(tokens: Token[], index: number): boolean {
+    const token = tokens[index];
+    return token.kind === 'word' && ['FROM', 'JOIN'].includes(token.value) &&
+        tokens[index - 1]?.value !== '.' && tokens[index + 1]?.kind === 'symbol' &&
+        tokens[index + 1]?.value === '(' && tokens[index + 2]?.kind === 'word' &&
+        tokens[index + 2]?.value === 'SELECT';
+}
+
+/** USING is join syntax only for a simple column list after a same-level JOIN. */
+function isJoinColumnList(tokens: Token[], index: number): boolean {
+    const token = tokens[index];
+    if (token.kind !== 'word' || token.value !== 'USING' || tokens[index - 1]?.value === '.' ||
+        tokens[index + 1]?.kind !== 'symbol' || tokens[index + 1]?.value !== '(') return false;
+    let joined = false;
+    for (let i = index - 1; i >= 0 && tokens[i].depth >= token.depth; i--) {
+        const previous = tokens[i];
+        if (previous.depth !== token.depth || previous.kind !== 'word') continue;
+        if (previous.value === 'JOIN') { joined = true; break; }
+        if (['SELECT', 'FROM', 'WHERE', 'GROUP', 'ORDER', 'HAVING', 'ROWS', 'UNION', 'PLAN', 'ON', 'USING'].includes(previous.value)) return false;
+    }
+    if (!joined) return false;
+    let needColumn = true;
+    for (let i = index + 2; i < tokens.length; i++) {
+        const column = tokens[i];
+        if (column.kind === 'symbol' && column.value === ')' && column.depth === token.depth) return !needColumn;
+        if (column.depth !== token.depth + 1) return false;
+        if (needColumn ? !['word', 'quoted'].includes(column.kind) : column.kind !== 'symbol' || column.value !== ',') return false;
+        needColumn = !needColumn;
+    }
+    return false;
+}
+
 export function prepareUserQuery(sql: string): PreparedQuery {
     const policy = securityConfig.sql;
     const restricted = !!(securityConfig.allowedTables || securityConfig.forbiddenTables?.length || securityConfig.tableNamePattern ||
@@ -129,7 +162,10 @@ export function prepareUserQuery(sql: string): PreparedQuery {
         const t = tokens[i];
         // INSERT's column list is not a function call.
         if (tokens[i - 1]?.value === 'INTO' || argumentSeparators.has(i)) continue;
-        if (['word', 'quoted'].includes(t.kind) && tokens[i + 1].value === '(' && (t.kind === 'quoted' || !READ_FUNCTIONS.has(t.value))) {
+        // Syntax exemptions never skip the nested query/function tokens.
+        if (isDerivedRelation(tokens, i) || isJoinColumnList(tokens, i)) continue;
+        if (['word', 'quoted'].includes(t.kind) && tokens[i + 1].value === '(' &&
+            (t.kind === 'quoted' || tokens[i - 1]?.value === '.' || !READ_FUNCTIONS.has(t.value))) {
             if (restricted || catalogRestricted || !policy?.allowUnsafeQueries || process.env.ALLOW_RAW_SQL !== 'true') deny('Unrecognized SQL function requires an unrestricted trusted-query policy');
             checkAllowedOperation('EXECUTE');
         }
@@ -140,22 +176,23 @@ export function prepareUserQuery(sql: string): PreparedQuery {
         if (t.kind !== 'word' || !['FROM', 'JOIN', 'INTO', 'UPDATE', 'TABLE'].includes(t.value)) continue;
         if (argumentSeparators.has(i)) continue;
         if (t.value === 'UPDATE' && operation !== 'UPDATE') continue;
+        // Check every source, including derived sources, before any early continue.
+        // Otherwise an unparsed comma relation could escape catalog authorization.
+        if (t.value === 'FROM' || t.value === 'JOIN') {
+            for (let j = i + 2; j < tokens.length && tokens[j].depth >= t.depth; j++) {
+                if (tokens[j].depth !== t.depth) continue;
+                if (tokens[j].kind === 'word' && ['WHERE', 'GROUP', 'ORDER', 'HAVING', 'ROWS', 'UNION', 'PLAN'].includes(tokens[j].value)) break;
+                if (tokens[j].kind === 'symbol' && tokens[j].value === ',') deny('Comma joins are not supported; use explicit JOIN syntax');
+            }
+        }
         const next = tokens[i + 1];
         if (!next || !['word', 'quoted'].includes(next.kind)) {
-            if (t.value === 'FROM' && next?.value === '(' && !restricted) continue;
+            if (isDerivedRelation(tokens, i) && !restricted) continue;
             deny('Unsupported relation expression');
         }
         if (tokens[i + 2]?.value === '.') deny('Qualified relation names are not supported');
         if (tokens[i + 2]?.value === '(' && t.value !== 'INTO' && t.value !== 'TABLE') deny('Selectable procedures require a dedicated trusted database view');
         relations.push(next);
-        // Reject comma joins; otherwise a second relation could escape authorization.
-        if (t.value === 'FROM' || t.value === 'JOIN') {
-            for (let j = i + 2; j < tokens.length && tokens[j].depth >= t.depth; j++) {
-                if (tokens[j].depth !== t.depth) continue;
-                if (['WHERE', 'GROUP', 'ORDER', 'HAVING', 'ROWS', 'UNION', 'PLAN'].includes(tokens[j].value)) break;
-                if (tokens[j].value === ',') deny('Comma joins are not supported; use explicit JOIN syntax');
-            }
-        }
     }
     for (const relation of relations) {
         const name = relation.value;
