@@ -105,6 +105,8 @@ Con políticas restringidas se aceptan sentencias de una sola tabla. Utiliza vis
 
 Una política de operaciones que excluya o prohíba EXECUTE también activa el análisis conservador para impedir llamadas opacas ocultas dentro de SELECT. No activa cuotas ni restricciones de catálogo.
 
+En la rama de desarrollo `alpha`, el análisis conservador reconoce las formas simples `FROM (SELECT ...)`, `JOIN (SELECT ...)` y `JOIN ... USING (columna, ...)` (#41). Se admiten con políticas solo de operaciones/catálogo o con `allowUnsafeQueries=false` cuando no hay restricciones de tablas, filas, enmascaramiento o roles. Se siguen comprobando todas las relaciones y funciones anidadas; no se admiten joins por comas, relaciones calificadas ni rutinas opacas, incluidos nombres calificados por paquete que coincidan con funciones incorporadas. Esto no amplía el subconjunto de una sola tabla ni requiere habilitar consultas inseguras. No se añaden otras formas al subconjunto conservador, como joins entre paréntesis, fuentes laterales o listas de alias de columnas derivadas. La compatibilidad predeterminada no cambia.
+
 Desde alpha.4 se distingue el FROM de argumentos como `EXTRACT(MONTH FROM T.CREATED_AT)`, `SUBSTRING(T.NAME FROM 1 FOR 3)` y `TRIM(BOTH FROM T.NAME)` del FROM que introduce tablas, también en expresiones anidadas. Los alias de columnas no requieren `allowUnsafeQueries=true` ni desactivar la seguridad. Las tablas reales y subconsultas siguen sujetas a la política; las relaciones calificadas por esquema continúan sin admitirse en modo conservador. Con enmascaramiento activo se siguen rechazando proyecciones con expresiones, como se explica a continuación. Los valores optativos de alpha.3 no cambian.
 
 ## Filtrado de filas y enmascaramiento

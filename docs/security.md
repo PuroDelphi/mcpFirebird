@@ -118,6 +118,8 @@ Scoped policies accept single-table statements only. Joins, CTEs, nested SELECTs
 
 An operation policy that excludes or forbids EXECUTE also selects conservative parsing to prevent opaque routine calls hidden inside SELECT. It does not activate resource quotas or a catalog denylist.
 
+On the development `alpha` branch, conservative parsing recognizes plain `FROM (SELECT ...)`, `JOIN (SELECT ...)`, and `JOIN ... USING (column, ...)` syntax (#41). These forms are available with operation-only/catalog policies or `allowUnsafeQueries=false` when no scoped table/row/masking/role policy is active. Every nested relation and function is still checked; comma joins, qualified relations and opaque routines (including package-qualified names that resemble builtins) remain unsupported. This does not expand the single-table subset above or require enabling unsafe queries. Other derived-source forms, such as parenthesized joins, lateral sources and derived column-alias lists, are not added to the conservative subset. Default compatibility behavior is unchanged.
+
 Starting with alpha.4, builtin argument separators such as `EXTRACT(MONTH FROM T.CREATED_AT)`, `SUBSTRING(T.NAME FROM 1 FOR 3)` and `TRIM(BOTH FROM T.NAME)` are distinguished from table FROM clauses, including nested expressions. Aliased columns do not require `allowUnsafeQueries=true` or disabling security. Actual table references and nested subqueries remain subject to the policy; schema-qualified relations remain unsupported in conservative mode. If data masking is enabled, expression projections are still rejected as described below. Opt-in defaults are unchanged from alpha.3.
 
 ## Row filtering and masking

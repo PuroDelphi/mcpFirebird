@@ -44,6 +44,38 @@ describe('real query boundary with mocked Firebird I/O', () => {
         expect(queryDatabase).toHaveBeenCalledWith(expect.anything(),
             'SELECT T.ID, EXTRACT(MONTH FROM T.CREATED_AT) AS MON FROM (SELECT * FROM MY_TABLE WHERE (VISIBLE = 1)) T WHERE T.ID = ?', [1]);
     });
+    it.each([
+        'SELECT * FROM (SELECT ID, CODE FROM TABLENAME WHERE ID = ?) T;',
+        'SELECT T.NAME, C.I_COUNT FROM TABLENAME T JOIN (SELECT ID, COUNT(ID) AS I_COUNT FROM CONTACT GROUP BY ID) C ON C.ID = T.ID WHERE T.ID = ?',
+        'SELECT * FROM (SELECT ID FROM TABLENAME WHERE ID = ?) T JOIN CONTACT C USING (ID)'
+    ])('dispatches permitted derived SQL unchanged with bound parameters (#41): %s', async sql => {
+        securityConfig.allowedOperations = ['SELECT'];
+        securityConfig.sql = { allowSystemTables: false, allowUnsafeQueries: false };
+        await expect(executeQuery(sql, [1])).resolves.toEqual([{ ID: 1 }]);
+        expect(queryDatabase).toHaveBeenCalledTimes(1);
+        expect(queryDatabase).toHaveBeenCalledWith(expect.anything(), sql, [1]);
+    });
+    it.each([
+        'SELECT * FROM (SELECT * FROM RDB$RELATIONS) T',
+        'SELECT * FROM TABLENAME T JOIN (SELECT * FROM MON$ATTACHMENTS) M ON 1=1',
+        'SELECT * FROM (SELECT ID FROM TABLENAME) T, RDB$RELATIONS R',
+        'SELECT * FROM (SELECT ID FROM TABLENAME) "WHERE", RDB$RELATIONS R',
+        'SELECT * FROM (SELECT SECRET_FUNCTION(ID) FROM TABLENAME) T',
+        'SELECT * FROM (SELECT PKG.ABS(ID) FROM TABLENAME) T',
+        'SELECT * FROM (SELECT "USING"(ID) FROM TABLENAME) T',
+        'SELECT * FROM TABLENAME T JOIN CONTACT C USING (SECRET_FUNCTION(ID))'
+    ])('rejects derived-query bypasses before Firebird I/O (#41): %s', async sql => {
+        securityConfig.sql = { allowSystemTables: false, allowUnsafeQueries: true };
+        await expect(executeQuery(sql)).rejects.toMatchObject({ type: 'SECURITY_ERROR' });
+        expect(connectToDatabase).not.toHaveBeenCalled();
+        expect(queryDatabase).not.toHaveBeenCalled();
+    });
+    it('keeps derived SQL outside scoped policies before Firebird I/O (#41)', async () => {
+        securityConfig.allowedTables = ['TABLENAME'];
+        await expect(executeQuery('SELECT * FROM (SELECT ID FROM TABLENAME) T')).rejects.toMatchObject({ type: 'SECURITY_ERROR' });
+        expect(connectToDatabase).not.toHaveBeenCalled();
+        expect(queryDatabase).not.toHaveBeenCalled();
+    });
     it('applies row filtering, parameter binding and masking inside the query boundary', async () => {
         securityConfig.rowFilters = { T: 'VISIBLE = 1' };
         securityConfig.dataMasking = [{ columns: ['SSN'], pattern: '^.*$', replacement: 'hidden' }];
