@@ -9,6 +9,7 @@ jest.integration.config.js
 tsconfig.json
 tsconfig.build.json
 .eslintrc.js
+.eslintrc.cjs
 .eslintrc.json
 .prettierrc
 .env
@@ -16,3 +17,8 @@ tsconfig.build.json
 run-inspector.cjs
 temp/
 *.tgz
+tests/
+scripts/
+poc_*.cjs
+test_*.cjs
+test_*.mjs

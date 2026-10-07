@@ -3,7 +3,6 @@
  * Provides functionality for connecting to Firebird databases
  */
 
-import Firebird from 'node-firebird';
 import { createLogger } from '../utils/logger.js';
 import { FirebirdError, ErrorTypes } from '../utils/errors.js';
 import { DriverFactory } from './driver-factory.js';
@@ -223,7 +222,7 @@ export class ConnectionPool {
      */
     private _hardDetach(db: FirebirdDatabase): void {
         this.activeCount = Math.max(0, this.activeCount - 1);
-        const realDetach: Function = (db as any)._realDetach || db.detach;
+        const realDetach: (callback: (error: Error | null) => void) => void = (db as any)._realDetach || db.detach;
         try {
             realDetach.call(db, (err: Error | null) => {
                 if (err) logger.warn(`Error al cerrar conexión descartada: ${err.message}`);
@@ -234,31 +233,30 @@ export class ConnectionPool {
     }
 
     /**
-     * Cheap read-only liveness probe. Resolves false on any error or timeout so
-     * a dead/stale socket is never handed back to a caller.
+     * Cheap read-only liveness probe. Like user queries, native probes must
+     * finish their async cleanup before reuse or disposal (#38, #39).
+     * A timed-out probe keeps its pool slot until the driver settles, but does
+     * not prevent acquire() from trying another available connection.
      */
-    private _probe(db: FirebirdDatabase): Promise<boolean> {
-        return new Promise((resolve) => {
-            let settled = false;
-            const done = (ok: boolean) => {
-                if (settled) return;
-                settled = true;
-                resolve(ok);
-            };
-            const timer = setTimeout(() => {
-                logger.warn('Probe de conexión agotó el tiempo de espera, descartando conexión');
-                done(false);
-            }, PROBE_TIMEOUT_MS);
-            try {
-                db.query(PROBE_SQL, [], (err: Error | null) => {
-                    clearTimeout(timer);
-                    done(!err);
-                });
-            } catch (err) {
-                clearTimeout(timer);
-                done(false);
-            }
+    private async _probe(db: FirebirdDatabase): Promise<boolean> {
+        let expired = false;
+        let timer: NodeJS.Timeout | undefined;
+        // Observe late failures and reserve the connection until all native
+        // handle cleanup has drained. destroy() also wakes a queued acquire.
+        const work = queryDatabase(db, PROBE_SQL).then(() => true, () => false).then(alive => {
+            if (expired) this.destroy(db);
+            return alive;
         });
+        const alive = await Promise.race([work, new Promise<boolean>(resolve => {
+            timer = setTimeout(() => {
+                expired = true;
+                logger.warn('Probe de conexión agotó el tiempo de espera; cierre diferido hasta finalizar la operación');
+                resolve(false);
+            }, PROBE_TIMEOUT_MS);
+        })]);
+        if (timer) clearTimeout(timer);
+        if (!alive && !expired) this._hardDetach(db);
+        return alive;
     }
 
     /**
@@ -299,7 +297,6 @@ export class ConnectionPool {
             const alive = await this._probe(db);
             if (!alive) {
                 logger.warn('Conexión del pool no superó el probe, descartándola');
-                this._hardDetach(db);
                 continue;
             }
 
@@ -471,49 +468,37 @@ export const connectToDatabase = async (config = getDefaultConfig()): Promise<Fi
  * @returns {Promise<any[]>} Resultado de la consulta
  * @throws {FirebirdError} Error categorizado si la consulta falla
  */
-export const queryDatabase = (db: FirebirdDatabase, sql: string, params: any[] = []): Promise<any[]> => {
-    return new Promise((resolve, reject) => {
+export const queryDatabase = async (db: FirebirdDatabase, sql: string, params: any[] = []): Promise<any[]> => {
+    // Native adapters are async even though the public API is callback-based.
+    // Observe their returned promise and wait for finally/handle cleanup before
+    // allowing the caller to release or destroy this attachment (#38).
+    let complete!: (value: { err: Error | null; result: any }) => void;
+    const response = new Promise<{ err: Error | null; result: any }>(resolve => { complete = resolve; });
+    try {
         logger.info(`Ejecutando consulta: ${sql.substring(0, 100)}${sql.length > 100 ? '...' : ''}`);
-
-        db.query(sql, params, (err: Error | null, result: any) => {
-            if (err) {
-                // Categorizar el error para mejor manejo
-                let errorType = 'QUERY_ERROR';
-
-                // Intentar categorizar el error según su contenido
-                if (err.message.includes('syntax error')) {
-                    errorType = 'SYNTAX_ERROR';
-                } else if (err.message.includes('not defined')) {
-                    errorType = 'OBJECT_NOT_FOUND';
-                } else if (err.message.includes('permission')) {
-                    errorType = 'PERMISSION_ERROR';
-                } else if (err.message.includes('deadlock')) {
-                    errorType = 'DEADLOCK_ERROR';
-                } else if (err.message.includes('timeout')) {
-                    errorType = 'TIMEOUT_ERROR';
-                }
-
-                // Crear un error más informativo
-                const error = new FirebirdError(
-                    `Error executing query: ${err.message}`,
-                    errorType,
-                    err
-                );
-
-                logger.error(`${error.message} [${errorType}]`);
-                reject(error);
-                return;
-            }
-
-            // Si no hay resultados, devolver un array vacío
-            if (!result) {
-                result = [];
-            }
-
-            logger.info(`Consulta ejecutada exitosamente, ${result.length} filas obtenidas`);
-            resolve(result);
-        });
-    });
+        await db.query(sql, params, (err: Error | null, result: any) => complete({ err, result }));
+        const { err, result } = await response;
+        if (err) throw err;
+        logger.info(`Consulta ejecutada exitosamente, ${result?.length || 0} filas obtenidas`);
+        return result || [];
+    } catch (failure) {
+        const err = failure instanceof Error ? failure : new Error(String(failure));
+        let errorType = 'QUERY_ERROR';
+        if (err.message.includes('syntax error')) {
+            errorType = 'SYNTAX_ERROR';
+        } else if (err.message.includes('not defined')) {
+            errorType = 'OBJECT_NOT_FOUND';
+        } else if (err.message.includes('permission')) {
+            errorType = 'PERMISSION_ERROR';
+        } else if (err.message.includes('deadlock')) {
+            errorType = 'DEADLOCK_ERROR';
+        } else if (err.message.includes('timeout')) {
+            errorType = 'TIMEOUT_ERROR';
+        }
+        const error = new FirebirdError(`Error executing query: ${err.message}`, errorType, err);
+        logger.error(`${error.message} [${errorType}]`);
+        throw error;
+    }
 };
 
 /**
@@ -535,7 +520,7 @@ export const testConnection = async (config = getDefaultConfig()): Promise<void>
         throw error;
     } finally {
         if (db) {
-            await new Promise<void>((resolve, reject) => {
+            await new Promise<void>(resolve => {
                 db?.detach((detachErr: Error | null) => {
                     if (detachErr) {
                         logger.warn(`Error al cerrar conexión de prueba: ${detachErr.message}`);

@@ -1,6 +1,19 @@
 import { readBlobField, resolveBlobFields, resolveNativeBlobFields } from '../../db/blob.js';
 
 describe('Firebird BLOB resolution', () => {
+    it('drains sibling BLOB reads across rows before returning an error', async () => {
+        let finish!: (err: Error) => void;
+        let settled = false;
+        const pending = resolveBlobFields([
+            { A: (cb: any) => cb(new Error('first BLOB failure')), B: (cb: any) => { finish = cb; } },
+            { A: Buffer.from('ok'), B: null }
+        ]).catch(error => { settled = true; throw error; });
+        const rejected = expect(pending).rejects.toThrow('first BLOB failure');
+        await new Promise(resolve => setTimeout(resolve, 0));
+        expect(settled).toBe(false);
+        finish(new Error('late BLOB failure'));
+        await rejected;
+    });
     it('detects a BLOB when the first row contains NULL', async () => {
         const rows = await resolveBlobFields([
             { NAME: 'FIRST', DESCRIPTION: null },

@@ -2,11 +2,11 @@
 
 [English](security.md)
 
-Esta guía corresponde a la versión estable **2.11.0**, que incluye todos los cambios probados desde 2.11.0-alpha.1 hasta alpha.4. Las versiones estables anteriores no implementan todos estos controles. Consulta también la [revisión de implementación](security-implementation-review.md) y el [historial de cambios](../CHANGELOG.md).
+Esta guía describe los controles SQL de la estable **2.11.0** y las nuevas opciones HTTP/OAuth de **2.12.0-alpha.1**. El modo HTTP y el descubrimiento OAuth nuevos requieren la alpha; no existen en la estable 2.11.0. Consulta también la [revisión de implementación](security-implementation-review.md) y el [historial de cambios](../CHANGELOG.md).
 
 ## Aviso de migración
 
-**La seguridad avanzada es optativa.** Sin configuración (o con objetos `security`/`sql` vacíos) se conserva el soporte anterior de catálogo, procedimientos ejecutables/seleccionables, funciones, joins y CTE. No se imponen límites nuevos de filas/tamaño, plazos de cinco segundos, cuotas de 100 consultas ni frecuencia. Se mantienen la validación anterior, filtros parametrizados, autenticación por clave API y CORS. `ALLOW_RAW_SQL=true` sigue habilitando escrituras, incluido DDL, si ninguna política explícita las prohíbe.
+**La seguridad avanzada es optativa.** Sin configuración (o con objetos `security`/`sql` vacíos) se conserva el soporte anterior de catálogo, procedimientos, funciones, joins y CTE. No se imponen límites nuevos de filas/tamaño, tiempo, cantidad de consultas ni frecuencia. Se mantienen los filtros parametrizados, autenticación por clave API y compatibilidad HTTP/CORS/OAuth. `ALLOW_RAW_SQL=true` sigue habilitando escrituras y DDL si ninguna política explícita las prohíbe. El endurecimiento HTTP se activa expresamente, como se explica más abajo.
 
 Las funciones de seguridad antes desconectadas ahora están implementadas, pero solo se aplican al configurarlas. Consideraciones al activarlas:
 
@@ -105,6 +105,10 @@ Con políticas restringidas se aceptan sentencias de una sola tabla. Utiliza vis
 
 Una política de operaciones que excluya o prohíba EXECUTE también activa el análisis conservador para impedir llamadas opacas ocultas dentro de SELECT. No activa cuotas ni restricciones de catálogo.
 
+Desde `2.12.0-alpha.5`, el análisis conservador reconoce las formas simples `FROM (SELECT ...)`, `JOIN (SELECT ...)` y `JOIN ... USING (columna, ...)` (#41). Se admiten con políticas solo de operaciones/catálogo o con `allowUnsafeQueries=false` cuando no hay restricciones de tablas, filas, enmascaramiento o roles. Se siguen comprobando todas las relaciones y funciones anidadas; no se admiten joins por comas, relaciones calificadas ni rutinas opacas, incluidos nombres calificados por paquete que coincidan con funciones incorporadas. Esto no amplía el subconjunto de una sola tabla ni requiere habilitar consultas inseguras. No se añaden otras formas al subconjunto conservador, como joins entre paréntesis, fuentes laterales o listas de alias de columnas derivadas. La compatibilidad predeterminada no cambia.
+
+`forbiddenTables: []` no activa restricciones por tabla; añadir una sola entrada sí lo hace. Con una lista no vacía u otra política restringida de las anteriores, las consultas complejas siguen necesitando una vista protegida en Firebird. No elimines una política necesaria ni habilites consultas inseguras para eludir este límite. La corrección del #41 no requiere nuevas variables ni interruptores: instala `mcp-firebird@2.12.0-alpha.5` (o selecciona `mcp-firebird@alpha` en tu configuración existente de `npx`) y reinicia el MCP conservando la conexión y las políticas.
+
 Desde alpha.4 se distingue el FROM de argumentos como `EXTRACT(MONTH FROM T.CREATED_AT)`, `SUBSTRING(T.NAME FROM 1 FOR 3)` y `TRIM(BOTH FROM T.NAME)` del FROM que introduce tablas, también en expresiones anidadas. Los alias de columnas no requieren `allowUnsafeQueries=true` ni desactivar la seguridad. Las tablas reales y subconsultas siguen sujetas a la política; las relaciones calificadas por esquema continúan sin admitirse en modo conservador. Con enmascaramiento activo se siguen rechazando proyecciones con expresiones, como se explica a continuación. Los valores optativos de alpha.3 no cambian.
 
 ## Filtrado de filas y enmascaramiento
@@ -138,23 +142,46 @@ Especifica solo los límites que quieras activar. Usa enteros positivos; para de
 
 Se aplica el menor límite de filas. Los resultados excesivos se rechazan, no se truncan silenciosamente. Se mide el tamaño JSON en bytes UTF-8, incluyendo comprobaciones de respuestas agregadas de herramientas/recursos. La comprobación ocurre después de materializar datos del driver: no limita la memoria del servidor Firebird. Utiliza FIRST/ROWS y controles de la base.
 
-El menor de `queryTimeout` y el nombre heredado `maxQueryCpuTime` es un plazo de tiempo transcurrido, no una medición de CPU. Incluye conexión, consulta y lectura BLOB. Se descartan conexiones vencidas y conexiones que llegan tarde. No garantiza cancelación inmediata en Firebird; una escritura puede haberse confirmado. No la reintentes automáticamente.
+El menor de `queryTimeout` y `maxQueryCpuTime` es un plazo de tiempo transcurrido que incluye conexión, consulta y lectura BLOB. Desde **2.12.0-alpha.2** (#38), el timeout rechaza la petición pero mantiene la conexión ocupada hasta terminar el trabajo pendiente del driver, su limpieza y lecturas BLOB; después la destruye una sola vez, sin reutilizarla. Un resultado tardío no inicia nuevas lecturas BLOB y una conexión que llega tarde se cierra sin ejecutar SQL. Se observan los rechazos de promesas del driver aunque lleguen después del callback o timeout, evitando que cierren el proceso MCP. El trabajo pendiente sigue ocupando su plaza del pool: si todas están ocupadas, las consultas nuevas esperan y pueden vencer también. Así se evitan cierres inseguros y conexiones de reemplazo ilimitadas. No mide CPU ni cancela la ejecución en Firebird; una escritura vencida aún puede confirmarse. No la reintentes automáticamente. Los límites siguen siendo optativos; no hay que configurar un timeout para recibir la corrección.
 
 La frecuencia utiliza un cubo de tokens con ráfaga inicial `burstLimit` y reposición `queriesPerMinute`. Cada consulta física, incluidas iteraciones de lotes y metadatos, consume cuota. La sesión de seguridad corresponde al proceso STDIO, sujeto OAuth, clave API compartida o IP del socket no autenticado. Abrir otra sesión MCP no reinicia el contador. Se reinicia al reiniciar el proceso; hay un máximo de 10.000 identidades y se rechazan identidades nuevas al alcanzarlo. Ajusta cuotas para esquemas grandes y procesos duraderos.
+
+### Configurar el timeout de las consultas
+
+Los probes de conexión del pool también esperan la limpieza asíncrona del driver antes de reutilizar o descartar una conexión (#39). Su plazo independiente de cinco segundos reserva esa conexión para cerrarla cuando termine el trabajo pendiente, sin desconectar operaciones en curso. Las demás plazas disponibles del pool pueden seguir atendiendo peticiones. Si todas están ocupadas, las peticiones esperan y sigue aplicándose su timeout configurado. El plazo del probe no cancela SQL en el servidor.
+
+Desde **2.12.0-alpha.3**, `QUERY_TIMEOUT` se lee al inicializar la seguridad. Antes aparecía en ejemplos pero no se aplicaba. Esta versión activa los valores no vacíos que ya existan, incluido `30000` en los ejemplos de entorno/Compose; revísalos al actualizar. Sin ninguno de los ajustes de timeout no se impone un plazo.
+
+Elige una de estas opciones y conserva el resto de tu conexión y políticas:
+
+- Define `QUERY_TIMEOUT=30000` en el entorno del servidor MCP para 30 segundos. En el objeto `env` existente de tu cliente añade `"QUERY_TIMEOUT": "30000"`. PowerShell: `$env:QUERY_TIMEOUT = '30000'`; Bash: `export QUERY_TIMEOUT=30000`.
+- Añade `"queryTimeout": 30000` al objeto `security` de tu archivo de seguridad JSON/CJS. Si no hay archivo seleccionado, también puedes establecer `FIREBIRD_SECURITY_JSON` a `{"security":{"queryTimeout":30000}}` (combínalo con las políticas existentes, no las reemplaces).
+
+El archivo seleccionado tiene prioridad sobre el JSON del entorno según la precedencia indicada arriba. Su `security.queryTimeout` explícito (o el del JSON cuando no se selecciona archivo) tiene prioridad sobre `QUERY_TIMEOUT`, incluso si la variable contiene un valor menor. Si la política omite `queryTimeout`, la variable lo aporta sin reemplazar otros campos. Una variable desplazada por un valor explícito se ignora, incluida su validación. El plazo efectivo será el **menor** entre el `queryTimeout` resultante y `security.resourceLimits.maxQueryCpuTime`, si existen ambos. Pese a su nombre histórico, `maxQueryCpuTime` mide milisegundos transcurridos, no CPU.
+
+`QUERY_TIMEOUT` acepta enteros decimales de **1 a 2147483647 milisegundos**, con espacios externos opcionales. Otros valores no vacíos impiden la inicialización con un error de configuración; así se evita que un desbordamiento del temporizador de Node se convierta en un plazo de 1 ms. Ausente o vacía desactiva solo el valor de respaldo del entorno. Para desactivar el plazo por completo, elimina también ambas propiedades de timeout de la política. No uses `0` ni `null`. **Reinicia el proceso MCP** tras cada cambio. El timeout propio del cliente MCP es independiente: ajústalo por separado si termina antes. El plazo del servidor no cancela la ejecución SQL, como se explica arriba.
 
 ## Autenticación y roles HTTP/SSE
 
 `FIREBIRD_API_KEY` conserva autenticación `Authorization: Bearer ...`. No utilices claves en URL y protege el transporte con HTTPS. Con `authorization.type="basic"`, esa clave representa el rol `user`; configura sus permisos. No es un directorio de contraseñas HTTP Basic. Sin permisos de rol, se deniega acceso a la base.
 
-OAuth2 usa `authorization.type="oauth2"`, la sección `oauth2` con `tokenVerifyUrl` HTTPS, `clientId`, `clientSecret` y `scope` opcional, y `rolePermissions`. Ejemplo completo en la [guía inglesa](security.md#httpsse-authentication-and-role-permissions).
+OAuth2 usa `authorization.type="oauth2"`, `tokenVerifyUrl` HTTPS, `clientId`, `clientSecret`, `scope` opcional y `rolePermissions`. En modo compat se aceptan las políticas antiguas sin `resourceUrl` ni `authorizationServers`, con un aviso: no validan localmente la audiencia ni ofrecen descubrimiento, por lo que requieren un proveedor de introspección confiable y dedicado a este recurso. Para activar ambas protecciones configura los dos campos juntos. Una configuración parcial o inválida se rechaza. En modo HTTP estricto son obligatorios. Ejemplo completo en la [guía inglesa](security.md#httpsse-authentication-and-role-permissions).
 
-El servidor envía `token` como formulario al endpoint, con credenciales Basic del cliente, sin redirecciones y con un plazo de cinco segundos. Exige `active:true`, identidad sub/user_id y role o primer elemento de roles; comprueba expiración informada y scopes requeridos. El servidor de autorización debe validar audiencia y condiciones de emisión. Tokens inválidos, identidad ausente y fallos del servicio deniegan acceso.
+El servidor envía `token` como formulario al endpoint, con credenciales Basic del cliente, sin redirecciones y con un plazo de cinco segundos. Exige `active:true`, identidad sub/user_id y role o primer elemento de roles; comprueba audiencia, expiración informada, nbf y scopes requeridos. Tokens inválidos, identidad ausente y fallos del servicio deniegan acceso.
 
 En modo OAuth el Bearer es el token OAuth, no la clave estática. Identidad verificada, permisos de rol y restricciones globales se aplican juntos. Las sesiones HTTP/SSE pertenecen a su identidad original. STDIO no puede aportar esa identidad HTTP: utiliza una política independiente. Las suscripciones compartidas a eventos se deshabilitan con políticas restringidas.
 
-## CORS
+## HTTP, Host/Origin y CORS
 
-Se conserva origen `*`, cabecera Authorization permitida y credenciales del navegador desactivadas. STDIO y clientes de servidor no dependen de CORS. Para limitar navegadores configura `MCP_ALLOWED_ORIGIN="https://app.example.com,https://admin.example.com"`. CORS no sustituye autenticación; no expongas HTTP sin autenticación a Internet.
+Desde 2.12.0-alpha.1, `MCP_HTTP_SECURITY_MODE=compat` es el valor predeterminado: mantiene la escucha en `0.0.0.0`, CORS sin credenciales y comodín cuando `MCP_ALLOWED_ORIGIN` está vacío, ausente o vale `*`. No impone una lista de Host si no se configura. Emite un aviso: este modo no ofrece el aislamiento de navegador/DNS rebinding del modo estricto. Usa autenticación y una red confiable; no expongas la base sin protección. Las listas explícitas se respetan en ambos modos y `MCP_ALLOW_REMOTE=false` impide escuchar fuera de loopback.
+
+Con `MCP_HTTP_SECURITY_MODE=strict` se activa loopback por defecto y se validan Host/Origin antes de cualquier petición, incluyendo OPTIONS. Se permiten inicialmente `localhost`, `127.0.0.1`, `[::1]` y el mismo origen. Los clientes nativos pueden omitir Origin; los orígenes inválidos, `null` o ajenos reciben HTTP 403. Un modo desconocido impide arrancar. Para volver a compatibilidad, elimina la variable o usa `compat` y reinicia; las listas y políticas explícitas siguen aplicándose.
+
+Solo en modo estricto, `MCP_ALLOWED_ORIGIN=*` se rechaza. Déjalo sin definir/vacío para el mismo origen o configura orígenes exactos como `https://app.example.com`, sin rutas ni barra final. Para exposición remota estricta, incluso Docker, configura `HTTP_HOST=0.0.0.0`, `MCP_ALLOW_REMOTE=true` y `MCP_ALLOWED_HOSTS=mcp.example.com`. Los hosts no incluyen puertos; IPv6 usa corchetes. Un proxy TLS debe enviar un Host permitido; agrega el origen público HTTPS a la lista. Las cabeceras reenviadas no omiten estos controles.
+
+Al configurar `resourceUrl` y `authorizationServers`, OAuth publica metadatos en `/.well-known/oauth-protected-resource` y la ruta del recurso, e incluye su URL en `WWW-Authenticate`. La introspección debe devolver `aud` con el `resourceUrl` exacto: se exige en ambos modos HTTP y nunca se vuelve automáticamente al comportamiento antiguo. Un token inválido da HTTP 401; scopes insuficientes dan HTTP 403. Consulta los detalles en la [guía inglesa](security.md#httpsse-authentication-and-role-permissions).
+
+CORS permite las cabeceras de protocolo 2026, sesión heredada y caché, y expone las de sesión, desafío OAuth y caché. No sustituye autenticación: protege la exposición remota con HTTPS y clave API u OAuth. STDIO y las políticas SQL optativas no cambian.
 
 ## Auditoría
 
@@ -168,6 +195,12 @@ Si falla el registro, no se ejecuta la consulta o se retiene el resultado. Un fa
 
 ## Comprobación
 
-Ejecuta `npm run build` y `npm test -- --runInBand`. El script optativo `scripts/security-firebird-smoke.mjs` crea/elimina una base local temporal con UUID y prueba la ejecución real.
+Ejecuta `npm run verify:release` desde una copia de desarrollo con sus dependencias de desarrollo instaladas. Comprueba tipos, compila, comprueba errores de lint y ejecuta las pruebas unitarias, de protocolo y de seguridad compilada. `prepublishOnly` ejecuta esta validación antes de un `npm publish` normal; no debe omitirse con `--ignore-scripts`. Es local, sin GitHub Actions, y no se ejecuta al instalar ni iniciar el MCP. Jest solo descubre pruebas dentro de `src`, evitando copias temporales de revisiones.
+
+Comando de publicación para mantenedores: `npm publish --tag alpha --access public --ignore-scripts=false`. La bandera explícita es importante si npm tiene configurado `ignore-scripts=true`, que omitiría los hooks. Esta validación reduce regresiones, pero no es una restricción de publicación impuesta por el servidor.
+
+La matriz de regresión SQL combina subconsultas y separadores de funciones con variantes de mayúsculas, espacios, comentarios y anidación; prueba la política reportada, denegaciones explícitas y compatibilidad predeterminada. Incluye catálogos ocultos, funciones opacas o de paquetes, secuencias y listas de tablas no vacías. Se conserva el rechazo histórico de comentarios SQL por defecto; el analizador conservador los trata con políticas explícitas. Las futuras correcciones SQL deben ampliar este conjunto con casos válidos y adversarios, además de comprobar el punto de ejecución; no basta con agregar palabras SQL a una lista de funciones.
+
+El script optativo `scripts/security-firebird-smoke.mjs` crea/elimina una base local temporal con UUID. Incluye los separadores de funciones del #36 y subconsultas/joins parametrizados del #41 con políticas explícitas. Estas pruebas reales son independientes de la validación de publicación porque necesitan un servicio Firebird local y credenciales de prueba. Las pruebas con controladores simulados no sustituyen las realizadas sobre la versión desplegada de Firebird.
 
 El MCP no proporciona aislamiento del sistema operativo, terminación TLS, contabilidad CPU de Firebird ni protección automática sobre toda dependencia indirecta. Usa privilegios mínimos, HTTPS, firewall, copias de seguridad y pruebas antes de desplegar.

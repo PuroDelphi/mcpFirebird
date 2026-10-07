@@ -16,12 +16,14 @@ import {
 } from '../db/index.js';
 
 
-import { getSqlOperation, quoteIdentifier, validateSql } from '../utils/security.js';
+import { quoteIdentifier } from '../utils/security.js';
 import { checkAllowedOperation, checkAllowedTable } from '../security/authorization.js';
 import { prepareUserQuery } from '../security/sqlPolicy.js';
-import { checkResponseSizeLimit } from '../security/resourceLimits.js';
 import { createLogger } from '../utils/logger.js';
-import { stringifyCompact, wrapSuccess, wrapError, formatForClaude } from '../utils/jsonHelper.js';
+import { wrapError } from '../utils/jsonHelper.js';
+import { finalizeTools, toolResult, toolError, type ToolDraft, type ToolDefinition } from './contracts.js';
+import { databaseResultSchemas, userSqlTools } from './outputSchemas.js';
+export type { ToolDefinition } from './contracts.js';
 import { FirebirdError } from '../utils/errors.js';
 
 const logger = createLogger('tools:database');
@@ -102,16 +104,6 @@ export const VerifyWireEncryptionArgsSchema = z.object({});
 
 export const GetDatabaseInfoArgsSchema = z.object({});
 
-/**
- * Interfaz para definir una herramienta MCP.
- */
-export interface ToolDefinition {
-    name: string;
-    title?: string;
-    description: string;
-    inputSchema: z.ZodObject<any>;
-    handler: (args: any) => Promise<{ content: { type: string; text: string }[] }>;
-}
 
 function assertSqlOperationAllowed(sql: string): void {
     prepareUserQuery(sql);
@@ -122,7 +114,7 @@ function assertSqlOperationAllowed(sql: string): void {
  * @returns {Map<string, ToolDefinition>} A map with the tool definitions.
  */
 export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
-    const tools = new Map<string, ToolDefinition>();
+    const tools = new Map<string, ToolDraft>();
 
     tools.set("execute-query", {
         name: "execute-query",
@@ -144,22 +136,12 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
                 const result = await executeQuery(sql, params);
                 logger.info(`Query executed successfully, ${result.length} rows returned`);
 
-                return {
-                    content: [{
-                        type: "text",
-                        text: formatForClaude({ rows: result })
-                    }]
-                };
+                return toolResult({ rows: result });
             } catch (error) {
                 const errorResponse = wrapError(error);
                 logger.error(`Error executing query: ${errorResponse.error} [${errorResponse.errorType || 'UNKNOWN'}]`);
 
-                return {
-                    content: [{
-                        type: "text",
-                        text: formatForClaude(errorResponse)
-                    }]
-                };
+                return toolError(error);
             }
         }
     });
@@ -175,22 +157,12 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
                 const tables = await listTables();
                 logger.info(`Found ${tables.length} tables`);
 
-                return {
-                    content: [{
-                        type: "text",
-                        text: formatForClaude({ tables })
-                    }]
-                };
+                return toolResult({ tables });
             } catch (error) {
                 const errorResponse = wrapError(error);
                 logger.error(`Error listing tables: ${errorResponse.error} [${errorResponse.errorType || 'UNKNOWN'}]`);
 
-                return {
-                    content: [{
-                        type: "text",
-                        text: formatForClaude(errorResponse)
-                    }]
-                };
+                return toolError(error);
             }
         }
     });
@@ -208,21 +180,11 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
                 const schema = await describeTable(tableName);
                 logger.info(`Schema obtained for table ${tableName}, ${schema.length} columns found`);
 
-                return {
-                    content: [{
-                        type: "text",
-                        text: formatForClaude({ schema })
-                    }]
-                };
+                return toolResult({ schema });
             } catch (error) {
                 const errorResponse = wrapError(error);
                 logger.error(`Error describing table ${tableName}: ${errorResponse.error} [${errorResponse.errorType || 'UNKNOWN'}]`);
-                return {
-                    content: [{
-                        type: "text",
-                        text: formatForClaude(errorResponse)
-                    }]
-                };
+                return toolError(error);
             }
         }
     });
@@ -240,22 +202,12 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
                 const fieldDescriptions = await getFieldDescriptions(tableName);
                 logger.info(`Descriptions obtained for ${fieldDescriptions.length} fields in table ${tableName}`);
 
-                return {
-                    content: [{
-                        type: "text",
-                        text: formatForClaude({ fieldDescriptions })
-                    }]
-                };
+                return toolResult({ fieldDescriptions });
             } catch (error) {
                 const errorResponse = wrapError(error);
                 logger.error(`Error getting field descriptions for table ${tableName}: ${errorResponse.error} [${errorResponse.errorType || 'UNKNOWN'}]`);
 
-                return {
-                    content: [{
-                        type: "text",
-                        text: formatForClaude(errorResponse)
-                    }]
-                };
+                return toolError(error);
             }
         }
     });
@@ -266,11 +218,11 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
         inputSchema: TableMetadataArgsSchema,
         handler: async ({ tableName }: z.infer<typeof TableMetadataArgsSchema>) => {
             try {
-                return { content: [{ type: "text", text: formatForClaude(await getTableIndexes(tableName)) }] };
+                return toolResult(await getTableIndexes(tableName));
             } catch (error) {
                 const errorResponse = wrapError(error);
                 logger.error(`Error getting indexes for table ${tableName}: ${errorResponse.error}`);
-                return { content: [{ type: "text", text: formatForClaude(errorResponse) }] };
+                return toolError(error);
             }
         }
     });
@@ -281,11 +233,11 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
         inputSchema: TableMetadataArgsSchema,
         handler: async ({ tableName }: z.infer<typeof TableMetadataArgsSchema>) => {
             try {
-                return { content: [{ type: "text", text: formatForClaude(await getTableConstraints(tableName)) }] };
+                return toolResult(await getTableConstraints(tableName));
             } catch (error) {
                 const errorResponse = wrapError(error);
                 logger.error(`Error getting constraints for table ${tableName}: ${errorResponse.error}`);
-                return { content: [{ type: "text", text: formatForClaude(errorResponse) }] };
+                return toolError(error);
             }
         }
     });
@@ -296,11 +248,11 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
         inputSchema: TableMetadataArgsSchema,
         handler: async ({ tableName }: z.infer<typeof TableMetadataArgsSchema>) => {
             try {
-                return { content: [{ type: "text", text: formatForClaude(await getTableTriggers(tableName)) }] };
+                return toolResult(await getTableTriggers(tableName));
             } catch (error) {
                 const errorResponse = wrapError(error);
                 logger.error(`Error getting triggers for table ${tableName}: ${errorResponse.error}`);
-                return { content: [{ type: "text", text: formatForClaude(errorResponse) }] };
+                return toolError(error);
             }
         }
     });
@@ -322,22 +274,15 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
                     iterations || 3
                 );
 
-                return {
-                    content: [{
-                        type: "text",
-                        text: formatForClaude(result)
-                    }]
-                };
+                return toolResult(result, {
+                    isError: result.success === false,
+                    error: result.error
+                });
             } catch (error) {
                 const errorResponse = wrapError(error);
                 logger.error(`Error analyzing query performance: ${errorResponse.error} [${errorResponse.errorType || 'UNKNOWN'}]`);
 
-                return {
-                    content: [{
-                        type: "text",
-                        text: formatForClaude(errorResponse)
-                    }]
-                };
+                return toolError(error);
             }
         }
     });
@@ -355,22 +300,15 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
                 assertSqlOperationAllowed(sql);
                 const result = await getExecutionPlan(sql, params || []);
 
-                return {
-                    content: [{
-                        type: "text",
-                        text: formatForClaude(result)
-                    }]
-                };
+                return toolResult(result, {
+                    isError: result.success === false,
+                    error: result.error
+                });
             } catch (error) {
                 const errorResponse = wrapError(error);
                 logger.error(`Error getting execution plan: ${errorResponse.error} [${errorResponse.errorType || 'UNKNOWN'}]`);
 
-                return {
-                    content: [{
-                        type: "text",
-                        text: stringifyCompact(errorResponse)
-                    }]
-                };
+                return toolError(error, { compact: true });
             }
         }
     });
@@ -388,22 +326,15 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
                 assertSqlOperationAllowed(sql);
                 const result = await analyzeMissingIndexes(sql);
 
-                return {
-                    content: [{
-                        type: "text",
-                        text: formatForClaude(result)
-                    }]
-                };
+                return toolResult(result, {
+                    isError: result.success === false,
+                    error: result.error
+                });
             } catch (error) {
                 const errorResponse = wrapError(error);
                 logger.error(`Error analyzing missing indexes: ${errorResponse.error} [${errorResponse.errorType || 'UNKNOWN'}]`);
 
-                return {
-                    content: [{
-                        type: "text",
-                        text: formatForClaude(errorResponse)
-                    }]
-                };
+                return toolError(error);
             }
         }
     });
@@ -420,7 +351,7 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
 
             try {
                 // Validate each query for security
-                queries.forEach((query, index) => {
+                queries.forEach(query => {
                     assertSqlOperationAllowed(query.sql);
                 });
 
@@ -428,22 +359,15 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
 
                 logger.info(`Batch execution completed: ${results.filter(r => r.success).length} succeeded, ${results.filter(r => !r.success).length} failed`);
 
-                return {
-                    content: [{
-                        type: "text",
-                        text: formatForClaude({ results })
-                    }]
-                };
+                return toolResult({ results }, {
+                    isError: results.some(result => result.success === false),
+                    error: 'One or more queries failed'
+                });
             } catch (error) {
                 const errorResponse = wrapError(error);
                 logger.error(`Error executing batch queries: ${errorResponse.error} [${errorResponse.errorType || 'UNKNOWN'}]`);
 
-                return {
-                    content: [{
-                        type: "text",
-                        text: formatForClaude(errorResponse)
-                    }]
-                };
+                return toolError(error);
             }
         }
     });
@@ -463,22 +387,15 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
 
                 logger.info(`Batch description completed: ${results.filter(r => r.schema !== null).length} succeeded, ${results.filter(r => r.schema === null).length} failed`);
 
-                return {
-                    content: [{
-                        type: "text",
-                        text: formatForClaude(results)
-                    }]
-                };
+                return toolResult(results, {
+                    isError: results.some(result => result.schema === null),
+                    error: 'One or more table descriptions failed'
+                });
             } catch (error) {
                 const errorResponse = wrapError(error);
                 logger.error(`Error describing batch tables: ${errorResponse.error} [${errorResponse.errorType || 'UNKNOWN'}]`);
 
-                return {
-                    content: [{
-                        type: "text",
-                        text: formatForClaude(errorResponse)
-                    }]
-                };
+                return toolError(error);
             }
         }
     });
@@ -524,26 +441,16 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
                 const result = await executeQuery(sql, params);
                 logger.info(`Retrieved ${result.length} rows from ${tableName}`);
 
-                return {
-                    content: [{
-                        type: "text",
-                        text: formatForClaude({
+                return toolResult({
                             tableName,
                             rowCount: result.length,
                             data: result
-                        })
-                    }]
-                };
+                        });
             } catch (error) {
                 const errorResponse = wrapError(error);
                 logger.error(`Error getting data from ${tableName}: ${errorResponse.error}`);
 
-                return {
-                    content: [{
-                        type: "text",
-                        text: formatForClaude(errorResponse)
-                    }]
-                };
+                return toolError(error);
             }
         }
     });
@@ -577,32 +484,22 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
                     rowCount,
                     columnCount: schema.length,
                     sampleSize: sampleData.length,
-                    columns: schema.map((col: any) => ({
-                        name: col.FIELD_NAME,
-                        type: col.FIELD_TYPE,
-                        nullable: col.NULL_FLAG === 'YES',
-                        hasDefault: !!col.DEFAULT_VALUE
+                    columns: schema.map(col => ({
+                        name: col.field_name,
+                        type: col.field_type,
+                        nullable: col.nullable,
+                        hasDefault: col.default_value != null
                     }))
                 };
 
                 logger.info(`Statistics analyzed for ${tableName}: ${rowCount} rows, ${schema.length} columns`);
 
-                return {
-                    content: [{
-                        type: "text",
-                        text: formatForClaude(statistics)
-                    }]
-                };
+                return toolResult(statistics);
             } catch (error) {
                 const errorResponse = wrapError(error);
                 logger.error(`Error analyzing statistics for ${tableName}: ${errorResponse.error}`);
 
-                return {
-                    content: [{
-                        type: "text",
-                        text: formatForClaude(errorResponse)
-                    }]
-                };
+                return toolError(error);
             }
         }
     });
@@ -629,22 +526,12 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
                         : 'Native driver is configured. Ensure WIRE_CRYPT=Enabled for encryption.'
                 };
 
-                return {
-                    content: [{
-                        type: "text",
-                        text: formatForClaude(driverInfo)
-                    }]
-                };
+                return toolResult(driverInfo);
             } catch (error) {
                 const errorResponse = wrapError(error);
                 logger.error(`Error verifying wire encryption: ${errorResponse.error}`);
 
-                return {
-                    content: [{
-                        type: "text",
-                        text: formatForClaude(errorResponse)
-                    }]
-                };
+                return toolError(error);
             }
         }
     });
@@ -666,33 +553,15 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
                     tables: tables
                 };
 
-                return {
-                    content: [{
-                        type: "text",
-                        text: formatForClaude(info)
-                    }]
-                };
+                return toolResult(info);
             } catch (error) {
                 const errorResponse = wrapError(error);
                 logger.error(`Error getting database info: ${errorResponse.error}`);
 
-                return {
-                    content: [{
-                        type: "text",
-                        text: formatForClaude(errorResponse)
-                    }]
-                };
+                return toolError(error);
             }
         }
     });
 
-    for (const tool of tools.values()) {
-        const handler = tool.handler;
-        tool.handler = async args => {
-            const result = await handler(args);
-            checkResponseSizeLimit(result);
-            return result;
-        };
-    }
-    return tools;
+    return finalizeTools(tools, databaseResultSchemas, userSqlTools);
 };

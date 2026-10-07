@@ -33,6 +33,11 @@ services:
       FIREBIRD_API_KEY: my_secure_token_123
       # We recommend HTTP Streamable as the standard modern transport
       TRANSPORT_TYPE: http
+      # This development example explicitly opts into strict HTTP security.
+      MCP_HTTP_SECURITY_MODE: strict
+      HTTP_HOST: 0.0.0.0
+      MCP_ALLOW_REMOTE: "true"
+      MCP_ALLOWED_HOSTS: ${MCP_ALLOWED_HOSTS:-localhost,127.0.0.1,mcp-firebird}
       HTTP_PORT: 3003
       
       # HTTP Streamable configuration
@@ -46,6 +51,8 @@ services:
       FIREBIRD_WIRECRYPT: Disabled
       USE_NATIVE_DRIVER: "false"
       PAGE_SIZE: 100
+      # Opt-in 30-second deadline (honored since 2.12.0-alpha.3); unset/blank to omit.
+      # Explicit security.queryTimeout wins; maxQueryCpuTime can impose a lower cap.
       QUERY_TIMEOUT: 30000
       MAX_CONNECTIONS: 50
       
@@ -54,7 +61,7 @@ services:
       SSE_PORT: 3012
       SSE_SESSION_TIMEOUT_MS: 1800000
     ports:
-      - "3003:3003"
+      - "127.0.0.1:3003:3003"
     depends_on:
       - firebird-db
     networks:

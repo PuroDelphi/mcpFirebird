@@ -2,7 +2,7 @@
 
 [Español](security.es.md)
 
-This guide describes enforcement in stable **2.11.0**, including all changes tested in 2.11.0-alpha.1 through alpha.4. Older stable releases do not implement all these controls. See the [security implementation review](security-implementation-review.md) and [changelog](../CHANGELOG.md).
+This guide describes SQL enforcement from stable **2.11.0** and the opt-in HTTP/OAuth additions in **2.12.0-alpha.1**. The new HTTP mode and OAuth discovery require the alpha; they are not available in stable 2.11.0. See the [security implementation review](security-implementation-review.md) and [changelog](../CHANGELOG.md).
 
 ## Important migration notice
 
@@ -118,6 +118,10 @@ Scoped policies accept single-table statements only. Joins, CTEs, nested SELECTs
 
 An operation policy that excludes or forbids EXECUTE also selects conservative parsing to prevent opaque routine calls hidden inside SELECT. It does not activate resource quotas or a catalog denylist.
 
+Starting with `2.12.0-alpha.5`, conservative parsing recognizes plain `FROM (SELECT ...)`, `JOIN (SELECT ...)`, and `JOIN ... USING (column, ...)` syntax (#41). These forms are available with operation-only/catalog policies or `allowUnsafeQueries=false` when no scoped table/row/masking/role policy is active. Every nested relation and function is still checked; comma joins, qualified relations and opaque routines (including package-qualified names that resemble builtins) remain unsupported. This does not expand the single-table subset above or require enabling unsafe queries. Other derived-source forms, such as parenthesized joins, lateral sources and derived column-alias lists, are not added to the conservative subset. Default compatibility behavior is unchanged.
+
+An empty `forbiddenTables: []` does not activate table scoping; adding even one entry does. With a populated denylist (or any other scoped policy above), complex queries still require a database-enforced view. Do not remove a required policy or enable unsafe SQL merely to bypass this limit. No new environment variable or security switch is needed for the #41 fix. Install `mcp-firebird@2.12.0-alpha.5` (or select `mcp-firebird@alpha` in your existing `npx` configuration) and restart the MCP process, retaining your connection and policy settings.
+
 Starting with alpha.4, builtin argument separators such as `EXTRACT(MONTH FROM T.CREATED_AT)`, `SUBSTRING(T.NAME FROM 1 FOR 3)` and `TRIM(BOTH FROM T.NAME)` are distinguished from table FROM clauses, including nested expressions. Aliased columns do not require `allowUnsafeQueries=true` or disabling security. Actual table references and nested subqueries remain subject to the policy; schema-qualified relations remain unsupported in conservative mode. If data masking is enabled, expression projections are still rejected as described below. Opt-in defaults are unchanged from alpha.3.
 
 ## Row filtering and masking
@@ -161,9 +165,24 @@ The structured `get-table-data` filters (`eq`, `ne`, `gt`, `gte`, `lt`, `lte`, `
 
 This is an **opt-in example, not the defaults**. Every limit is inactive when omitted, even inside a partially populated `resourceLimits` object. Use positive integers; remove a property to disable it (zero/null are invalid). When both row limits are configured, the lower wins. Oversized results are rejected, not silently truncated. Size is measured using UTF-8 JSON bytes; tool/resource wrappers also check aggregate responses. Row/size checks occur after driver materialization, so they are **not a database memory quota**. Use `FIRST`/`ROWS` and database-side controls to bound work.
 
-The lower of `queryTimeout` and the legacy `maxQueryCpuTime` is a **wall-clock deadline**, including attachment/query/BLOB reading. Timed-out connections are discarded; late attachments are also closed. This does not measure Firebird CPU time or guarantee immediate server-side cancellation. A timed-out write may already have committed: never automatically retry it.
+The lower of `queryTimeout` and the legacy `maxQueryCpuTime` is a **wall-clock deadline**, including attachment/query/BLOB reading. Starting in **2.12.0-alpha.2** (#38), a timeout rejects the request but keeps any in-flight attachment checked out until driver/cleanup/BLOB work settles, then destroys it exactly once instead of recycling it. Results arriving after the query deadline do not start new BLOB reads. Late attachments are closed without running SQL. Async-driver promise failures are observed even after a callback or timeout, preventing unhandled rejections from terminating the MCP process. Pending work still occupies its pool slot; if all slots are busy, later queries wait and may hit their own configured deadline. This deliberately avoids unsafe disconnects and unbounded replacement connections. It does not measure Firebird CPU time or cancel work on the server. A timed-out write may still commit: never automatically retry it. Limits remain opt-in; no timeout setting is required for this fix.
 
 Rate limiting uses a token bucket, initially filled to `burstLimit`, refilling at `queriesPerMinute`. Each physical query—including batch iterations and metadata reads—consumes a query count. Security-session identity is process-lifetime STDIO, authenticated OAuth subject, shared API key, or unauthenticated socket IP. Opening another MCP session does not reset quotas. Counters reset on process restart; maps have a 10,000-identity ceiling and reject new identities at capacity. Increase limits deliberately for large schemas or long-running deployments.
+
+### Configuring the query timeout
+
+Pool liveness probes also wait for the driver's asynchronous cleanup before reusing or discarding an attachment (#39). A probe's separate five-second deadline reserves that attachment for disposal when its pending work finishes; it does not disconnect in-flight I/O. Other available pool capacity can still serve requests. If all slots are occupied, callers wait and their configured query deadline still applies. The probe deadline is not server-side SQL cancellation.
+
+Starting in **2.12.0-alpha.3**, `QUERY_TIMEOUT` is read at security initialization. Earlier versions listed it in examples but did not apply it. This release activates existing nonempty values, including the `30000` value in the environment/Compose examples; review them when upgrading. No timeout is imposed when all timeout settings are absent.
+
+Choose either of these methods, retaining your other connection and security settings:
+
+- Set `QUERY_TIMEOUT=30000` in the MCP server's environment for 30 seconds. In a client's existing `env` object, add `"QUERY_TIMEOUT": "30000"`. PowerShell: `$env:QUERY_TIMEOUT = '30000'`; Bash: `export QUERY_TIMEOUT=30000`.
+- Add `"queryTimeout": 30000` to the `security` object in your existing security JSON/CJS file. If no file is selected, you can instead set `FIREBIRD_SECURITY_JSON` to `{"security":{"queryTimeout":30000}}` (merge with any existing policy rather than replacing it).
+
+The selected file policy takes precedence over inline JSON, as described above. Its explicit `security.queryTimeout` (or the inline value when no file is selected) takes precedence over `QUERY_TIMEOUT`, even if the environment value is lower. When the selected policy omits `queryTimeout`, the environment supplies it without replacing other policy fields. A shadowed environment value is ignored, including its validation. The effective deadline is then the **smaller** of the resulting `queryTimeout` and `security.resourceLimits.maxQueryCpuTime`, if both exist. Despite its historical name, `maxQueryCpuTime` is also measured in elapsed milliseconds, not CPU time.
+
+`QUERY_TIMEOUT` accepts decimal integers from **1 to 2147483647 milliseconds** (surrounding whitespace is allowed). Other nonblank values fail initialization with a configuration error; overflowing Node timers must not silently become 1 ms deadlines. Unset or blank disables only the environment fallback. To disable the deadline entirely, also remove both policy timeout properties. Do not use `0` or `null`. **Restart the MCP process** after changing any setting. This is independent of your MCP client's own request timeout; configure that separately if it ends requests earlier. The server deadline does not cancel SQL execution, as explained above.
 
 ## HTTP/SSE authentication and role permissions
 
@@ -186,6 +205,8 @@ For OAuth2:
         "tokenVerifyUrl": "https://auth.example.com/introspect",
         "clientId": "mcp-firebird",
         "clientSecret": "configure-securely",
+        "resourceUrl": "https://mcp.example.com/mcp",
+        "authorizationServers": ["https://auth.example.com"],
         "scope": "database:read"
       },
       "rolePermissions": {
@@ -196,19 +217,40 @@ For OAuth2:
 }
 ```
 
-HTTP requests use the Bearer token with an HTTPS introspection endpoint: form-encoded `token`, HTTP Basic client credentials, no redirects, five-second timeout. The endpoint must return `active:true`, a non-empty `sub`/`user_id`, and a `role` (or first `roles` entry). Required space-separated scopes and any provided expiry are checked. Your trusted authorization server must validate token audience and issuance policy. Missing identity, inactive/expired tokens, missing scopes and service failures deny access.
+HTTP requests use the Bearer token with an HTTPS introspection endpoint: form-encoded `token`, HTTP Basic client credentials, no redirects, five-second timeout. The endpoint must return `active:true`, a non-empty `sub`/`user_id`, a `role` (or first `roles` entry), and `aud` as a string or array of strings containing the **exact configured `resourceUrl`**. The server validates the audience itself; `active:true` alone or an audience equal only to `clientId` is insufficient. Required space-separated scopes, any provided expiry (`exp`), and not-before (`nbf`) are also checked. Missing identity, malformed/foreign audience, inactive/expired tokens and service failures return HTTP 401; otherwise valid tokens lacking required scopes return HTTP 403.
+
+**OAuth migration:** compatibility-mode configurations omitting **both** `resourceUrl` and `authorizationServers` retain the old introspection checks, with a startup warning. They do not perform local audience validation or publish discovery: use a trusted, resource-specific introspection provider. To enable the hardened flow above, configure both fields together. Partial/invalid settings fail validation. Once configured, audience checks apply in either HTTP mode and never fall back to legacy behavior. Strict HTTP requires both fields before listening. `resourceUrl` is the canonical public MCP endpoint without a query or fragment. Use HTTPS (HTTP is accepted only on loopback); issuers and introspection endpoints require HTTPS. Configure your provider to return the resource audience in introspection and route public discovery paths through your proxy.
+
+OAuth mode publishes credential-free [RFC 9728 protected resource metadata](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/authorization-server-discovery) before authentication at `/.well-known/oauth-protected-resource`, and at the resource-specific path (for `/mcp`, `/.well-known/oauth-protected-resource/mcp`). Responses include the resource identifier, authorization server issuers, supported scopes, and header-only bearer usage. HTTP 401/403 challenges include `WWW-Authenticate: Bearer resource_metadata="..."`, the required scope, and the appropriate OAuth error when applicable. Discovery and challenges use configured URLs, never request Host or forwarded headers. The external authorization server must provide OAuth/OIDC discovery and handle client registration, consent and token issuance; this database server does not implement those flows.
 
 In OAuth mode the Bearer token is an OAuth token, not the static API key. Verified identity flows to role checks; global restrictions and role permissions both apply. HTTP/SSE sessions are bound to the originating security identity. STDIO cannot supply an HTTP identity and database requests are denied when such authorization is configured. Use a separate STDIO policy instead of disabling checks silently.
 
-## CORS
+## HTTP binding, Host/Origin validation and CORS
 
-Defaults remain wildcard origin `*`, Authorization header allowed, browser credentials disabled. STDIO and server-side clients do not depend on CORS. Restrict browser origins with:
+By default, `MCP_HTTP_SECURITY_MODE=compat` preserves HTTP/SSE/unified binding to `0.0.0.0` and non-cookie wildcard CORS when `MCP_ALLOWED_ORIGIN` is unset, empty or `*`. No Host allowlist is imposed unless configured. This compatibility bridge warns at startup and is **not equivalent to strict-mode browser/DNS-rebinding isolation**. Use authentication and a trusted network; do not expose unauthenticated database access. Explicit Host/Origin lists are enforced even in compat mode, and `MCP_ALLOW_REMOTE=false` explicitly denies non-loopback binding.
+
+Set `MCP_HTTP_SECURITY_MODE=strict` to opt into loopback (`127.0.0.1`) defaults and Host/Origin validation before authentication, including OPTIONS. Default accepted hosts are `localhost`, `127.0.0.1` and `[::1]`. Native clients may omit Origin; browser origins must match the request origin or an explicit allowed origin. Malformed, opaque `null`, or foreign origins and foreign hosts receive HTTP 403. Browser credentials remain disabled. STDIO is unaffected. Unknown modes fail startup. To return to compatibility defaults, unset the variable or set it to `compat` and restart; explicit lists and SQL/OAuth policies remain enforced.
+
+**Strict HTTP migration:** remove the old `MCP_ALLOWED_ORIGIN=*` (rejected only in strict mode). Leave it unset/empty for same-origin access or list exact origins, including scheme and optional port but no path, trailing slash or wildcard:
 
 ```bash
 export MCP_ALLOWED_ORIGIN="https://app.example.com,https://admin.example.com"
 ```
 
-CORS is not authentication. Do not expose an unauthenticated HTTP service to the Internet.
+To expose the service beyond loopback in strict mode, configure all of:
+
+```bash
+export HTTP_HOST="0.0.0.0"
+export MCP_HTTP_SECURITY_MODE="strict"
+export MCP_ALLOW_REMOTE="true"
+export MCP_ALLOWED_HOSTS="mcp.example.com"
+export MCP_ALLOWED_ORIGIN="https://mcp.example.com,https://app.example.com"
+export FIREBIRD_API_KEY="replace-with-a-strong-secret" # or configure OAuth2
+```
+
+Host entries are exact hostnames/IP addresses, without ports; bracket IPv6 (`[2001:db8::1]`). Request Host headers may contain a valid port. Do not add wildcard bind addresses such as `0.0.0.0` as a substitute for the hostname clients actually use. `X-Forwarded-Host` and `X-Forwarded-Proto` never bypass validation. A TLS-terminating proxy must set an allowed direct Host and the public HTTPS browser origin must be in `MCP_ALLOWED_ORIGIN`. Docker/container listeners likewise need the deliberate remote settings; network publishing alone does not change the bind address.
+
+CORS allows the protocol version/method/name headers for 2026 requests, legacy session and event-resumption headers, and conditional-cache request headers. It exposes session, protocol, authentication challenge and cache response headers. This does not grant browser access beyond the origin allowlist, enable cookies or implement new cache behavior. CORS and Host/Origin checks are not authentication: protect remote exposure with a key or OAuth, HTTPS, firewall rules and least-privilege database credentials. These transport defaults do not change any opt-in SQL policy or database limit.
 
 ## Auditing
 
@@ -236,6 +278,12 @@ An unavailable audit sink prevents query dispatch or withholds the result. A fai
 
 ## Verification and boundaries
 
-Run `npm test -- --runInBand` and `npm run build`. The opt-in `scripts/security-firebird-smoke.mjs` creates/drops a UUID-named disposable local database; see the review for execution details. Tests cover actual query dispatch, not only JSON schema acceptance.
+Run `npm run verify:release` from a development checkout with its development dependencies installed. This runs type checking, a fresh build, lint error checks, the full unit suite, protocol regressions and compiled security smoke checks. `prepublishOnly` runs the same gate before a normal `npm publish`; maintainers must not bypass it with `--ignore-scripts`. It runs locally, not in GitHub Actions, and does not run when users install or start the MCP. Jest discovery is limited to `src` so temporary review copies are not mistaken for current tests.
+
+Maintainer publication command: `npm publish --tag alpha --access public --ignore-scripts=false`. The explicit flag is important when a user's npm configuration has `ignore-scripts=true`, which would otherwise skip lifecycle hooks. The gate reduces regression risk but is not a server-enforced publishing restriction.
+
+The SQL regression matrix combines supported derived queries and function separators with case, whitespace, comment and nesting variations, the reporter's policy, explicit denials and default compatibility. Negative cases include hidden catalog sources, opaque/package functions, sequences and populated table denylists. Historical default rejection of SQL comments is preserved; the conservative tokenizer handles comments under explicit policies. Every future SQL compatibility fix should add both a valid example and an adversarial counterpart to this corpus, plus a query-boundary test; do not add SQL keywords to a function allowlist without checking their grammatical context.
+
+The opt-in `scripts/security-firebird-smoke.mjs` creates/drops a UUID-named disposable local database; see the review for execution details. It includes #36 function separators and #41 derived queries/joins with bound parameters under explicit policies. Live tests are separate from the publication gate because they require a local Firebird service and test credentials. Controlled-driver/protocol tests do not replace live validation against your deployed Firebird version.
 
 These controls do not provide OS isolation, TLS termination, database CPU accounting, a complete SQL parser or automatic protection against every indirect database dependency. Keep Firebird grants minimal, protect configuration files and credentials, use HTTPS/firewalls, maintain backups and test migrations before rollout.

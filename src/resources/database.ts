@@ -2,7 +2,7 @@
 import { createLogger } from '../utils/logger.js';
 import { listTables, describeTable, executeQuery } from '../db/queries.js';
 import { getTableSchema } from '../db/schema.js';
-import { ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { ResourceTemplate } from '@modelcontextprotocol/server';
 import { checkAllowedTable } from '../security/authorization.js';
 import { quoteIdentifier } from '../utils/security.js';
 import { getTableConstraints, getTableIndexes, getTableTriggers } from '../db/table-metadata.js';

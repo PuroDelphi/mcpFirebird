@@ -44,6 +44,38 @@ describe('real query boundary with mocked Firebird I/O', () => {
         expect(queryDatabase).toHaveBeenCalledWith(expect.anything(),
             'SELECT T.ID, EXTRACT(MONTH FROM T.CREATED_AT) AS MON FROM (SELECT * FROM MY_TABLE WHERE (VISIBLE = 1)) T WHERE T.ID = ?', [1]);
     });
+    it.each([
+        'SELECT * FROM (SELECT ID, CODE FROM TABLENAME WHERE ID = ?) T;',
+        'SELECT T.NAME, C.I_COUNT FROM TABLENAME T JOIN (SELECT ID, COUNT(ID) AS I_COUNT FROM CONTACT GROUP BY ID) C ON C.ID = T.ID WHERE T.ID = ?',
+        'SELECT * FROM (SELECT ID FROM TABLENAME WHERE ID = ?) T JOIN CONTACT C USING (ID)'
+    ])('dispatches permitted derived SQL unchanged with bound parameters (#41): %s', async sql => {
+        securityConfig.allowedOperations = ['SELECT'];
+        securityConfig.sql = { allowSystemTables: false, allowUnsafeQueries: false };
+        await expect(executeQuery(sql, [1])).resolves.toEqual([{ ID: 1 }]);
+        expect(queryDatabase).toHaveBeenCalledTimes(1);
+        expect(queryDatabase).toHaveBeenCalledWith(expect.anything(), sql, [1]);
+    });
+    it.each([
+        'SELECT * FROM (SELECT * FROM RDB$RELATIONS) T',
+        'SELECT * FROM TABLENAME T JOIN (SELECT * FROM MON$ATTACHMENTS) M ON 1=1',
+        'SELECT * FROM (SELECT ID FROM TABLENAME) T, RDB$RELATIONS R',
+        'SELECT * FROM (SELECT ID FROM TABLENAME) "WHERE", RDB$RELATIONS R',
+        'SELECT * FROM (SELECT SECRET_FUNCTION(ID) FROM TABLENAME) T',
+        'SELECT * FROM (SELECT PKG.ABS(ID) FROM TABLENAME) T',
+        'SELECT * FROM (SELECT "USING"(ID) FROM TABLENAME) T',
+        'SELECT * FROM TABLENAME T JOIN CONTACT C USING (SECRET_FUNCTION(ID))'
+    ])('rejects derived-query bypasses before Firebird I/O (#41): %s', async sql => {
+        securityConfig.sql = { allowSystemTables: false, allowUnsafeQueries: true };
+        await expect(executeQuery(sql)).rejects.toMatchObject({ type: 'SECURITY_ERROR' });
+        expect(connectToDatabase).not.toHaveBeenCalled();
+        expect(queryDatabase).not.toHaveBeenCalled();
+    });
+    it('keeps derived SQL outside scoped policies before Firebird I/O (#41)', async () => {
+        securityConfig.allowedTables = ['TABLENAME'];
+        await expect(executeQuery('SELECT * FROM (SELECT ID FROM TABLENAME) T')).rejects.toMatchObject({ type: 'SECURITY_ERROR' });
+        expect(connectToDatabase).not.toHaveBeenCalled();
+        expect(queryDatabase).not.toHaveBeenCalled();
+    });
     it('applies row filtering, parameter binding and masking inside the query boundary', async () => {
         securityConfig.rowFilters = { T: 'VISIBLE = 1' };
         securityConfig.dataMasking = [{ columns: ['SSN'], pattern: '^.*$', replacement: 'hidden' }];
@@ -72,10 +104,28 @@ describe('real query boundary with mocked Firebird I/O', () => {
         await executeQuery('SELECT * FROM T');
         expect(releaseMock).toHaveBeenCalledTimes(1);
     });
-    it('discards timed-out connections rather than returning them to the pool', async () => {
+    it('keeps timed-out connections checked out until I/O settles, then discards them', async () => {
         securityConfig.queryTimeout = 10;
-        jest.mocked(queryDatabase).mockImplementation(() => new Promise(() => {}));
+        let finish!: (rows: any[]) => void;
+        const blob = jest.fn();
+        jest.mocked(queryDatabase).mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
         await expect(executeQuery('SELECT * FROM T')).rejects.toThrow('deadline');
+        expect(destroyMock).not.toHaveBeenCalled();
+        expect(releaseMock).not.toHaveBeenCalled();
+        finish([{ DATA: blob }]);
+        await new Promise(resolve => setTimeout(resolve, 0));
+        expect(destroyMock).toHaveBeenCalledTimes(1);
+        expect(releaseMock).not.toHaveBeenCalled();
+        expect(blob).not.toHaveBeenCalled();
+        await expect(executeQuery('SELECT * FROM T')).resolves.toEqual([{ ID: 1 }]);
+    });
+    it('observes a late query rejection after returning QUERY_TIMEOUT', async () => {
+        securityConfig.queryTimeout = 10;
+        let fail!: (error: Error) => void;
+        jest.mocked(queryDatabase).mockImplementationOnce(() => new Promise((_, reject) => { fail = reject; }));
+        await expect(executeQuery('SELECT * FROM T')).rejects.toMatchObject({ type: 'QUERY_TIMEOUT' });
+        fail(new Error('late driver failure'));
+        await new Promise(resolve => setTimeout(resolve, 0));
         expect(destroyMock).toHaveBeenCalledTimes(1);
         expect(releaseMock).not.toHaveBeenCalled();
     });
@@ -87,6 +137,19 @@ describe('real query boundary with mocked Firebird I/O', () => {
         resolveConnection({}); await new Promise(resolve => setTimeout(resolve, 0));
         expect(destroyMock).toHaveBeenCalledTimes(1);
         expect(queryDatabase).not.toHaveBeenCalled();
+    });
+    it('does not detach a connection while a timed-out BLOB stream is active', async () => {
+        const { EventEmitter } = await import('node:events');
+        const stream = new EventEmitter();
+        securityConfig.queryTimeout = 10;
+        jest.mocked(queryDatabase).mockResolvedValueOnce([{ DATA: (cb: any) => cb(null, 'DATA', stream) }]);
+        await expect(executeQuery('SELECT * FROM T')).rejects.toThrow('deadline');
+        expect(destroyMock).not.toHaveBeenCalled();
+        stream.emit('data', Buffer.from('late'));
+        stream.emit('end');
+        await new Promise(resolve => setTimeout(resolve, 0));
+        expect(destroyMock).toHaveBeenCalledTimes(1);
+        expect(releaseMock).not.toHaveBeenCalled();
     });
     it('returns more than 1000 rows and handles more than 100 queries without configured caps', async () => {
         const rows = Array.from({length:1200}, (_, ID) => ({ID}));

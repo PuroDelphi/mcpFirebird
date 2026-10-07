@@ -17,9 +17,6 @@ import {
     executeBatchQueries,
     describeBatchTables
 } from './queries.js';
-import { createLogger } from '../utils/logger.js';
-
-const logger = createLogger('db:wrapped-queries');
 
 // Crear versiones wrapped de las funciones que garantizan el uso de la configuración correcta
 const wrappedExecuteQuery = withCorrectConfig(executeQuery, 2); // config es el tercer parámetro (índice 2)

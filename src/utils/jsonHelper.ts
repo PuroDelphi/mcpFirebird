@@ -3,7 +3,7 @@
  * Utility functions for handling JSON in MCP responses
  */
 
-import { MCPError, FirebirdError, ErrorTypes } from './errors.js';
+import { MCPError, ErrorTypes } from './errors.js';
 
 /**
  * Convert an object to a compact JSON string without line breaks

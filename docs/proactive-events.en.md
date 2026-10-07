@@ -1,86 +1,97 @@
-# Proactive Events and Bidirectional Streaming in MCP 2.7+
+# Firebird events and MCP subscriptions
 
-As of MCP version 2.7+, the MCP Firebird server fully supports **Streamable HTTP** and **Proactive Events** (Firebird `POST_EVENT` triggers). This allows the database to notify MCP clients in real-time when changes occur.
+Firebird `POST_EVENT` notifications are exposed as resource updates at
+`firebird://events/{eventName}`. Updates carry the resource URI, not database
+rows or a trigger payload. Read the resource to retrieve its latest observed
+counter and timestamp. Event names are URI-encoded.
 
-## What are Proactive Events?
+Events work over stdio, Streamable HTTP (`/mcp`), and legacy HTTP+SSE
+(`/sse` with `/messages`). A supported Firebird event API is required: the
+native driver's `queueEvents`, or the pure-JavaScript driver's `attachEvent`.
+Native libraries are only required when selecting the native driver. The
+Firebird server must be reachable for the selected driver's event connection.
 
-Instead of the client (like an LLM or n8n) repeatedly querying the database to see if something changed (Polling), Firebird can emit an event at the exact moment the change occurs using the `POST_EVENT` instruction.
-Through MCP with HTTP/SSE transport, the MCP server listens for these events and instantly relays them to the client.
-
-### Requirements
-
-1. **Network Transport**: You must use `TRANSPORT_TYPE=sse` or `TRANSPORT_TYPE=unified` or `http`. The `stdio` transport does not support sending proactive event notifications from the server to the client in standard MCP.
-2. **Native Driver**: Listening for events requires the native Firebird driver. You must start the server with the `--use-native-driver` flag.
-
-## Quick Setup
-
-### 1. In the Database (Firebird)
-
-First, you need to create a trigger in your database that fires the event:
+## Database example
 
 ```sql
 CREATE OR ALTER TRIGGER TRG_NEW_ORDER FOR ORDERS
 ACTIVE AFTER INSERT POSITION 0
 AS
 BEGIN
-  -- Fires an event named 'NEW_ORDER'
   POST_EVENT 'NEW_ORDER';
 END
 ```
 
-### 2. Start the MCP Server
+Creating this trigger is an administrator action, separate from subscribing.
+The MCP server does not create it automatically or change SQL permissions.
 
-Start the server by enabling the native driver, an SSE/HTTP port, and optional authentication (EMA):
+## Protocol 2025 clients
 
-```bash
-npx -y mcp-firebird \
-  --transport-type sse \
-  --sse-port 3003 \
-  --use-native-driver \
-  --database /path/to/database.fdb \
-  --user SYSDBA \
-  --password masterkey \
-  --api-key your_secret_key
+1. Call `subscribe_to_event` with `{"eventName":"NEW_ORDER"}` to register the
+   database listener, or subscribe to its resource directly
+2. Send `resources/subscribe` with
+   `{"uri":"firebird://events/NEW_ORDER"}`
+3. Handle `notifications/resources/updated`, then read that URI when needed
+4. Send `resources/unsubscribe` for that URI to release the registration
+
+The tool alone does not opt a legacy client into MCP resource notifications.
+Registrations and resource subscriptions belong to that connection/session.
+Unsubscribing or disconnecting one client does not stop another client's
+listener. A stateless 2025 HTTP request has no durable subscription lifetime;
+use a sessionful transport for events.
+
+## Protocol 2026-07-28 clients
+
+Use `subscriptions/listen` with these request parameters (the SDK client may
+expose this as a subscription filter):
+
+```json
+{
+  "notifications": {
+    "resourceSubscriptions": ["firebird://events/NEW_ORDER"]
+  }
+}
 ```
 
-### 3. Subscribe from the Client
+Include the protocol's normal per-request `_meta` envelope. The SDK validates
+the request, acknowledges the accepted subscriptions, applies exact-URI filters,
+and tags delivered updates with the subscription ID. An event update is
+`notifications/resources/updated`, not `notifications/message`.
 
-The client can use the `subscribe_to_event` tool to start listening. When the event occurs in the database, the MCP client will receive a system notification.
+### HTTP
 
-Example from a client using the TypeScript SDK:
+The validated open listen stream owns the Firebird registration. No separate
+tool call is required. Cancel or close that stream to release its registrations;
+other streams are unaffected. The server does not retain a per-request MCP
+server after returning its response.
 
-```typescript
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+Over modern HTTP, `subscribe_to_event` and `unsubscribe_from_event` return the
+URI and instructions to open/close a stream. They do not create or remove
+persistent registrations themselves. Reconnect by opening a new listen stream.
 
-const transport = new StreamableHTTPClientTransport(
-  new URL("http://localhost:3003/mcp"),
-  { headers: { Authorization: "Bearer your_secret_key" } }
-);
+### stdio
 
-const client = new Client(
-    { name: "my-client", version: "1.0.0" },
-    { capabilities: { resources: { subscribe: true } } }
-);
+Call `subscribe_to_event` to register the database event, then open a
+`subscriptions/listen` subscription for its URI on the same connection. Cancel
+the subscription to stop delivery; call `unsubscribe_from_event` to release the
+underlying registration, or close the connection to release all its events.
+The SDK routes typed resource updates only to matching active subscriptions.
 
-await client.connect(transport);
+## Lifecycle, security, and limits
 
-// Notification handler
-client.setNotificationHandler("notifications/message", (notification) => {
-    console.log("Event received!", notification);
-});
+- One shared Firebird attachment listens for the union of active registrations
+- Each connection or HTTP listen stream has its own registration owner
+- Duplicate registrations share the underlying event listener; shared HTTP bus
+  delivery is deduplicated
+- The final owner disconnect cancels driver event handles and detaches the
+  event connection; a later subscription opens a fresh connection
+- Registration changes are serialized; failed registrations roll back ownership
+- At most 128 distinct event names can be registered by this process; a driver
+  may impose a lower limit and will return an error
+- Scoped authorization, table restrictions, row filters, or data masking disable
+  this shared event facility; enabling those policies also suppresses delivery
+  from previously opened listeners
 
-// Subscribe to the Firebird event
-await client.callTool({
-  name: "subscribe_to_event",
-  arguments: { eventName: "NEW_ORDER" }
-});
-
-console.log("Listening for events...");
-```
-
-## Use Cases
-
-* **Real-time Automation (n8n/Make):** Trigger a workflow immediately after a record is inserted, instead of querying every minute.
-* **Cache Synchronization:** Invalidate local caches when catalogs change in the database.
-* **Proactive Agents:** A "sleeping" LLM can be awakened by an event notification to analyze an anomaly exactly when it occurs.
+The latest counter is a driver-reported event counter, not a durable audit log.
+Updates may be coalesced or missed while disconnected. Use database queries or
+an application-owned durable queue if every change must be processed.

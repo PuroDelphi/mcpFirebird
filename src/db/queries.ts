@@ -13,7 +13,6 @@ import {
 } from './connection.js';
 import { FirebirdError } from '../utils/errors.js';
 import { validateSql } from '../utils/security.js';
-import { withCorrectConfig } from './wrapper.js';
 import { resolveBlobFields } from './blob.js';
 import { securityConfig } from '../security/config.js';
 import { prepareUserQuery } from '../security/sqlPolicy.js';
@@ -108,6 +107,7 @@ async function executeGuarded(sql: string, params: any[], config: ConfigOptions,
     let succeeded = false;
     let timer: NodeJS.Timeout | undefined;
     let expired = false;
+    let workPending = false;
     const start = Date.now();
     const originalSql = sql;
     try {
@@ -126,21 +126,35 @@ async function executeGuarded(sql: string, params: any[], config: ConfigOptions,
             await logQueryExecution(originalSql, params, '', '', true, '', 0, 0);
         }
         const timeout = Math.min(securityConfig.queryTimeout || Infinity, securityConfig.resourceLimits?.maxQueryCpuTime || Infinity);
+        const ownerPool = getPool(config);
         const work = async () => {
-            const connection = await connectToDatabase(config);
-            if (expired) { getPool(config).destroy(connection); throw new FirebirdError('Query deadline exceeded', 'QUERY_TIMEOUT'); }
-            db = connection;
-            const result = await queryDatabase(connection, sql, params);
-            // node-firebird returns an object (not a row array) for
-            // EXECUTE PROCEDURE. Normalize before masking, limits and BLOBs.
-            const rows = result == null ? [] : Array.isArray(result) ? result : [result];
-            return resolveBlobFields(rows);
+            workPending = true;
+            try {
+                db = await connectToDatabase(config);
+                if (expired) throw new FirebirdError('Query deadline exceeded', 'QUERY_TIMEOUT');
+                const result = await queryDatabase(db, sql, params);
+                // Do not start BLOB reads or process a result after its deadline.
+                if (expired) throw new FirebirdError('Query deadline exceeded', 'QUERY_TIMEOUT');
+                // EXECUTE PROCEDURE may return an object rather than an array.
+                const rows = result == null ? [] : Array.isArray(result) ? result : [result];
+                // Await BLOB I/O before relinquishing ownership in finally.
+                return await resolveBlobFields(rows);
+            } finally {
+                workPending = false;
+                if (expired && db) {
+                    const discarded = db;
+                    db = null;
+                    ownerPool.destroy(discarded);
+                }
+            }
         };
         let resolved = await Promise.race([work(), new Promise<never>((_, reject) => {
             if (Number.isFinite(timeout)) timer = setTimeout(() => {
                 expired = true;
-                if (db) { getPool(config).destroy(db); db = null; }
-                reject(new FirebirdError('Query deadline exceeded; connection discarded', 'QUERY_TIMEOUT'));
+                // The driver cannot safely disconnect an attachment during I/O.
+                // Keep it checked out (never reused) until work's finally drains
+                // the operation and destroys it. Promise.race observes late errors.
+                reject(new FirebirdError('Query deadline exceeded; connection reserved for disposal after pending work completes', 'QUERY_TIMEOUT'));
             }, timeout);
         })]);
         if (timer) clearTimeout(timer);
@@ -157,7 +171,7 @@ async function executeGuarded(sql: string, params: any[], config: ConfigOptions,
         return resolved;
     } catch (error: any) {
         if (timer) clearTimeout(timer);
-        if (db) { getPool(config).destroy(db); db = null; }
+        if (db && !workPending) { getPool(config).destroy(db); db = null; }
         if (kind !== 'audit') {
             try { await logQueryExecution(originalSql, params, '', '', false, 'Query rejected or failed', Date.now() - start); }
             catch { /* Original failure is still returned; no unlogged result is exposed. */ }
@@ -176,7 +190,7 @@ async function executeGuarded(sql: string, params: any[], config: ConfigOptions,
         // Return the connection to the pool on success, or evict it on failure.
         // A connection that hit an error may be poisoned/stale, so it must be
         // destroyed rather than recycled into the pool.
-        if (db) {
+        if (db && !workPending) {
             const pool = getPool(config);
             if (succeeded) {
                 pool.release(db);
@@ -669,8 +683,8 @@ export const analyzeQueryPerformance = async (
  */
 export const getExecutionPlan = async (
     sql: string,
-    params: any[] = [],
-    config = getGlobalConfig() || DEFAULT_CONFIG
+    _params: any[] = [],
+    _config = getGlobalConfig() || DEFAULT_CONFIG
 ): Promise<ExecutionPlanResult> => {
     try {
         // Validate the SQL query to prevent injection
@@ -758,6 +772,8 @@ export const getExecutionPlan = async (
 /**
  * Analyzes a Firebird execution plan and provides insights
  */
+// Retained plan formatter for driver support; current API returns estimates.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function analyzePlan(plan: string): string {
     const analysis: string[] = [];
     const upperPlan = plan.toUpperCase();
@@ -805,7 +821,7 @@ function analyzePlan(plan: string): string {
  */
 export const analyzeMissingIndexes = async (
     sql: string,
-    config = DEFAULT_CONFIG
+    _config = DEFAULT_CONFIG
 ): Promise<{missingIndexes: string[], recommendations: string[], success: boolean, error?: string}> => {
     try {
         // Validate the SQL query to prevent injection

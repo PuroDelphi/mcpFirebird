@@ -5,7 +5,7 @@ import { checkQueryCountLimit, checkRateLimit, checkResponseSizeLimit, checkRowL
 describe('opt-in security compatibility', () => {
     const env = { ...process.env };
     beforeEach(() => {
-        for (const key of ['FIREBIRD_SECURITY_CONFIG', 'SECURITY_CONFIG', 'SECURITY_CONFIG_PATH', 'FIREBIRD_SECURITY_JSON', 'ALLOW_RAW_SQL']) delete process.env[key];
+        for (const key of ['FIREBIRD_SECURITY_CONFIG', 'SECURITY_CONFIG', 'SECURITY_CONFIG_PATH', 'FIREBIRD_SECURITY_JSON', 'QUERY_TIMEOUT', 'ALLOW_RAW_SQL']) delete process.env[key];
         initSecurityConfig(); resetQueryCount(); resetRateLimit();
     });
     afterEach(() => { process.env = { ...env }; });

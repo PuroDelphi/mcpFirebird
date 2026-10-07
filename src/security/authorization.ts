@@ -5,8 +5,6 @@
 import { securityConfig } from './config.js';
 import { currentSecurityContext } from './context.js';
 import { FirebirdError } from '../utils/errors.js';
-import { createLogger } from '../utils/logger.js';
-const logger = createLogger('security:authorization');
 
 /**
  * Interface for user information
@@ -15,6 +13,13 @@ export interface UserInfo {
     id: string;
     username: string;
     role: string;
+}
+
+/** Safe public OAuth failure category; never includes tokens or introspection data. */
+export class OAuthTokenError extends FirebirdError {
+    constructor(public readonly oauthError: 'invalid_token' | 'insufficient_scope' = 'invalid_token') {
+        super(oauthError === 'insufficient_scope' ? 'Missing required scope' : 'Token verification failed', 'AUTHORIZATION_ERROR');
+    }
 }
 
 /**
@@ -162,7 +167,7 @@ export async function verifyOAuth2Token(token: string): Promise<UserInfo> {
         throw new FirebirdError('OAuth2 configuration missing', 'AUTHORIZATION_ERROR');
     }
 
-    const { tokenVerifyUrl, clientId, clientSecret, scope } = securityConfig.authorization.oauth2;
+    const { tokenVerifyUrl, clientId, clientSecret, scope, resourceUrl } = securityConfig.authorization.oauth2;
 
     try {
         // Call the token verification endpoint
@@ -170,7 +175,8 @@ export async function verifyOAuth2Token(token: string): Promise<UserInfo> {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
-                'Authorization': `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString('base64')}`
+                // OAuth client password authentication form-encodes each value first.
+                'Authorization': `Basic ${Buffer.from(`${formEncode(clientId)}:${formEncode(clientSecret)}`).toString('base64')}`
             },
             body: new URLSearchParams({ token }).toString(),
             signal: AbortSignal.timeout(5000),
@@ -182,24 +188,38 @@ export async function verifyOAuth2Token(token: string): Promise<UserInfo> {
         }
 
         // Extract user information from the response
-        const data = await response.json() as any;
-        if (data.active !== true || (data.exp !== undefined && (!Number.isFinite(data.exp) || data.exp <= Date.now() / 1000))) {
+        const data = await response.json() as Record<string, unknown>;
+        const now = Date.now() / 1000;
+        if (!data || typeof data !== 'object' || Array.isArray(data) || data.active !== true ||
+            (data.exp !== undefined && (typeof data.exp !== 'number' || !Number.isFinite(data.exp) || data.exp <= now)) ||
+            (data.nbf !== undefined && (typeof data.nbf !== 'number' || !Number.isFinite(data.nbf) || data.nbf > now))) {
             throw new Error('Inactive or expired token');
         }
+        // Legacy configurations retain introspection-only behavior. Once a
+        // resource is configured, fail closed: never fall back to legacy mode.
+        const audiences = typeof data.aud === 'string' ? [data.aud] : data.aud;
+        if (resourceUrl && (!Array.isArray(audiences) || !audiences.every(audience => typeof audience === 'string') ||
+            !audiences.includes(resourceUrl))) throw new Error('Invalid token audience');
         const scopes = typeof data.scope === 'string' ? data.scope.split(/\s+/) : [];
-        if (scope && scope.split(/\s+/).some(required => !scopes.includes(required))) throw new Error('Missing required scope');
         const subject = data.sub || data.user_id;
-        const role = data.role || data.roles?.[0];
+        const role = data.role || (Array.isArray(data.roles) ? data.roles[0] : undefined);
         if (typeof subject !== 'string' || !subject.trim() || typeof role !== 'string' || !role.trim()) throw new Error('Missing identity or role');
+        if (scope && scope.split(' ').some(required => !scopes.includes(required))) throw new OAuthTokenError('insufficient_scope');
+        const username = data.username || data.preferred_username || data.email;
 
         const userInfo: UserInfo = {
-            id: data.sub || data.user_id || '',
-            username: data.username || data.preferred_username || data.email || '',
-            role: data.role || (data.roles && data.roles[0]) || 'user'
+            id: subject,
+            username: typeof username === 'string' ? username : '',
+            role
         };
 
         return userInfo;
-    } catch (error: any) {
-        throw new FirebirdError('Token verification failed', 'AUTHORIZATION_ERROR');
+    } catch (error) {
+        if (error instanceof OAuthTokenError) throw error;
+        throw new OAuthTokenError();
     }
+}
+
+function formEncode(value: string): string {
+    return new URLSearchParams({ value }).toString().slice('value='.length);
 }

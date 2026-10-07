@@ -1,5 +1,88 @@
 # Changelog
 
+## [2.12.0-alpha.5] - 2026-10-02
+
+### Fixed
+- Address #41 through PR #42: distinguish derived `FROM (SELECT ...)`, `JOIN (SELECT ...)` and named-column `JOIN ... USING (...)` syntax from routine calls. Check nested sources/functions instead of globally allowlisting SQL keywords.
+- Keep catalog/routine denials effective for nested queries, comma sources hidden behind quoted aliases, and package-qualified names resembling builtins. Table, row, masking and role policies retain their conservative single-table boundary.
+- Include the previously merged PR #40: drain asynchronous pooled-connection probe cleanup before disconnecting; retain busy attachments until cleanup completes, including probe deadlines and late failures.
+
+### Regression prevention
+- Add 151 unit cases from PR #42 and a further 230-case syntax/policy matrix covering formatting, comments, quoted identifiers, nesting, the reporter's empty-denylist policy, forbidden constructs and subsequently populated denylists. Retain #36 EXTRACT/SUBSTRING/TRIM coverage and query-boundary checks that preserve SQL/parameters and reject before connection acquisition.
+- Add `npm run verify:release` and a local `prepublishOnly` gate: typecheck, fresh build, lint error checks, all unit/protocol tests and compiled security smoke checks. Limit Jest discovery to `src` to exclude temporary review snapshots. GitHub Actions remains disabled.
+- Expand the opt-in live Firebird smoke test with derived sources, JOIN ON/USING, parameters, nested catalog denial and the populated-denylist boundary.
+- Refresh only the locked transitive Hono dependency from 4.13.5 to 4.13.12, addressing [GHSA-hxh3-vqpv-xpqv](https://github.com/advisories/GHSA-hxh3-vqpv-xpqv). Firebird drivers and direct dependency ranges are unchanged.
+
+### Compatibility and validation
+- No new setting is required: keep the existing connection/security configuration and restart after upgrading. An empty `forbiddenTables` list does not activate table scoping; a nonempty list does. Complex queries with scoped policies still require a database-enforced view. Do not disable required controls to bypass this limit. See the [English](docs/security.md) / [Spanish](docs/security.es.md) guides.
+- Default behavior, opt-in security controls and Node.js 20.19+ requirements are unchanged. This is an alpha release; stable/latest stays at 2.11.0. The parser remains a deliberately limited subset, not a guarantee of support for all Firebird SQL.
+- Validation: 735 unit tests, 88 protocol/regression tests (no skips), compiled security smoke checks, build, typecheck and lint error checks passed. Live integration passed on a disposable Firebird 2.5.9 database with the pure-JS driver, including #36/#41 queries, filtering/masking, auditing and real event delivery/reconnect. This does not claim live native-driver or other Firebird-version coverage.
+- Production dependency audit: zero known vulnerabilities after the Hono refresh. The full development tree still reports three advisory groups in build/test dependencies; those are not installed as this package's production dependencies and are outside this SQL fix.
+
+## [2.12.0-alpha.4] - 2026-09-30
+
+### Fixed
+- Fix #39: `list-tables` and `get-database-info` now advertise arrays of table-name strings, matching their unchanged runtime/legacy text payloads. The initial MCP 2026 alpha output schema confused these with resource name/URI objects and rejected nonempty lists.
+- Replace unconstrained empty value schemas with explicit recursive JSON types for rows, metadata, plan details and error context. Preserve nested JSON data and output validation while removing the reported Inspector warning.
+- Correct `analyze-table-statistics` to read normalized column metadata, restoring column names, types, nullability and default presence.
+
+### Regression coverage and compatibility
+- Add nonempty driver-boundary fixtures for all 30 database, metadata and echo handlers, exercising production mapping instead of mocking helper return values. Check catalog schemas and call every handler through SDK 1 and SDK 2 legacy/2026 clients over STDIO and HTTP.
+- Retain the #38 lifecycle and configurable-timeout fixes, legacy text formats, opt-in security defaults and unchanged driver dependencies. Node.js 20.19+ required; stable/latest remains unchanged. GitHub Actions stays disabled.
+- See [tool contract](docs/tool-contract.md) for payload examples and validation details. No client configuration migration is required for this fix. Live Firebird integration could not be repeated because the local test service refused connections; controlled-driver tests are not claimed as live coverage.
+- Validation: 346 unit tests, 80 protocol/regression tests, compiled security smoke checks and TypeScript build passed. Lint: no errors. Production dependency audit: zero vulnerabilities.
+
+## [2.12.0-alpha.3] - 2026-09-30
+
+### Fixed
+- Honor `QUERY_TIMEOUT` as an opt-in environment fallback for `security.queryTimeout` during security initialization, including JSON and CommonJS policies.
+- Preserve explicit policy timeout precedence and the independent lower `resourceLimits.maxQueryCpuTime` cap. Reject malformed or overflowing environment deadlines rather than silently using unsafe timer values.
+- Test environment configuration, policy precedence and legacy caps through strict-unhandled-rejection subprocesses, retaining the #38 safe attachment lifecycle fix.
+
+### Configuration and compatibility
+- Units are milliseconds; `QUERY_TIMEOUT` accepts decimal integers from 1 to 2147483647. Unset/blank means no environment fallback; no implicit timeout is introduced. Restart the MCP process to apply changes.
+- Previously ignored nonempty `QUERY_TIMEOUT` values now take effect, including the 30000 ms environment/Compose examples. Explicit `security.queryTimeout` takes priority; remove both policy deadlines and unset/blank the variable to disable the limit completely. Zero is not a disable switch.
+- Document environment, inline JSON and file configuration in the [English security guide](docs/security.md#configuring-the-query-timeout) and [Spanish guide](docs/security.es.md#configurar-el-timeout-de-las-consultas). Requires Node.js 20.19+; stable/latest and driver selection remain unchanged.
+
+### Validation
+- 342 unit tests, 42 protocol/regression tests, compiled security smoke checks and TypeScript build passed. Lint: no errors. Production dependency audit: zero vulnerabilities. Timeout regressions use controlled driver adapters, not a live Firebird connection.
+
+## [2.12.0-alpha.2] - 2026-09-30
+
+### Fixed
+- Fix #38: observe async driver promises as well as callbacks and wait for adapter cleanup before releasing/disconnecting an attachment.
+- Return query deadlines without disconnecting in-flight driver/BLOB work. Keep the attachment checked out until completion, then discard it once; never recycle it or process late results.
+- Drain concurrent BLOB reads before propagating failures so sibling reads cannot race attachment teardown.
+- Add strict-unhandled-rejection subprocess regressions covering late success, rejection and post-callback cleanup failure, plus subsequent successful queries through a one-slot pool.
+
+### Compatibility
+- Existing SQL policies, opt-in deadlines, HTTP compatibility defaults and Firebird driver selection are unchanged. Pending timed-out operations retain their pool slots until completion; this is not server-side cancellation, and timed-out writes must not be retried automatically.
+- Includes the MCP 2026 alpha changes below and requires Node.js 20.19+. Stable/latest remains unchanged. See [English security guide](docs/security.md) / [Spanish guide](docs/security.es.md).
+
+### Validation
+- 319 unit tests, 36 protocol/regression tests, compiled security smoke checks and TypeScript build passed on Node 24.14.1. Lint: no errors. Production dependency audit: zero vulnerabilities.
+- Strict Node subprocess regressions use controlled driver adapters, not a live native Firebird connection. Live integration could not be repeated for this patch because local Firebird port 3050 refused connections; the previous alpha's live results are not claimed for this patch.
+
+
+## [2.12.0-alpha.1] - 2026-09-29
+
+- Opt into MCP 2026-07-28 via SDK v2 factories while retaining 2025 stdio/HTTP and legacy SSE clients
+- Share one server implementation across executable entry points
+- Preserve historical HTTP binding, wildcard non-cookie CORS and introspection-only OAuth in the default `compat` mode; warn about the security trade-offs
+- Add opt-in `MCP_HTTP_SECURITY_MODE=strict`: loopback defaults, Host/Origin validation and explicit remote exposure; explicit allowlists and OAuth audiences are enforced in either mode
+- Add protected-resource OAuth discovery, token audience checks, and MCP browser headers
+- Add structured tool results, output schemas, honest annotations, and consistent protocol errors
+- Isolate event subscribers and release listeners on disconnect
+- Retain dependency security fixes from stable 2.11.0; leave GitHub Actions disabled and exclude the proposed CI workflow
+- Isolate protocol test subprocesses from developer .env files and configured ports
+- Exclude local proof-of-concept files, test runners and manual smoke scripts from the npm runtime package
+- Preserve the authenticated root health endpoint; test real pure-JS Firebird events, subscriber isolation, cleanup and reconnect against a disposable Firebird 2.5.9 database
+- Require Node.js 20.19+ for SDK v2. Older runtimes should remain on stable 2.11.0 until upgraded; database drivers and SQL opt-in defaults are unchanged
+
+See [migration notes](docs/mcp-2026-migration.md) for opt-in HTTP/OAuth hardening and upgrade requirements.
+
+Validation: 312 unit tests and 33 protocol/event/contract tests passed on Node 24.14.1, plus compiled security smoke checks and real SQL/pure-JS events on Firebird 2.5.9. TypeScript build and lint passed (182 existing warnings, no errors); production dependency audit reported zero vulnerabilities. Native event delivery still requires deployment validation.
+
 All notable changes to this project will be documented in this file.
 
 ## [2.11.0] - 2026-09-29
