@@ -2,7 +2,7 @@
 
 [Español](security.es.md)
 
-This guide describes SQL enforcement from stable **2.11.0** and the opt-in HTTP/OAuth additions in **2.12.0-alpha.1**. The new HTTP mode and OAuth discovery require the alpha; they are not available in stable 2.11.0. See the [security implementation review](security-implementation-review.md) and [changelog](../CHANGELOG.md).
+This guide describes stable **2.12.0**, including SQL enforcement from 2.11.0 and all HTTP/OAuth, timeout and SQL compatibility improvements from the five 2.12.0 alphas. No alpha installation is required. See the [release notes](releases/2.12.0.md), [security implementation review](security-implementation-review.md) and [changelog](../CHANGELOG.md).
 
 ## Important migration notice
 
@@ -120,7 +120,7 @@ An operation policy that excludes or forbids EXECUTE also selects conservative p
 
 Starting with `2.12.0-alpha.5`, conservative parsing recognizes plain `FROM (SELECT ...)`, `JOIN (SELECT ...)`, and `JOIN ... USING (column, ...)` syntax (#41). These forms are available with operation-only/catalog policies or `allowUnsafeQueries=false` when no scoped table/row/masking/role policy is active. Every nested relation and function is still checked; comma joins, qualified relations and opaque routines (including package-qualified names that resemble builtins) remain unsupported. This does not expand the single-table subset above or require enabling unsafe queries. Other derived-source forms, such as parenthesized joins, lateral sources and derived column-alias lists, are not added to the conservative subset. Default compatibility behavior is unchanged.
 
-An empty `forbiddenTables: []` does not activate table scoping; adding even one entry does. With a populated denylist (or any other scoped policy above), complex queries still require a database-enforced view. Do not remove a required policy or enable unsafe SQL merely to bypass this limit. No new environment variable or security switch is needed for the #41 fix. Install `mcp-firebird@2.12.0-alpha.5` (or select `mcp-firebird@alpha` in your existing `npx` configuration) and restart the MCP process, retaining your connection and policy settings.
+An empty `forbiddenTables: []` does not activate table scoping; adding even one entry does. With a populated denylist (or any other scoped policy above), complex queries still require a database-enforced view. Do not remove a required policy or enable unsafe SQL merely to bypass this limit. No new environment variable or security switch is needed for the #41 fix. Install `mcp-firebird@2.12.0` (or select `mcp-firebird@latest` in your existing `npx` configuration) and restart the MCP process, retaining your connection and policy settings.
 
 Starting with alpha.4, builtin argument separators such as `EXTRACT(MONTH FROM T.CREATED_AT)`, `SUBSTRING(T.NAME FROM 1 FOR 3)` and `TRIM(BOTH FROM T.NAME)` are distinguished from table FROM clauses, including nested expressions. Aliased columns do not require `allowUnsafeQueries=true` or disabling security. Actual table references and nested subqueries remain subject to the policy; schema-qualified relations remain unsupported in conservative mode. If data masking is enabled, expression projections are still rejected as described below. Opt-in defaults are unchanged from alpha.3.
 
@@ -280,7 +280,7 @@ An unavailable audit sink prevents query dispatch or withholds the result. A fai
 
 Run `npm run verify:release` from a development checkout with its development dependencies installed. This runs type checking, a fresh build, lint error checks, the full unit suite, protocol regressions and compiled security smoke checks. `prepublishOnly` runs the same gate before a normal `npm publish`; maintainers must not bypass it with `--ignore-scripts`. It runs locally, not in GitHub Actions, and does not run when users install or start the MCP. Jest discovery is limited to `src` so temporary review copies are not mistaken for current tests.
 
-Maintainer publication command: `npm publish --tag alpha --access public --ignore-scripts=false`. The explicit flag is important when a user's npm configuration has `ignore-scripts=true`, which would otherwise skip lifecycle hooks. The gate reduces regression risk but is not a server-enforced publishing restriction.
+Maintainer publication command for stable releases: `npm publish --tag latest --access public --ignore-scripts=false`; use `--tag alpha` for prereleases. The explicit script flag is important when a user's npm configuration has `ignore-scripts=true`, which would otherwise skip lifecycle hooks. The gate reduces regression risk but is not a server-enforced publishing restriction.
 
 The SQL regression matrix combines supported derived queries and function separators with case, whitespace, comment and nesting variations, the reporter's policy, explicit denials and default compatibility. Negative cases include hidden catalog sources, opaque/package functions, sequences and populated table denylists. Historical default rejection of SQL comments is preserved; the conservative tokenizer handles comments under explicit policies. Every future SQL compatibility fix should add both a valid example and an adversarial counterpart to this corpus, plus a query-boundary test; do not add SQL keywords to a function allowlist without checking their grammatical context.
 

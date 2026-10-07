@@ -1,6 +1,6 @@
 # MCP Firebird
 
-> **Migración alpha:** soporte MCP 2026-07-28 y SDK v2, manteniendo clientes 2025 y las configuraciones HTTP/CORS/OAuth anteriores por defecto. El endurecimiento HTTP se activa con `MCP_HTTP_SECURITY_MODE=strict`. Consulta la [guía de migración](docs/mcp-2026-migration.md) y sus limitaciones de seguridad. **El nuevo SDK requiere Node.js 20.19+**; con versiones anteriores de Node conserva la estable 2.11.0 hasta actualizar el entorno.
+> **Estable 2.12.0:** incluye todos los cambios de 2.12.0-alpha.1 a alpha.5: MCP 2026-07-28 junto con clientes 2025, cierre seguro tras timeouts, esquemas corregidos y análisis de subconsultas SQL. Conserva los valores HTTP/CORS/OAuth predeterminados; el endurecimiento HTTP se activa con `MCP_HTTP_SECURITY_MODE=strict`. **Requiere Node.js 20.19+**; con entornos anteriores conserva 2.11.0 hasta actualizar. Los valores no vacíos de `QUERY_TIMEOUT` ahora se aplican. Consulta las [notas de lanzamiento](docs/releases/2.12.0.md) y la [guía de migración](docs/mcp-2026-migration.md).
 
 
 Implementación del protocolo MCP (Model Context Protocol) de Anthropic para bases de datos Firebird.
@@ -574,7 +574,7 @@ end.
 
 ## Configuración de seguridad
 
-La versión estable **2.11.0** incluye todos los cambios de 2.11.0-alpha.1 a alpha.4: JSON de seguridad en el entorno, controles optativos efectivos y la corrección de EXTRACT/SUBSTRING/TRIM. Instala con `npm install -g mcp-firebird@latest` o fija `mcp-firebird@2.11.0`. Las opciones SQL, restricciones, filtros, enmascaramiento, límites, auditoría y autorización se comprueban en la ejecución cuando se configuran. Consulta la [guía en español](docs/security.es.md) y su [versión inglesa](docs/security.md), especialmente si tu política ya contiene opciones antes inactivas.
+La versión estable **2.12.0** incluye las mejoras de seguridad de 2.11.0 y las cinco alphas de 2.12.0. Instala con `npm install -g mcp-firebird@latest` o fija `mcp-firebird@2.12.0`. Las políticas explícitas siguen aplicándose. Consulta la [guía en español](docs/security.es.md), su [versión inglesa](docs/security.md) y las [notas de lanzamiento](docs/releases/2.12.0.md), especialmente el requisito de Node.js y la activación de `QUERY_TIMEOUT`.
 
 Usa `--security-config /ruta/politica.json` o `FIREBIRD_SECURITY_JSON`. Ambas fuentes admiten `security` y `sql`; una configuración seleccionada inválida detiene el inicio. En **2.11.0-alpha.3** las restricciones avanzadas son optativas: no hay cuotas, plazos, bloqueo de catálogo ni restricciones nuevas de rutinas implícitas. Se conserva `ALLOW_RAW_SQL=true` para escrituras, incluido DDL; los permisos configurados expresamente y `sql.allowDDL=false` no se pueden omitir.
 

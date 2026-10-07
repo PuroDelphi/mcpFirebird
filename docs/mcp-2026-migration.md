@@ -1,6 +1,6 @@
-# Alpha: MCP 2026-07-28 migration
+# MCP Firebird 2.12.0: MCP 2026-07-28 migration
 
-This branch explicitly opts into MCP 2026-07-28 using SDK v2 `createMcpHandler` (HTTP) and `serveStdio` (stdio). Upgrading an SDK dependency alone does not opt in. A single server factory defines the tools, prompts, and resources for every executable entry point.
+Stable 2.12.0 promotes all five 2.12.0 alphas and explicitly opts into MCP 2026-07-28 using SDK v2 `createMcpHandler` (HTTP) and `serveStdio` (stdio). Upgrading an SDK dependency alone does not opt in. A single server factory defines the tools, prompts, and resources for every executable entry point. See the [complete release notes](releases/2.12.0.md) for timeout, connection, schema and SQL fixes.
 
 ## Compatibility
 
@@ -15,7 +15,7 @@ This branch explicitly opts into MCP 2026-07-28 using SDK v2 `createMcpHandler` 
 
 Tools now publish `outputSchema`, `structuredContent`, and truthful annotations. Existing JSON text remains available. Failures, including partial batch failures, use `isError: true`. See [tool contract](tool-contract.md). SQL authorization remains opt-in; this migration does not change the administrator's SQL policy.
 
-For upgrades from an earlier 2.12 alpha, use **2.12.0-alpha.4** or newer: it fixes
+For upgrades from an earlier 2.12 alpha, use **stable 2.12.0**: it includes
 the #39 table-list output schema regression and the empty-value-schema warnings.
 Table names remain strings in both legacy text and structured results; no policy
 or client payload change is required. See [schema compatibility details](tool-contract.md#alpha4-schema-compatibility-correction-39).

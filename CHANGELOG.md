@@ -1,5 +1,18 @@
 # Changelog
 
+## [2.12.0] - 2026-10-07
+
+Promote all changes from `2.12.0-alpha.1` through `2.12.0-alpha.5` since stable `2.11.0`. See the [complete release notes](docs/releases/2.12.0.md).
+
+- MCP 2026-07-28 / SDK v2 support alongside 2025 and legacy SSE clients, shared server entry points, structured tool contracts and isolated event subscribers.
+- Opt-in HTTP Host/Origin defenses and OAuth discovery/audience checks, preserving compatibility defaults.
+- Safe query/BLOB/probe cleanup and late-promise handling after timeouts (#38, #40); effective `QUERY_TIMEOUT` fallback with policy precedence.
+- Correct table-list/JSON output schemas and statistics metadata (#39).
+- Contextual derived SQL and JOIN USING recognition without weakening scoped policies (#41, #42), expanded regression coverage and local pre-publication validation.
+- Retain Hono 4.13.12 and refresh locked proxy-addr to 2.0.8 for its security advisory; Firebird drivers remain unchanged.
+- Update English/Spanish guides for stable availability. Require Node.js 20.19+ and highlight that existing nonempty `QUERY_TIMEOUT` values now apply. GitHub Actions stays disabled.
+- Final local validation: 735 unit tests, 88 protocol tests without skips, typecheck/build/lint error checks and compiled security smoke checks passed; production dependency audit has zero known vulnerabilities. One initial protocol failure did not reproduce in two subsequent runs; its cause was not established. Fresh live Firebird validation was unavailable because local port 3050 was not listening; prior alpha live results are not claimed for this release.
+
 ## [2.12.0-alpha.5] - 2026-10-02
 
 ### Fixed
