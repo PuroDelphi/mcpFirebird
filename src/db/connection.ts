@@ -504,11 +504,15 @@ export const queryDatabase = async (db: FirebirdDatabase, sql: string, params: a
 };
 
 /**
- * Run a SELECT and resolve its BLOB columns while the transaction that produced them
- * is still open. The pure JavaScript driver closes the implicit transaction of
- * db.query() when the result set is delivered, so a BLOB column read issued afterwards
- * fails with "Invalid BLOB ID". Queries whose rows contain no BLOB column keep the
- * plain single-pass path and are unaffected.
+ * Run a SELECT inside an explicit transaction and resolve its BLOB columns while that
+ * transaction is still open. The pure JavaScript driver closes the implicit transaction
+ * of db.query() as soon as the result set is delivered, so a BLOB column read issued
+ * afterwards fails with "Invalid BLOB ID".
+ *
+ * The transaction is started as READ ONLY by default (FIREBIRD_READ_ONLY=false to relax),
+ * so the database engine itself refuses any INSERT/UPDATE/DELETE that reaches this path:
+ * a write attempt is rejected by Firebird, not by an app-level string check.
+ * Attachments without an explicit transaction API (native adapter) keep the plain path.
  * @param {FirebirdDatabase} db - Attachment obtained from the pool
  * @param {string} sql - SELECT statement
  * @param {Array} params - Query parameters
@@ -519,11 +523,12 @@ export const queryDatabaseWithBlobs = async (
     sql: string,
     params: any[] = []
 ): Promise<any[]> => {
-    const rows = await queryDatabase(db, sql, params);
-    const hasBlobColumn = rows.some(row => row && typeof row === 'object' &&
-        Object.values(row).some(value => typeof value === 'function')) as boolean;
+    if (typeof (db as any).transaction !== 'function') return queryDatabase(db, sql, params);
 
-    if (!hasBlobColumn || typeof (db as any).transaction !== 'function') return rows;
+    const readOnly = process.env.FIREBIRD_READ_ONLY !== 'false';
+    const isolation = readOnly
+        ? (Firebird as any).ISOLATION_READ_COMMITTED_READ_ONLY
+        : Firebird.ISOLATION_READ_COMMITTED;
 
     const settle = (fn: (cb: (err?: Error | null) => void) => void) => new Promise<void>(resolve => {
         let done = false;
@@ -538,25 +543,24 @@ export const queryDatabaseWithBlobs = async (
     let tx: any;
     try {
         tx = await new Promise((resolve, reject) =>
-            (db as any).transaction(Firebird.ISOLATION_READ_COMMITTED,
+            (db as any).transaction(isolation,
                 (err: Error | null, transaction: any) => (err ? reject(err) : resolve(transaction))));
 
-        const blobRows: any[] = await new Promise((resolve, reject) =>
-            tx.query(sql, params, (err: Error | null, result: any) =>
-                err ? reject(err) : resolve(result || [])));
+        const rows: any[] = await new Promise((resolve, reject) =>
+            tx.query(sql, params, (err: Error | null, result: any) => {
+                if (err) return reject(err);
+                resolve(result == null ? [] : Array.isArray(result) ? result : [result]);
+            }));
 
-        const resolved = await resolveBlobFields(blobRows, tx);
+        const resolved = await resolveBlobFields(rows, tx);
         await settle((cb) => tx.commit(cb));
         return resolved;
     } catch (failure) {
         if (tx) await settle((cb) => tx.rollback(cb));
         const err = failure instanceof Error ? failure : new Error(String(failure));
-        const error = new FirebirdError(
-            `Error executing query: ${err.message}`,
-            err.message.includes('blob') ? 'QUERY_ERROR' : 'QUERY_ERROR',
-            err
-        );
-        logger.error(`${error.message} [QUERY_ERROR]`);
+        const type = /read only|read-only/i.test(err.message) ? 'READ_ONLY_TRANSACTION' : 'QUERY_ERROR';
+        const error = new FirebirdError(`Error executing query: ${err.message}`, type, err);
+        logger.error(`${error.message} [${type}]`);
         throw error;
     }
 };
