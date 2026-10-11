@@ -3,7 +3,7 @@
 
 import { z } from 'zod';
 import { createLogger } from '../utils/logger.js';
-import { PromptDefinition, createAssistantTextMessage } from './types.js';
+import { PromptDefinition, createAssistantTextMessage, lenientEnum, lenientEnumArray } from './types.js';
 
 const logger = createLogger('prompts:advanced-templates');
 
@@ -16,8 +16,10 @@ const migrationPlanningPrompt: PromptDefinition = {
     description: "Provides a comprehensive guide for planning database migrations, schema changes, and data transformations.",
     category: "Database Migration",
     inputSchema: z.object({
-        migrationType: z.enum(['schema-change', 'data-migration', 'version-upgrade', 'platform-migration'])
-            .describe("Type of migration to plan"),
+        migrationType: lenientEnum(
+            ['schema-change', 'data-migration', 'version-upgrade', 'platform-migration'],
+            'schema-change'
+        ).describe("Type of migration to plan (default: schema-change)"),
         description: z.string().optional().describe("Brief description of the migration goal")
     }),
     handler: async (params: { migrationType: string; description?: string }) => {
@@ -218,9 +220,10 @@ const securityAuditPrompt: PromptDefinition = {
     description: "Provides a comprehensive guide for conducting a security audit of the Firebird database.",
     category: "Security",
     inputSchema: z.object({
-        auditScope: z.array(z.enum(['encryption', 'access-control', 'data-protection', 'compliance', 'all']))
-            .optional()
-            .describe("Specific security areas to audit (default: all)")
+        auditScope: lenientEnumArray(
+            ['encryption', 'access-control', 'data-protection', 'compliance', 'all'],
+            ['all']
+        ).describe("Specific security areas to audit (default: all)")
     }),
     handler: async (params: { auditScope?: string[] }) => {
         const scope = params.auditScope || ['all'];

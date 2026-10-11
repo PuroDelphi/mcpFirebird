@@ -1,18 +1,23 @@
 /** Read a Firebird BLOB returned by the pure JavaScript driver. */
-export function readBlobField(field: any): Promise<string | null> {
+export function readBlobField(field: any, transaction?: any): Promise<string | null> {
     return new Promise((resolve, reject) => {
         if (field == null) return resolve(null);
         if (typeof field === 'string') return resolve(field);
         if (Buffer.isBuffer(field)) return resolve(field.toString('utf8'));
 
         if (typeof field === 'function') {
-            field((err: Error | null, _name: string, event: any) => {
+            const onBlob = (err: Error | null, _name: string, event: any) => {
                 if (err) return reject(err);
                 const chunks: Buffer[] = [];
                 event.on('data', (chunk: Buffer) => chunks.push(chunk));
                 event.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
                 event.on('error', reject);
-            });
+            };
+            // The pure driver accepts (callback) or (transaction, callback). A BLOB read
+            // issued after its query already completed fails with "Invalid BLOB ID",
+            // so the transaction that produced the row must be passed explicitly.
+            if (transaction != null) field(transaction, onBlob);
+            else field(onBlob);
             return;
         }
 
@@ -24,7 +29,7 @@ export function readBlobField(field: any): Promise<string | null> {
 }
 
 /** Resolve pure-driver BLOB columns, inspecting all rows instead of only row 0. */
-export async function resolveBlobFields(rows: any[]): Promise<any[]> {
+export async function resolveBlobFields(rows: any[], transaction?: any): Promise<any[]> {
     if (rows.length === 0) return rows;
 
     const blobKeys = new Set<string>();
@@ -40,7 +45,7 @@ export async function resolveBlobFields(rows: any[]): Promise<any[]> {
     const results = await Promise.allSettled(rows.map(async row => {
         const resolved = { ...row };
         const fields = await Promise.allSettled(Array.from(blobKeys).map(async key => {
-            resolved[key] = await readBlobField(row[key]);
+            resolved[key] = await readBlobField(row[key], transaction);
         }));
         for (const field of fields) if (field.status === 'rejected') throw field.reason;
         return resolved;
