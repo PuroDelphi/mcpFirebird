@@ -5,7 +5,6 @@ import { createLogger } from '../utils/logger.js';
 import {
     connectToDatabase,
     queryDatabase,
-    queryDatabaseWithBlobs,
     getPool,
     DEFAULT_CONFIG,
     FirebirdDatabase,
@@ -133,12 +132,7 @@ async function executeGuarded(sql: string, params: any[], config: ConfigOptions,
             try {
                 db = await connectToDatabase(config);
                 if (expired) throw new FirebirdError('Query deadline exceeded', 'QUERY_TIMEOUT');
-                // BLOB columns are resolved inside their own transaction when the
-                // connection module provides that path; plain queries are unaffected.
-                const runQuery = typeof queryDatabaseWithBlobs === 'function'
-                    ? queryDatabaseWithBlobs
-                    : queryDatabase;
-                const result = await runQuery(db, sql, params);
+                const result = await queryDatabase(db, sql, params, () => expired);
                 // Do not start BLOB reads or process a result after its deadline.
                 if (expired) throw new FirebirdError('Query deadline exceeded', 'QUERY_TIMEOUT');
                 // EXECUTE PROCEDURE may return an object rather than an array.

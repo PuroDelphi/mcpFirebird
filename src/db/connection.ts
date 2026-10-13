@@ -470,7 +470,8 @@ export const connectToDatabase = async (config = getDefaultConfig()): Promise<Fi
  * @returns {Promise<any[]>} Resultado de la consulta
  * @throws {FirebirdError} Error categorizado si la consulta falla
  */
-export const queryDatabase = async (db: FirebirdDatabase, sql: string, params: any[] = []): Promise<any[]> => {
+export const queryDatabase = async (db: FirebirdDatabase, sql: string, params: any[] = [], isExpired = () => false): Promise<any[]> => {
+    if (typeof (db as any).transaction === 'function') return queryDatabaseWithBlobs(db, sql, params, isExpired);
     // Native adapters are async even though the public API is callback-based.
     // Observe their returned promise and wait for finally/handle cleanup before
     // allowing the caller to release or destroy this attachment (#38).
@@ -504,59 +505,58 @@ export const queryDatabase = async (db: FirebirdDatabase, sql: string, params: a
 };
 
 /**
- * Run a SELECT inside an explicit transaction and resolve its BLOB columns while that
+ * Run SQL once inside an explicit transaction and resolve its BLOB columns while that
  * transaction is still open. The pure JavaScript driver closes the implicit transaction
  * of db.query() as soon as the result set is delivered, so a BLOB column read issued
  * afterwards fails with "Invalid BLOB ID".
  *
- * The transaction is started as READ ONLY by default (FIREBIRD_READ_ONLY=false to relax),
- * so the database engine itself refuses any INSERT/UPDATE/DELETE that reaches this path:
- * a write attempt is rejected by Firebird, not by an app-level string check.
+ * Preserve the driver's read/write transaction behavior: authorization is applied
+ * before dispatch. No extra environment switch or implicit deadline is introduced.
  * Attachments without an explicit transaction API (native adapter) keep the plain path.
  * @param {FirebirdDatabase} db - Attachment obtained from the pool
- * @param {string} sql - SELECT statement
+ * @param {string} sql - SQL statement (authorization is enforced by the caller)
  * @param {Array} params - Query parameters
  * @returns {Promise<any[]>} Rows with BLOB columns resolved to text
  */
 export const queryDatabaseWithBlobs = async (
     db: FirebirdDatabase,
     sql: string,
-    params: any[] = []
+    params: any[] = [],
+    isExpired = () => false
 ): Promise<any[]> => {
     if (typeof (db as any).transaction !== 'function') return queryDatabase(db, sql, params);
 
-    const readOnly = process.env.FIREBIRD_READ_ONLY !== 'false';
-    const isolation = readOnly
-        ? (Firebird as any).ISOLATION_READ_COMMITTED_READ_ONLY
-        : Firebird.ISOLATION_READ_COMMITTED;
-
-    const settle = (fn: (cb: (err?: Error | null) => void) => void) => new Promise<void>(resolve => {
-        let done = false;
-        const guard = setTimeout(() => { if (!done) { done = true; resolve(); } }, 3000);
-        try {
-            fn(() => { if (!done) { done = true; clearTimeout(guard); resolve(); } });
-        } catch {
-            if (!done) { done = true; clearTimeout(guard); resolve(); }
-        }
-    });
+    // Wait for BOTH the callback and any adapter promise. A missing callback
+    // must not certify completion or return a busy attachment to the pool.
+    const complete = async <T>(invoke: (cb: (err: Error | null, value?: T) => void) => unknown): Promise<T> => {
+        let done!: (result: { err: Error | null; value?: T }) => void;
+        const response = new Promise<{ err: Error | null; value?: T }>(resolve => { done = resolve; });
+        await invoke((err, value) => done({ err, value }));
+        const result = await response;
+        if (result.err) throw result.err;
+        return result.value as T;
+    };
+    const checkDeadline = () => { if (isExpired()) throw new FirebirdError('Query deadline exceeded', 'QUERY_TIMEOUT'); };
 
     let tx: any;
     try {
-        tx = await new Promise((resolve, reject) =>
-            (db as any).transaction(isolation,
-                (err: Error | null, transaction: any) => (err ? reject(err) : resolve(transaction))));
-
-        const rows: any[] = await new Promise((resolve, reject) =>
-            tx.query(sql, params, (err: Error | null, result: any) => {
-                if (err) return reject(err);
-                resolve(result == null ? [] : Array.isArray(result) ? result : [result]);
-            }));
-
+        checkDeadline();
+        await complete<any>(cb => (db as any).transaction(Firebird.ISOLATION_REPEATABLE_READ,
+            (err: Error | null, transaction: any) => { tx = transaction; cb(err, transaction); }));
+        checkDeadline();
+        const result = await complete<any>(cb => tx.query(sql, params, cb));
+        checkDeadline();
+        const rows = result == null ? [] : Array.isArray(result) ? result : [result];
         const resolved = await resolveBlobFields(rows, tx);
-        await settle((cb) => tx.commit(cb));
-        return resolved;
+        checkDeadline();
+        await complete(cb => tx.commit(cb));
+        return normalizePureJsDates(resolved);
     } catch (failure) {
-        if (tx) await settle((cb) => tx.rollback(cb));
+        if (tx) {
+            try { await complete(cb => tx.rollback(cb)); }
+            catch { /* Preserve the original failure; the caller discards the attachment. */ }
+        }
+        if (failure instanceof FirebirdError) throw failure;
         const err = failure instanceof Error ? failure : new Error(String(failure));
         const type = /read only|read-only/i.test(err.message) ? 'READ_ONLY_TRANSACTION' : 'QUERY_ERROR';
         const error = new FirebirdError(`Error executing query: ${err.message}`, type, err);
@@ -564,6 +564,19 @@ export const queryDatabaseWithBlobs = async (
         throw error;
     }
 };
+
+/** Pure-JS Firebird dates represent local wall-clock fields, not UTC instants.
+ * Restrict this conversion to database row columns; binary/other tool values
+ * and the native adapter's own date representation remain unchanged.
+ */
+export function normalizePureJsDates(rows: any[]): any[] {
+    const pad = (n: number, length = 2) => String(n).padStart(length, '0');
+    return rows.map(row => Object.fromEntries(Object.entries(row).map(([key, value]) => {
+        if (!(value instanceof Date)) return [key, value];
+        if (!Number.isFinite(value.getTime())) throw new Error('Invalid Firebird date');
+        return [key, `${pad(value.getFullYear(), 4)}-${pad(value.getMonth() + 1)}-${pad(value.getDate())} ${pad(value.getHours())}:${pad(value.getMinutes())}:${pad(value.getSeconds())}.${pad(value.getMilliseconds(), 3)}`];
+    })));
+}
 
 /**
  * Prueba la conexión a la base de datos usando la configuración proporcionada.

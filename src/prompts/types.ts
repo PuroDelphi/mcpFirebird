@@ -46,7 +46,7 @@ export const lenientEnum = (values: [string, ...string[]], fallback: string) =>
     z.preprocess((input: unknown) => {
         const text = input == null ? '' : String(input).trim();
         return values.includes(text) ? text : fallback;
-    }, z.enum(values)).optional();
+    }, z.enum(values));
 
 export const lenientEnumArray = (values: [string, ...string[]], fallback: [string, ...string[]]) =>
     z.preprocess((input: unknown) => {
@@ -55,4 +55,4 @@ export const lenientEnumArray = (values: [string, ...string[]], fallback: [strin
             .map(item => (item == null ? '' : String(item).trim()))
             .filter(item => values.includes(item));
         return clean.length ? clean : fallback;
-    }, z.array(z.enum(values))).optional();
+    }, z.array(z.enum(values)));

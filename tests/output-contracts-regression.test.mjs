@@ -58,6 +58,7 @@ for (const [name, args] of cases) {
             assert.deepEqual(JSON.parse(response.content[0].text), response.structuredContent.result);
         }
         if (name === 'analyze-table-statistics') {
+            assert.equal(response.structuredContent.result.rowCount, 2);
             assert.deepEqual(response.structuredContent.result.columns, [
                 { name: 'ID', type: 'INTEGER', nullable: false, hasDefault: false },
                 { name: 'NAME', type: 'VARCHAR', nullable: true, hasDefault: true }

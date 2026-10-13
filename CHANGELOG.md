@@ -1,5 +1,13 @@
 # Changelog
 
+## [Unreleased - alpha]
+
+- Integrate PR #43 by @sudeposutemizligi with transaction-safety and compatibility adjustments: execute pure-JS SQL once, resolve BLOBs inside their owning transaction, preserve repeatable-read/read-write behavior and authorized audit/write paths, and propagate commit failures without declaring pending cleanup complete after a timer.
+- Preserve query-deadline ownership while transactions/BLOBs settle; do not start SQL or BLOB reads after an already-expired deadline. Retain native-adapter behavior and shared binary serialization.
+- Format pure-JS database Date columns as local wall-clock strings without UTC conversion; document millisecond precision and consumer parsing implications.
+- Correct the Firebird 2.5 statistics count alias and add a nonzero-count contract assertion. Accept loose prompt arguments with actual defaults, including omitted migration type.
+- Add transaction-boundary, prompt, binary and multi-timezone date regressions; expand the opt-in live Firebird smoke script. See [compatibility and validation details](docs/blob-date-compatibility.md). No npm publication or GitHub Actions activation is part of this integration.
+
 ## [2.12.0] - 2026-10-07
 
 Promote all changes from `2.12.0-alpha.1` through `2.12.0-alpha.5` since stable `2.11.0`. See the [complete release notes](docs/releases/2.12.0.md).

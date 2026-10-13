@@ -62,36 +62,6 @@ export function toolOutputSchema(resultSchema: z.ZodType): z.ZodObject {
     });
 }
 
-const padPart = (n: number, len = 2) => String(n).padStart(len, '0');
-
-/**
- * Firebird DATE/TIMESTAMP values arrive as Date objects built from the stored wall
- * clock interpreted as local time. Default JSON serialization calls Date.toJSON(),
- * which shifts them into UTC and appends "Z", so a value stored as
- * "2026-09-04 23:12:26.9852" was reported as "2026-09-04T20:12:26.985Z" on UTC+3.
- * Formatting with local getters reproduces exactly what the database stores.
- */
-function formatWallClock(d: Date): string {
-    return `${d.getFullYear()}-${padPart(d.getMonth() + 1)}-${padPart(d.getDate())} ` +
-        `${padPart(d.getHours())}:${padPart(d.getMinutes())}:${padPart(d.getSeconds())}` +
-        `.${padPart(d.getMilliseconds(), 3)}`;
-}
-
-export function normalizeFirebirdValues(value: unknown, depth = 0): unknown {
-    if (value == null || depth > 12) return value;
-    if (value instanceof Date) return formatWallClock(value);
-    if (Buffer.isBuffer(value)) return value.toString('utf8');
-    if (Array.isArray(value)) return value.map(item => normalizeFirebirdValues(item, depth + 1));
-    if (typeof value === 'object') {
-        const out: Record<string, unknown> = {};
-        for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
-            out[key] = normalizeFirebirdValues(item, depth + 1);
-        }
-        return out;
-    }
-    return value;
-}
-
 /** Preserve text-only clients while exposing a predictable object to MCP clients. */
 export function toolResult(
     result: unknown,
@@ -100,7 +70,7 @@ export function toolResult(
     // Serialize once, deliberately without swallowing serialization errors. This
     // normalizes Dates/Buffers exactly as the legacy JSON text did. A non-JSON
     // result must become an error rather than a misleading successful response.
-    const json = JSON.stringify(normalizeFirebirdValues(result), null, 2);
+    const json = JSON.stringify(result, null, 2);
     if (json === undefined) throw new Error('Tool returned a result that cannot be represented as JSON');
     const isError = options.isError === true;
     return {

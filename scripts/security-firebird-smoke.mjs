@@ -79,6 +79,23 @@ try {
     delete process.env.ALLOW_RAW_SQL;
     await raw('CREATE PROCEDURE COMPAT_PROC RETURNS (ID INTEGER) AS BEGIN ID = 42; END');
     assert.equal((await executeQuery('EXECUTE PROCEDURE COMPAT_PROC',[],config))[0].ID,42);
+    // #43: real pure-JS BLOB lifetime, LIST aggregate, dates and FB 2.5 statistics.
+    await raw('CREATE TABLE BLOB_TEST (ID INTEGER, NOTE BLOB SUB_TYPE TEXT, CREATED_AT TIMESTAMP)');
+    await raw("INSERT INTO BLOB_TEST VALUES (1, NULL, TIMESTAMP '2026-09-04 23:12:26.9852')");
+    await raw("INSERT INTO BLOB_TEST VALUES (2, ?, NULL)", ['Türkçe İSTANBUL ŞİŞLİ ığüşöç']);
+    const blobRows = await executeQuery('SELECT * FROM BLOB_TEST ORDER BY ID', [], config);
+    assert.equal(blobRows[0].NOTE, null);
+    assert.equal(blobRows[0].CREATED_AT, '2026-09-04 23:12:26.985');
+    assert.equal(blobRows[1].NOTE, 'Türkçe İSTANBUL ŞİŞLİ ığüşöç');
+    const listRows = await executeQuery('SELECT LIST(ID) AS IDS FROM BLOB_TEST', [], config);
+    assert.deepEqual(listRows[0].IDS.split(',').sort(), ['1', '2']);
+    const { setupDatabaseTools } = await import('../dist/tools/database.js');
+    globalThis.MCP_FIREBIRD_CONFIG = config;
+    const stats = await setupDatabaseTools().get('analyze-table-statistics').handler({ tableName: 'BLOB_TEST' });
+    delete globalThis.MCP_FIREBIRD_CONFIG;
+    assert.equal(stats.structuredContent.success, true);
+    assert.equal(stats.structuredContent.result.rowCount, 2);
+    console.log('PASS: PR #43 BLOB/NULL/LIST, wall-clock dates and real table statistics');
     assert((await executeQuery("SELECT RDB$GET_CONTEXT('SYSTEM', 'ENGINE_VERSION') AS VERSION FROM RDB$DATABASE",[],config))[0].VERSION);
     assert.equal((await executeQuery('SELECT A.ID FROM PUBLIC_DATA A, PUBLIC_DATA B WHERE A.ID = B.ID',[],config)).length,2);
     for (let i=0;i<110;i++) await executeQuery('SELECT ID FROM PUBLIC_DATA',[],config);

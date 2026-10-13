@@ -42,7 +42,7 @@ describe('real query boundary with mocked Firebird I/O', () => {
         await expect(executeQuery('SELECT T.ID, EXTRACT(MONTH FROM T.CREATED_AT) AS MON FROM MY_TABLE T WHERE T.ID = ?', [1]))
             .resolves.toEqual([{ID:1,MON:9}]);
         expect(queryDatabase).toHaveBeenCalledWith(expect.anything(),
-            'SELECT T.ID, EXTRACT(MONTH FROM T.CREATED_AT) AS MON FROM (SELECT * FROM MY_TABLE WHERE (VISIBLE = 1)) T WHERE T.ID = ?', [1]);
+            'SELECT T.ID, EXTRACT(MONTH FROM T.CREATED_AT) AS MON FROM (SELECT * FROM MY_TABLE WHERE (VISIBLE = 1)) T WHERE T.ID = ?', [1], expect.any(Function));
     });
     it.each([
         'SELECT * FROM (SELECT ID, CODE FROM TABLENAME WHERE ID = ?) T;',
@@ -53,7 +53,7 @@ describe('real query boundary with mocked Firebird I/O', () => {
         securityConfig.sql = { allowSystemTables: false, allowUnsafeQueries: false };
         await expect(executeQuery(sql, [1])).resolves.toEqual([{ ID: 1 }]);
         expect(queryDatabase).toHaveBeenCalledTimes(1);
-        expect(queryDatabase).toHaveBeenCalledWith(expect.anything(), sql, [1]);
+        expect(queryDatabase).toHaveBeenCalledWith(expect.anything(), sql, [1], expect.any(Function));
     });
     it.each([
         'SELECT * FROM (SELECT * FROM RDB$RELATIONS) T',
@@ -81,7 +81,7 @@ describe('real query boundary with mocked Firebird I/O', () => {
         securityConfig.dataMasking = [{ columns: ['SSN'], pattern: '^.*$', replacement: 'hidden' }];
         jest.mocked(queryDatabase).mockResolvedValue([{ OTHER: '123' }]);
         await expect(executeQuery('SELECT SSN AS OTHER FROM T WHERE ID = ?', [7])).resolves.toEqual([{ OTHER: 'hidden' }]);
-        expect(queryDatabase).toHaveBeenCalledWith(expect.anything(), expect.stringContaining('WHERE (VISIBLE = 1)'), [7]);
+        expect(queryDatabase).toHaveBeenCalledWith(expect.anything(), expect.stringContaining('WHERE (VISIBLE = 1)'), [7], expect.any(Function));
         expect(logQueryExecution).toHaveBeenLastCalledWith(expect.any(String), [7], '', '', true, '', expect.any(Number), 1, [{OTHER:'hidden'}]);
     });
     it('does not release oversized results and enforces policy in batch queries', async () => {
