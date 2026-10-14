@@ -1,12 +1,16 @@
 # Changelog
 
-## [Unreleased - alpha]
+## [2.12.1-alpha.1] - 2026-10-14
+
+- Fix #44 at the shared query-policy boundary: separate SQL parenthesis grammar from builtin routine names, recognize grouping/predicate contexts (including ORDER/GROUP/PARTITION BY, LIKE/CONTAINING, STARTING WITH, SIMILAR TO, ESCAPE and IS DISTINCT FROM), and preserve inspection of every nested routine and relation.
+- Recognize the Firebird ranking/navigational window-function family only in analytic calls with OVER, plus named-window clause boundaries. Function availability still depends on the connected Firebird version; standalone/quoted/package-qualified routine names are not analytic builtin exemptions.
+- Add a 519-case syntax/security regression suite and extend disposable live Firebird checks with grouped queries, result comparisons and nested-denial checks. Existing table, row, masking, catalog and routine restrictions remain enforced; no new configuration is required.
 
 - Integrate PR #43 by @sudeposutemizligi with transaction-safety and compatibility adjustments: execute pure-JS SQL once, resolve BLOBs inside their owning transaction, preserve repeatable-read/read-write behavior and authorized audit/write paths, and propagate commit failures without declaring pending cleanup complete after a timer.
 - Preserve query-deadline ownership while transactions/BLOBs settle; do not start SQL or BLOB reads after an already-expired deadline. Retain native-adapter behavior and shared binary serialization.
 - Format pure-JS database Date columns as local wall-clock strings without UTC conversion; document millisecond precision and consumer parsing implications.
 - Correct the Firebird 2.5 statistics count alias and add a nonzero-count contract assertion. Accept loose prompt arguments with actual defaults, including omitted migration type.
-- Add transaction-boundary, prompt, binary and multi-timezone date regressions; expand the opt-in live Firebird smoke script. See [compatibility and validation details](docs/blob-date-compatibility.md). No npm publication or GitHub Actions activation is part of this integration.
+- Add transaction-boundary, prompt, binary and multi-timezone date regressions; expand the opt-in live Firebird smoke script. See [compatibility and validation details](docs/blob-date-compatibility.md) and [alpha release notes](docs/releases/2.12.1-alpha.1.md).
 
 ## [2.12.0] - 2026-10-07
 

@@ -153,20 +153,10 @@ npx -y mcp-firebird --database /path/to/database.fdb
 npm install -g mcp-firebird@alpha
 
 # Or use specific alpha version
-npm install -g mcp-firebird@2.4.0-alpha.0
+npm install -g mcp-firebird@2.12.1-alpha.1
 ```
 
-**Alpha Features (v2.4.0-alpha.0):**
-- � **NEW**: Ready for next development cycle
-- ✨ All stable features from v2.2.3 included
-- 🔄 Unified server with automatic protocol detection
-- 📊 Enhanced session management and monitoring
-- 🛠️ Modern MCP SDK integration (v1.13.2)
-- 🔧 Improved error handling and logging
-- 🧪 Comprehensive test suite with 9+ tests for SSE functionality
-- 📚 Enhanced documentation with troubleshooting guides
-
-**Note**: The SSE JSON parsing bug fix is now available in stable v2.2.3
+**Alpha changes (2.12.1-alpha.1):** SQL grouping/predicate and window-function recognition under restrictive policies (#44), transaction-owned BLOB reads, wall-clock dates, Firebird 2.5 statistics and prompt defaults (#43), on top of stable 2.12.0. Keep your existing connection and security settings; no new flag is required. Read the [alpha release notes](docs/releases/2.12.1-alpha.1.md), [security guide](docs/security.md) and [date/BLOB compatibility notes](docs/blob-date-compatibility.md) before testing.
 
 
 

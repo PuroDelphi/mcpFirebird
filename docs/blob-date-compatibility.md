@@ -1,6 +1,6 @@
-# BLOB, date and prompt compatibility (unreleased alpha)
+# BLOB, date and prompt compatibility (2.12.1-alpha.1)
 
-These changes adapt PR #43 for the development `alpha` branch. They are not yet an npm release; stable 2.12.0 and the published alpha tag are unchanged.
+These changes adapt PR #43 for the development `alpha` branch and are included in `2.12.1-alpha.1`. Install with `npm install -g mcp-firebird@2.12.1-alpha.1` or select that package version in your existing `npx` launcher, then restart the MCP process. Stable `latest` remains 2.12.0.
 
 ## Pure-JavaScript database transactions
 
@@ -25,3 +25,5 @@ The health-check and security-audit prompts accept either one string or an array
 ## Validation scope
 
 Regression tests exercise real query-policy/transaction orchestration with controlled driver callbacks, commit/rollback failures and delays, BLOB deadlines, write/audit compatibility, prompt retrieval over MCP, nonzero statistics and wire-decoded dates in UTC, Istanbul, Bogota and New York. These automated tests do not claim live native-driver or WIN1254 database coverage. The opt-in `scripts/security-firebird-smoke.mjs` additionally exercises real BLOB/NULL/LIST results, dates and statistics when a disposable local Firebird service is available.
+
+The expanded live smoke passed against local Firebird 2.5.9 on October 13, 2026, using the pure-JavaScript driver and a new disposable database. It covered BLOB/NULL/LIST, wall-clock timestamps, table statistics, authorized writes, audit and events. This does not establish native-driver or WIN1254 coverage.

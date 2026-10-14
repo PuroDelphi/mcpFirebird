@@ -73,6 +73,35 @@ try {
     securityConfig.forbiddenTables=['PRIVATE_DATA'];
     await assert.rejects(executeQuery(derivedSql,[1],config));
     console.log('PASS: issue #41 derived sources, JOIN ON/USING, parameters, nested catalog denial and populated-denylist boundary');
+    // #44: grouping/predicate syntax through the actual policy + transaction path.
+    // Window functions require Firebird 3+, so this 2.5 smoke does not execute them.
+    reset();
+    Object.assign(securityConfig, {
+        allowedOperations: ['SELECT', 'EXECUTE'], forbiddenTables: [],
+        sql: { allowSystemTables: false, allowUnsafeQueries: false }
+    });
+    await raw('CREATE TABLE DEPARTMENT (ID INTEGER, CODE VARCHAR(20))');
+    for (const [id, code] of [[1, 'IRL'], [2, 'FR'], [3, 'I_A']]) await raw('INSERT INTO DEPARTMENT VALUES (?, ?)', [id, code]);
+    const groupedQueries = [
+        'SELECT FIRST 1 ID FROM DEPARTMENT ORDER BY (ID)',
+        'SELECT CODE FROM DEPARTMENT GROUP BY (CODE)',
+        "SELECT FIRST 1 ID FROM DEPARTMENT WHERE CODE LIKE ('I%')",
+        "SELECT FIRST 1 ID FROM DEPARTMENT WHERE CODE CONTAINING ('IRL')",
+        "SELECT FIRST 1 ID FROM DEPARTMENT WHERE CODE STARTING WITH ('IRL')",
+        "SELECT FIRST 1 ID FROM DEPARTMENT WHERE CODE SIMILAR TO ('IRL%')",
+        "SELECT ID FROM DEPARTMENT WHERE CODE NOT LIKE ('I!_%') ESCAPE ('!') ORDER BY (ID)",
+        "SELECT ID FROM DEPARTMENT WHERE CODE STARTS WITH ('IRL')",
+        "SELECT ID FROM DEPARTMENT WHERE CODE STARTING ('IRL')",
+        'SELECT ID FROM DEPARTMENT WHERE ID IS DISTINCT FROM (1) ORDER BY (ID)',
+        'SELECT ID FROM DEPARTMENT WHERE ID IS NOT DISTINCT FROM (1)',
+        'SELECT FIRST (1) SKIP (0) ID FROM DEPARTMENT ORDER BY (ID)',
+        'SELECT ID FROM DEPARTMENT WHERE ID BETWEEN (1) AND (2) ORDER BY (ID)',
+        'SELECT CAST(ID AS DECIMAL(10, 2)) AS N FROM DEPARTMENT ORDER BY (ID)'
+    ];
+    for (const sql of groupedQueries) assert.deepEqual(await executeQuery(sql, [], config), await raw(sql));
+    await assert.rejects(executeQuery('SELECT ID FROM DEPARTMENT ORDER BY (PRIVATE_FUNCTION(ID))', [], config), /Unrecognized SQL function/);
+    await assert.rejects(executeQuery('SELECT ID FROM DEPARTMENT WHERE ID IS DISTINCT FROM (SELECT RDB$RELATION_ID FROM RDB$RELATIONS)', [], config), /System table/);
+    console.log('PASS: issue #44 grouping/predicates match direct Firebird results while nested routines/catalogs remain denied');
     reset();
     // Default compatibility: catalog, opaque functions, stored procedures,
     // joins and long-lived sessions work without enabling advanced controls.

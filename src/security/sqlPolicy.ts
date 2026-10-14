@@ -48,9 +48,56 @@ export function tokenizeSql(sql: string): Token[] {
     return tokens;
 }
 
-const READ_FUNCTIONS = new Set(('COUNT SUM AVG MIN MAX CAST COALESCE NULLIF IIF DECODE EXTRACT SUBSTRING TRIM UPPER LOWER CHAR_LENGTH CHARACTER_LENGTH OCTET_LENGTH POSITION REPLACE LEFT RIGHT LPAD RPAD ABS CEIL CEILING FLOOR ROUND TRUNC MOD POWER SQRT EXP LN LOG LOG10 SIGN DATEADD DATEDIFF LIST ASCII_CHAR ASCII_VAL REVERSE OVER PARTITION IN EXISTS NOT FIRST SKIP ROWS VALUES VARCHAR CHAR NUMERIC DECIMAL WHERE AND OR ON SELECT AS DISTINCT ALL BETWEEN CASE WHEN THEN ELSE HAVING FILTER ANY SOME').split(' '));
+// Only actual builtins belong here. SQL grammar must not become a routine allowlist.
+const READ_FUNCTIONS = new Set(('COUNT SUM AVG MIN MAX CAST COALESCE NULLIF IIF DECODE EXTRACT SUBSTRING TRIM UPPER LOWER CHAR_LENGTH CHARACTER_LENGTH OCTET_LENGTH POSITION REPLACE LEFT RIGHT LPAD RPAD ABS CEIL CEILING FLOOR ROUND TRUNC MOD POWER SQRT EXP LN LOG LOG10 SIGN DATEADD DATEDIFF LIST ASCII_CHAR ASCII_VAL REVERSE').split(' '));
+const WINDOW_FUNCTIONS = new Set(('RANK DENSE_RANK PERCENT_RANK ROW_NUMBER CUME_DIST NTILE LEAD LAG FIRST_VALUE LAST_VALUE NTH_VALUE').split(' '));
+const GROUPING_WORDS = new Set(('SELECT DISTINCT ALL WHERE AND OR NOT ON HAVING IN EXISTS BETWEEN CASE WHEN THEN ELSE FIRST SKIP ROWS RANGE VALUES AS ANY SOME').split(' '));
+const PREDICATE_WORDS = new Set(('LIKE CONTAINING STARTING STARTS SIMILAR').split(' '));
+const TYPE_ARGUMENTS = new Set(('VARCHAR CHAR CHARACTER NCHAR NUMERIC DECIMAL').split(' '));
 const DDL = new Set(['CREATE', 'ALTER', 'DROP', 'RECREATE', 'GRANT', 'REVOKE', 'COMMENT']);
 export interface PreparedQuery { sql: string; operation: string; aliases: Record<string, string> }
+
+/** Classify grammar at one opening parenthesis, never its entire contents.
+ * Quoted/qualified names always remain routine candidates; nested tokens are
+ * still visited by both routine and relation authorization below.
+ */
+function isSqlParenthesisSyntax(tokens: Token[], index: number): boolean {
+    const token = tokens[index], previous = tokens[index - 1], next = tokens[index + 1];
+    if (token.kind !== 'word' || previous?.value === '.' || next?.kind !== 'symbol' || next.value !== '(') return false;
+    const afterWord = (...values: string[]) => previous?.kind === 'word' && previous.depth === token.depth && values.includes(previous.value);
+    if (token.value === 'BY') return afterWord('ORDER', 'GROUP', 'PARTITION');
+    const hasLeftOperand = (at: number): boolean => {
+        let left = tokens[at - 1];
+        while (left?.kind === 'word' && left.value === 'NOT' && left.depth === token.depth) left = tokens[--at - 1];
+        if (!left || left.depth !== token.depth) return false;
+        if (left.kind === 'word') return !GROUPING_WORDS.has(left.value) && !PREDICATE_WORDS.has(left.value) &&
+            !['FROM', 'JOIN', 'ORDER', 'GROUP', 'PARTITION', 'BY', 'WITH', 'TO', 'ESCAPE'].includes(left.value);
+        return left.kind === 'literal' || left.kind === 'quoted' || (left.kind === 'symbol' && /^[0-9?)]+$/.test(left.value));
+    };
+    if (PREDICATE_WORDS.has(token.value) || token.value === 'ESCAPE') return hasLeftOperand(index);
+    if (token.value === 'WITH') return afterWord('STARTING', 'STARTS') && hasLeftOperand(index - 1);
+    if (token.value === 'TO') return afterWord('SIMILAR') && hasLeftOperand(index - 1);
+    if (token.value === 'OVER' || token.value === 'FILTER') return previous?.kind === 'symbol' && previous.value === ')';
+    if (TYPE_ARGUMENTS.has(token.value)) return afterWord('AS');
+    return GROUPING_WORDS.has(token.value);
+}
+
+/** Window names only certify analytic calls with OVER, not standalone UDFs
+ * that might exist under the same name on an older Firebird server.
+ */
+function isWindowBuiltin(tokens: Token[], index: number): boolean {
+    const token = tokens[index];
+    if (token.kind !== 'word' || tokens[index - 1]?.value === '.' || !WINDOW_FUNCTIONS.has(token.value)) return false;
+    for (let i = index + 2; i < tokens.length; i++) {
+        const end = tokens[i];
+        if (end.kind === 'symbol' && end.value === ')' && end.depth === token.depth) {
+            const over = tokens[i + 1], window = tokens[i + 2];
+            return over?.kind === 'word' && over.value === 'OVER' &&
+                !!window && ((window.kind === 'symbol' && window.value === '(') || ['word', 'quoted'].includes(window.kind));
+        }
+    }
+    return false;
+}
 
 /** Identify separators in builtin arguments, not entire function bodies.
  * A nested SELECT must still expose its own FROM to relation authorization.
@@ -66,6 +113,10 @@ function functionArgumentSeparators(tokens: Token[]): Set<number> {
         } else if (token.kind === 'symbol' && token.value === ')') {
             frames.pop();
         } else if (token.kind === 'word') {
+            // IS [NOT] DISTINCT FROM is a comparison, not a table source.
+            if (token.value === 'FROM' && tokens[i - 1]?.kind === 'word' && tokens[i - 1].value === 'DISTINCT' &&
+                tokens[i - 2]?.kind === 'word' && (tokens[i - 2].value === 'IS' ||
+                (tokens[i - 2].value === 'NOT' && tokens[i - 3]?.kind === 'word' && tokens[i - 3].value === 'IS'))) separators.add(i);
             const frame = frames.at(-1);
             if (!frame) continue;
             if (token.value === 'SELECT') frame.query = true;
@@ -95,7 +146,7 @@ function isJoinColumnList(tokens: Token[], index: number): boolean {
         const previous = tokens[i];
         if (previous.depth !== token.depth || previous.kind !== 'word') continue;
         if (previous.value === 'JOIN') { joined = true; break; }
-        if (['SELECT', 'FROM', 'WHERE', 'GROUP', 'ORDER', 'HAVING', 'ROWS', 'UNION', 'PLAN', 'ON', 'USING'].includes(previous.value)) return false;
+        if (['SELECT', 'FROM', 'WHERE', 'GROUP', 'ORDER', 'HAVING', 'ROWS', 'WINDOW', 'UNION', 'PLAN', 'ON', 'USING'].includes(previous.value)) return false;
     }
     if (!joined) return false;
     let needColumn = true;
@@ -163,9 +214,9 @@ export function prepareUserQuery(sql: string): PreparedQuery {
         // INSERT's column list is not a function call.
         if (tokens[i - 1]?.value === 'INTO' || argumentSeparators.has(i)) continue;
         // Syntax exemptions never skip the nested query/function tokens.
-        if (isDerivedRelation(tokens, i) || isJoinColumnList(tokens, i)) continue;
+        if (isDerivedRelation(tokens, i) || isJoinColumnList(tokens, i) || isSqlParenthesisSyntax(tokens, i)) continue;
         if (['word', 'quoted'].includes(t.kind) && tokens[i + 1].value === '(' &&
-            (t.kind === 'quoted' || tokens[i - 1]?.value === '.' || !READ_FUNCTIONS.has(t.value))) {
+            (t.kind === 'quoted' || tokens[i - 1]?.value === '.' || (!READ_FUNCTIONS.has(t.value) && !isWindowBuiltin(tokens, i)))) {
             if (restricted || catalogRestricted || !policy?.allowUnsafeQueries || process.env.ALLOW_RAW_SQL !== 'true') deny('Unrecognized SQL function requires an unrestricted trusted-query policy');
             checkAllowedOperation('EXECUTE');
         }
@@ -181,7 +232,7 @@ export function prepareUserQuery(sql: string): PreparedQuery {
         if (t.value === 'FROM' || t.value === 'JOIN') {
             for (let j = i + 2; j < tokens.length && tokens[j].depth >= t.depth; j++) {
                 if (tokens[j].depth !== t.depth) continue;
-                if (tokens[j].kind === 'word' && ['WHERE', 'GROUP', 'ORDER', 'HAVING', 'ROWS', 'UNION', 'PLAN'].includes(tokens[j].value)) break;
+                if (tokens[j].kind === 'word' && ['WHERE', 'GROUP', 'ORDER', 'HAVING', 'ROWS', 'WINDOW', 'UNION', 'PLAN'].includes(tokens[j].value)) break;
                 if (tokens[j].kind === 'symbol' && tokens[j].value === ',') deny('Comma joins are not supported; use explicit JOIN syntax');
             }
         }
@@ -230,7 +281,7 @@ export function prepareUserQuery(sql: string): PreparedQuery {
             const filterTokens = tokenizeSql(filter);
             if (filterTokens.some(t => t.kind === 'symbol' && ['?', ';'].includes(t.value)) || filterTokens.some(t => t.kind === 'word' && ['SELECT', 'EXECUTE', 'INSERT', 'UPDATE', 'DELETE'].includes(t.value))) deny('Invalid configured row filter');
             const after = tokens[tokens.indexOf(table) + 1];
-            const hasAlias = after && ['word', 'quoted'].includes(after.kind) && !['WHERE','ORDER','GROUP','HAVING','ROWS','PLAN'].includes(after.value);
+            const hasAlias = after && ['word', 'quoted'].includes(after.kind) && !['WHERE','ORDER','GROUP','HAVING','ROWS','WINDOW','PLAN'].includes(after.value);
             const tableText = sql.slice(table.start, table.end);
             sql = sql.slice(0, table.start) + `(SELECT * FROM ${tableText} WHERE (${filter}))` + (hasAlias ? '' : ` ${tableText}`) + sql.slice(table.end);
         }
