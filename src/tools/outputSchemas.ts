@@ -131,7 +131,7 @@ export const metadataResultSchemas: Record<string, z.ZodType> = {
         status: z.literal('healthy'), timestamp: z.string(), uptime: z.number(),
         memory: z.object({ used: z.number(), total: z.number(), external: z.number() }),
         environment: z.object({ nodeVersion: z.string(), platform: z.string(), arch: z.string() }),
-        tools: z.object({ database: z.number(), metadata: z.number(), total: z.number() })
+        tools: z.object({ database: z.number(), metadata: z.number(), other: z.number().optional(), total: z.number() })
     }),
     'list-available-events': z.array(z.object({ name: z.string(), type: z.string() })),
     'list-triggers': z.object({ totalTriggers: z.number(), triggers: z.array(Trigger) }),

@@ -153,10 +153,10 @@ npx -y mcp-firebird --database /path/to/database.fdb
 npm install -g mcp-firebird@alpha
 
 # Or use specific alpha version
-npm install -g mcp-firebird@2.12.1-alpha.1
+npm install -g mcp-firebird@2.12.1-alpha.2
 ```
 
-**Alpha changes (2.12.1-alpha.1):** SQL grouping/predicate and window-function recognition under restrictive policies (#44), transaction-owned BLOB reads, wall-clock dates, Firebird 2.5 statistics and prompt defaults (#43), on top of stable 2.12.0. Keep your existing connection and security settings; no new flag is required. Read the [alpha release notes](docs/releases/2.12.1-alpha.1.md), [security guide](docs/security.md) and [date/BLOB compatibility notes](docs/blob-date-compatibility.md) before testing.
+**Alpha changes (2.12.1-alpha.2):** full column descriptions beyond 500 characters, honest unavailable-plan errors and registered tool counts (#45/#46), plus the previous SQL grouping/window recognition, transaction-owned BLOBs, wall-clock dates, statistics and prompt fixes (#43/#44). Keep your existing connection and security settings; no new flag is required. Read the [alpha release notes](docs/releases/2.12.1-alpha.2.md), [security guide](docs/security.md) and [date/BLOB compatibility notes](docs/blob-date-compatibility.md) before testing.
 
 
 

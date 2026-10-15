@@ -110,7 +110,7 @@ enabled after catalog discovery. Catalog checks include the event-tool schemas;
 event behavior has its separate regression suite. These are controlled-driver
 tests, not a substitute for live Firebird integration tests.
 
-## Unavailable execution plans (#45, unreleased)
+## Metadata and unavailable execution plans (#45, 2.12.1-alpha.2)
 
 `get-execution-plan` currently cannot retrieve a plan through the supported driver
 interfaces. It returns `success: false`, `plan: ""`, `planDetails: []`, and
@@ -125,8 +125,15 @@ No monitoring-table workaround or permission bypass is introduced.
 column-description BLOBs instead of casting them to `VARCHAR(500)`. Existing
 BLOB decoding, table authorization, query deadlines, masking and response-size
 limits still apply. A description longer than 500 characters alone no longer
-causes a SQL truncation error. These changes are unreleased until included in a
-published package; installing 2.12.1-alpha.1 does not include them.
+causes a SQL truncation error. These changes are included starting with
+`2.12.1-alpha.2`; installing `2.12.1-alpha.1` does not include them. No new setting
+is required: retain existing connection/policy parameters and restart the MCP.
+
+`get-server-info.capabilities.tools` and `totalTools` now reflect the registered
+server catalog, including simple/event tools when registered. The health result's
+`tools.total` uses the same catalog. Its additive `tools.other` count covers tools
+outside the existing database and metadata categories, so the categories add up
+to the total. Counts are not hardcoded and account for event-policy registration.
 
 ### Español
 
@@ -138,5 +145,11 @@ ejecuta. No se añade ningún acceso alternativo a las tablas de monitorización
 
 Las tres herramientas de descripción leen el BLOB completo, sin convertirlo a
 `VARCHAR(500)`. Se mantienen los controles de acceso, los plazos de consulta,
-el enmascaramiento y los límites de tamaño configurados. Estos cambios todavía
-no están publicados y no forman parte de 2.12.1-alpha.1.
+el enmascaramiento y los límites de tamaño configurados. Los cambios se incluyen
+desde `2.12.1-alpha.2`; no forman parte de `2.12.1-alpha.1`. No requieren opciones
+nuevas: conserva la conexión y la política actuales y reinicia el MCP.
+
+`get-server-info` y el total de herramientas de `system-health-check` reflejan el
+catálogo registrado, incluidas herramientas simples y de eventos cuando estén
+registradas. El campo adicional `tools.other` completa las categorías existentes
+de base de datos y metadatos. Los conteos se calculan, no son constantes.

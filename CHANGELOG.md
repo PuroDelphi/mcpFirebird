@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.12.1-alpha.2] - 2026-10-15
+
+- Integrate PR #46 for issue #45: preserve full column-description BLOBs in `describe-table`, `describe-batch-tables` and `get-field-descriptions`, avoiding the former 500-character SQL cast limit while retaining BLOB transaction ownership and configured security/resource controls.
+- Report unavailable execution plans as `success: false`, empty plan/details and an explicit error; emit MCP `isError: true` while preserving manual-tool guidance. This does not execute the supplied query or add monitoring-table plan retrieval.
+- Correct server-information and health tool counts using the registered catalog, including simple/event tools. Add the optional health `tools.other` category so counts reconcile without hardcoded totals.
+- Add metadata/plan regressions and cross-protocol status/count assertions. Extend disposable live integration checks to reproduce the old SQL truncation, preserve 514/10,000-character descriptions across all three paths, and verify that plan requests do not execute a sequence-changing SELECT.
+- See the [alpha release notes](docs/releases/2.12.1-alpha.2.md) and [English/Spanish tool contract](docs/tool-contract.md). Missing-index heuristics and actual Firebird 4/5 monitoring-plan retrieval are not changed by this release.
+
 ## [2.12.1-alpha.1] - 2026-10-14
 
 - Fix #44 at the shared query-policy boundary: separate SQL parenthesis grammar from builtin routine names, recognize grouping/predicate contexts (including ORDER/GROUP/PARTITION BY, LIKE/CONTAINING, STARTING WITH, SIMILAR TO, ESCAPE and IS DISTINCT FROM), and preserve inspection of every nested routine and relation.

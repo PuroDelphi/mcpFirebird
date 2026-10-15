@@ -20,7 +20,7 @@ const { createMcpServerInstance } = await import('../dist/server/index.js');
 const { createHttpApplication } = await import('../dist/server/http-server.js');
 const { loadHttpSecurityConfig } = await import('../dist/server/http-security.js');
 const dbTools = setupDatabaseTools();
-const tools = new Map([...dbTools, ...setupMetadataTools(dbTools), ...setupSimpleTools()]);
+const tools = new Map([...dbTools, ...setupMetadataTools(dbTools, () => [...tools.keys()]), ...setupSimpleTools()]);
 after(closePool);
 
 // Walk schema positions only: {} under "properties" is a valid property map,
@@ -40,7 +40,7 @@ function assertConcreteSchema(schema, path = 'outputSchema') {
     }
 }
 
-function assertToolStatus(name, response) {
+function assertToolStatus(name, response, catalog = [...tools.keys()]) {
     if (name === 'get-execution-plan') {
         assert.equal(response.isError, true);
         assert.equal(response.structuredContent.success, false);
@@ -54,6 +54,15 @@ function assertToolStatus(name, response) {
     } else {
         assert.notEqual(response.isError, true, `${name}: ${JSON.stringify(response)}`);
         assert.equal(response.structuredContent.success, true, name);
+    }
+    if (name === 'get-server-info') {
+        assert.equal(response.structuredContent.result.capabilities.totalTools, catalog.length);
+        assert.deepEqual(response.structuredContent.result.capabilities.tools.toSorted(), catalog.toSorted());
+    }
+    if (name === 'system-health-check') {
+        const counts = response.structuredContent.result.tools;
+        assert.equal(counts.total, catalog.length);
+        assert.equal(counts.database + counts.metadata + counts.other, counts.total);
     }
 }
 
@@ -113,7 +122,7 @@ for (const transportKind of ['stdio', 'http']) {
                 for (const tool of catalog.tools) assertConcreteSchema(tool.outputSchema, tool.name);
                 for (const [name, args] of cases) {
                     const response = await client.callTool({ name, arguments: args });
-                    assertToolStatus(name, response);
+                    assertToolStatus(name, response, catalog.tools.map(tool => tool.name));
                     assert.deepEqual(tools.get(name).outputSchema.parse(response.structuredContent), response.structuredContent);
                 }
             } finally {

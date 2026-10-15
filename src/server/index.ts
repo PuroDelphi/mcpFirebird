@@ -21,8 +21,9 @@ const logger = createLogger('server');
 
 export async function createMcpServerInstance(context?: McpRequestContext): Promise<McpServer> {
     const server = new McpServer({ name: pkg.name, version: pkg.version });
+    const catalogNames = new Set<string>();
     const databaseTools = setupDatabaseTools();
-    const tools = new Map([...databaseTools, ...setupMetadataTools(databaseTools), ...setupSimpleTools()]);
+    const tools = new Map([...databaseTools, ...setupMetadataTools(databaseTools, () => [...catalogNames]), ...setupSimpleTools()]);
     for (const [name, tool] of tools) {
         server.registerTool(name, {
             title: tool.title || name,
@@ -37,6 +38,7 @@ export async function createMcpServerInstance(context?: McpRequestContext): Prom
                 return { isError: true, content: [{ type: 'text' as const, text: message }] };
             }
         });
+        catalogNames.add(name);
     }
     const prompts = new Map([
         ...setupDatabasePrompts(), ...setupSqlPrompts(),
@@ -49,7 +51,7 @@ export async function createMcpServerInstance(context?: McpRequestContext): Prom
         }, async args => await prompt.handler(args) as GetPromptResult);
     }
     registerDatabaseResources(server);
-    setupEventResources(server, { era: context?.era || 'legacy', eventLifetime: context?.requestInfo ? 'request' : 'connection' });
+    for (const name of setupEventResources(server, { era: context?.era || 'legacy', eventLifetime: context?.requestInfo ? 'request' : 'connection' })) catalogNames.add(name);
     return server;
 }
 

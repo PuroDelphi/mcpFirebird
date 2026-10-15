@@ -21,7 +21,7 @@ try {
     throw new Error('Could not create a disposable database on local Firebird. Set FIREBIRD_TEST_USER/PASSWORD if needed.');
 }
 const raw = (sql,params=[]) => new Promise((resolve,reject)=>initial.query(sql,params,(error,rows)=>error?reject(error):resolve(rows)));
-const {executeQuery,listTables} = await import('../dist/db/queries.js');
+const {executeQuery,listTables,getFieldDescriptions,describeTable,describeBatchTables,getExecutionPlan} = await import('../dist/db/queries.js');
 const {closePool} = await import('../dist/db/connection.js');
 const {securityConfig,DEFAULT_SECURITY_CONFIG} = await import('../dist/security/config.js');
 const {createAuditTable} = await import('../dist/security/audit.js');
@@ -125,6 +125,30 @@ try {
     assert.equal(stats.structuredContent.success, true);
     assert.equal(stats.structuredContent.result.rowCount, 2);
     console.log('PASS: PR #43 BLOB/NULL/LIST, wall-clock dates and real table statistics');
+    // #45/#46: full metadata BLOBs, including a NULL first description.
+    await raw('CREATE TABLE DESCRIPTION_TEST (ID INTEGER, NOTE_514 INTEGER, NOTE_LONG INTEGER)');
+    const description514 = 'x'.repeat(514), descriptionLong = 'á'.repeat(10000);
+    await raw(`COMMENT ON COLUMN DESCRIPTION_TEST.NOTE_514 IS '${description514}'`);
+    await raw(`COMMENT ON COLUMN DESCRIPTION_TEST.NOTE_LONG IS '${descriptionLong}'`);
+    await assert.rejects(raw('SELECT CAST(RDB$DESCRIPTION AS VARCHAR(500)) AS DESCRIPTION FROM RDB$RELATION_FIELDS WHERE RDB$RELATION_NAME = ? AND RDB$FIELD_NAME = ?', ['DESCRIPTION_TEST', 'NOTE_514']), /truncation|length/i);
+    const expectedDescriptions = [null, description514, descriptionLong];
+    assert.deepEqual((await getFieldDescriptions('DESCRIPTION_TEST', config)).map(field => field.description), expectedDescriptions);
+    assert.deepEqual((await describeTable('DESCRIPTION_TEST', config)).map(field => field.description), expectedDescriptions);
+    const describedBatch = await describeBatchTables(['DESCRIPTION_TEST'], config);
+    assert.deepEqual(describedBatch[0].schema.map(field => field.description), expectedDescriptions);
+    // A plan request must not execute the submitted SQL, even if it has a side effect.
+    await raw('CREATE SEQUENCE PLAN_ONLY_SEQ');
+    const planSql = 'SELECT GEN_ID(PLAN_ONLY_SEQ, 1) AS N FROM RDB$DATABASE';
+    const plan = await getExecutionPlan(planSql, [], config);
+    assert.equal(plan.success, false); assert.equal(plan.plan, '');
+    assert.equal(plan.error, 'Execution plan not available');
+    assert.match(plan.analysis, /SET PLANONLY ON/);
+    globalThis.MCP_FIREBIRD_CONFIG = config;
+    const planTool = await setupDatabaseTools().get('get-execution-plan').handler({ sql: planSql });
+    delete globalThis.MCP_FIREBIRD_CONFIG;
+    assert.equal(planTool.isError, true); assert.equal(planTool.structuredContent.success, false);
+    assert.equal((await raw('SELECT GEN_ID(PLAN_ONLY_SEQ, 0) AS N FROM RDB$DATABASE'))[0].N, 0);
+    console.log('PASS: issue #45 full 514/10000-character descriptions across all metadata paths; unavailable plan errors do not execute submitted SQL');
     assert((await executeQuery("SELECT RDB$GET_CONTEXT('SYSTEM', 'ENGINE_VERSION') AS VERSION FROM RDB$DATABASE",[],config))[0].VERSION);
     assert.equal((await executeQuery('SELECT A.ID FROM PUBLIC_DATA A, PUBLIC_DATA B WHERE A.ID = B.ID',[],config)).length,2);
     for (let i=0;i<110;i++) await executeQuery('SELECT ID FROM PUBLIC_DATA',[],config);
