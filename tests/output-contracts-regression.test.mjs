@@ -40,7 +40,24 @@ function assertConcreteSchema(schema, path = 'outputSchema') {
     }
 }
 
-test('every finalized tool has a nonempty successful production-path fixture', () => {
+function assertToolStatus(name, response) {
+    if (name === 'get-execution-plan') {
+        assert.equal(response.isError, true);
+        assert.equal(response.structuredContent.success, false);
+        const result = response.structuredContent.result;
+        assert.equal(result.success, false);
+        assert.equal(result.plan, '');
+        assert.deepEqual(result.planDetails, []);
+        assert.equal(result.error, 'Execution plan not available');
+        assert.match(result.analysis, /SET PLANONLY ON/);
+        assert.deepEqual(JSON.parse(response.content[0].text), result);
+    } else {
+        assert.notEqual(response.isError, true, `${name}: ${JSON.stringify(response)}`);
+        assert.equal(response.structuredContent.success, true, name);
+    }
+}
+
+test('every finalized tool has a production-path fixture', () => {
     assert.deepEqual([...tools.keys()].sort(), cases.map(([name]) => name).sort());
 });
 
@@ -48,8 +65,7 @@ for (const [name, args] of cases) {
     test(`${name}: real metadata mapping conforms to its output contract`, async () => {
         const tool = tools.get(name);
         const response = await tool.handler(args);
-        assert.notEqual(response.isError, true, JSON.stringify(response));
-        assert.equal(response.structuredContent.success, true);
+        assertToolStatus(name, response);
         assert.equal(tool.outputSchema.safeParse(response.structuredContent).success, true);
         // No silently stripped fields in the SDK's subsequent Zod parse.
         assert.deepEqual(tool.outputSchema.parse(response.structuredContent), response.structuredContent);
@@ -73,7 +89,7 @@ test('all tool schemas explicitly describe JSON values instead of empty schemas'
 
 for (const transportKind of ['stdio', 'http']) {
     for (const era of ['sdk1', 'legacy', 'modern']) {
-        test(`${transportKind} ${era}: every tool succeeds with client output validation enabled`, { timeout: 30000 }, async () => {
+        test(`${transportKind} ${era}: every tool reports its expected status with client output validation enabled`, { timeout: 30000 }, async () => {
             const client = era === 'sdk1' ? new V1Client({ name: 'contract-sdk1', version: '1' }) : new Client(
                 { name: 'contract-sdk2', version: '1' }, era === 'modern' ? { versionNegotiation: { mode: { pin: '2026-07-28' } } } : {});
             let http, listener;
@@ -97,8 +113,8 @@ for (const transportKind of ['stdio', 'http']) {
                 for (const tool of catalog.tools) assertConcreteSchema(tool.outputSchema, tool.name);
                 for (const [name, args] of cases) {
                     const response = await client.callTool({ name, arguments: args });
-                    assert.notEqual(response.isError, true, `${name}: ${JSON.stringify(response)}`);
-                    assert.equal(response.structuredContent.success, true, name);
+                    assertToolStatus(name, response);
+                    assert.deepEqual(tools.get(name).outputSchema.parse(response.structuredContent), response.structuredContent);
                 }
             } finally {
                 await client.close();

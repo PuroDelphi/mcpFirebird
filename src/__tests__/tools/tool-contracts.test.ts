@@ -136,12 +136,16 @@ describe('MCP tool contracts', () => {
         expect(tool.outputSchema.safeParse(response.structuredContent).success).toBe(true);
     });
 
-    it('preserves the informative unavailable-plan response as success', async () => {
-        const result = { ...planResult, success: true, error: undefined, plan: 'Execution plan not available' };
+    it('marks an unavailable plan as an MCP error while preserving guidance', async () => {
+        const result = { ...planResult, error: 'Execution plan not available', analysis: 'Use isql SET PLANONLY ON' };
         jest.mocked(db.getExecutionPlan).mockResolvedValue(result);
-        const response = await setupDatabaseTools().get('get-execution-plan')!.handler({ sql });
-        expect(response.isError).not.toBe(true);
-        expect(response.structuredContent.success).toBe(true);
+        const tool = setupDatabaseTools().get('get-execution-plan')!;
+        const response = await tool.handler({ sql });
+        expect(response.isError).toBe(true);
+        expect(response.structuredContent.success).toBe(false);
+        expect(response.structuredContent.result).toEqual(result);
+        expect(JSON.parse(response.content[0].text)).toEqual(result);
+        expect(tool.outputSchema.safeParse(response.structuredContent).success).toBe(true);
     });
 
     it('marks partially failed query batches without losing successful items or error types', async () => {
