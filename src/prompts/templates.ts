@@ -4,7 +4,7 @@
 
 import { z } from 'zod';
 import { createLogger } from '../utils/logger.js';
-import { PromptDefinition, createAssistantTextMessage } from './types.js';
+import { PromptDefinition, createAssistantTextMessage, lenientEnum, lenientEnumArray } from './types.js';
 
 const logger = createLogger('prompts:templates');
 
@@ -17,9 +17,10 @@ const databaseHealthCheckPrompt: PromptDefinition = {
     description: "Provides a comprehensive guide for analyzing database health, including performance, integrity, and security checks.",
     category: "Database Analysis",
     inputSchema: z.object({
-        focusAreas: z.array(z.enum(['performance', 'integrity', 'security', 'structure', 'all']))
-            .optional()
-            .describe("Specific areas to focus on (default: all)")
+        focusAreas: lenientEnumArray(
+            ['performance', 'integrity', 'security', 'structure', 'all'],
+            ['all']
+        ).describe("Specific areas to focus on (default: all)")
     }),
     handler: async (params: { focusAreas?: string[] }) => {
         const areas = params.focusAreas || ['all'];
@@ -88,8 +89,7 @@ const queryOptimizationGuidePrompt: PromptDefinition = {
     description: "Provides a step-by-step guide for optimizing SQL queries in Firebird.",
     category: "SQL Optimization",
     inputSchema: z.object({
-        queryType: z.enum(['select', 'insert', 'update', 'delete', 'general'])
-            .optional()
+        queryType: lenientEnum(['select', 'insert', 'update', 'delete', 'general'], 'general')
             .describe("Type of query to optimize (default: general)")
     }),
     handler: async (params: { queryType?: string }) => {

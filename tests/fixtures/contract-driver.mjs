@@ -41,7 +41,7 @@ function rowsFor(sql) {
     if (text.includes('FROM RDB$PROCEDURES')) return [{ NAME: 'P_CUSTOMERS', INPUT_PARAMS: 0, OUTPUT_PARAMS: 1, SOURCE: 'AS BEGIN SUSPEND; END', DESCRIPTION: null, VALID_BLR: 1 }];
     if (text.includes('FROM RDB$FUNCTIONS')) return [{ NAME: 'F_CUSTOMERS', MODULE_NAME: null, ENTRY_POINT: null, RETURN_ARGUMENT: 0, SOURCE: 'BEGIN RETURN 1; END', DESCRIPTION: null, VALID_BLR: 1 }];
     if (text.includes('FROM RDB$PACKAGES')) return [{ NAME: 'PKG_CUSTOMERS', HEADER_SOURCE: 'BEGIN END', BODY_SOURCE: 'BEGIN END', DESCRIPTION: null, VALID_BODY_FLAG: 1 }];
-    if (text.includes('COUNT(*)')) return [{ ROW_COUNT: 2 }];
+    if (text.includes('COUNT(*) AS TOTAL_ROWS')) return [{ TOTAL_ROWS: 2 }];
     if (text.includes('FROM CUSTOMERS') || text.includes('FROM "CUSTOMERS"')) return [
         { ID: 1, NAME: 'Alice', CREATED: new Date('2026-09-30T00:00:00Z'), ACTIVE: true, OPTIONAL: null, NOTE: Buffer.from('text blob'), EXTRA: { values: [1, false, null, { nested: 'yes' }] } },
         { ID: 2, NAME: 'Bob', CREATED: null, ACTIVE: false, OPTIONAL: null, NOTE: null, EXTRA: [] }

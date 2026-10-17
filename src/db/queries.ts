@@ -132,7 +132,7 @@ async function executeGuarded(sql: string, params: any[], config: ConfigOptions,
             try {
                 db = await connectToDatabase(config);
                 if (expired) throw new FirebirdError('Query deadline exceeded', 'QUERY_TIMEOUT');
-                const result = await queryDatabase(db, sql, params);
+                const result = await queryDatabase(db, sql, params, () => expired);
                 // Do not start BLOB reads or process a result after its deadline.
                 if (expired) throw new FirebirdError('Query deadline exceeded', 'QUERY_TIMEOUT');
                 // EXECUTE PROCEDURE may return an object rather than an array.
@@ -387,7 +387,7 @@ export const getFieldDescriptions = async (tableName: string, config = DEFAULT_C
         const sql = `
             SELECT
                 TRIM(RF.RDB$FIELD_NAME) AS FIELD_NAME,
-                CAST(RF.RDB$DESCRIPTION AS VARCHAR(500)) AS DESCRIPTION
+                RF.RDB$DESCRIPTION AS DESCRIPTION
             FROM
                 RDB$RELATION_FIELDS RF
             WHERE
@@ -480,7 +480,7 @@ export const describeTable = async (tableName: string, config = DEFAULT_CONFIG):
                     ) THEN 1
                     ELSE 0
                 END as PRIMARY_KEY,
-                CAST(rf.RDB$DESCRIPTION AS VARCHAR(500)) as DESCRIPTION
+                rf.RDB$DESCRIPTION as DESCRIPTION
             FROM RDB$RELATION_FIELDS rf
             JOIN RDB$FIELDS f ON rf.RDB$FIELD_SOURCE = f.RDB$FIELD_NAME
             WHERE rf.RDB$RELATION_NAME = ?
@@ -728,12 +728,13 @@ export const getExecutionPlan = async (
         logger.info('The drivers do not expose the isc_dsql_sql_info API needed to get execution plans');
         logger.info('Recommendation: Use Firebird tools like isql, FlameRobin, or IBExpert for execution plans');
 
-        // Return informative message
+        // An unavailable plan is a failed retrieval, not a successful plan result.
         return {
             query: sql,
-            plan: "Execution plan not available",
+            plan: "",
             planDetails: [],
-            success: true,
+            success: false,
+            error: "Execution plan not available",
             analysis: "Node.js Firebird drivers do not expose the execution plan API.\n\n" +
                      "The Firebird API provides isc_dsql_sql_info with isc_info_sql_get_plan (constant: 22) " +
                      "to retrieve execution plans, but neither node-firebird-driver-native nor node-firebird " +

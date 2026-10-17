@@ -34,3 +34,25 @@ export const createErrorMessage = (error: unknown, context: string) => {
     const errorMessage = error instanceof Error ? error.message : String(error);
     return createAssistantTextMessage(`Error ${context}: ${errorMessage}`);
 };
+
+/**
+ * Prompt arguments arrive from many clients: some omit them, some send a bare string
+ * where an array is expected, and MCP clients that probe prompts send placeholders
+ * such as "$1". Strict enums rejected those requests, so every prompt of this server
+ * failed discovery. These helpers coerce loose input to a valid value and fall back
+ * to a documented default instead of raising -32602.
+ */
+export const lenientEnum = (values: [string, ...string[]], fallback: string) =>
+    z.preprocess((input: unknown) => {
+        const text = input == null ? '' : String(input).trim();
+        return values.includes(text) ? text : fallback;
+    }, z.enum(values));
+
+export const lenientEnumArray = (values: [string, ...string[]], fallback: [string, ...string[]]) =>
+    z.preprocess((input: unknown) => {
+        const list = Array.isArray(input) ? input : (input == null ? fallback : [input]);
+        const clean = list
+            .map(item => (item == null ? '' : String(item).trim()))
+            .filter(item => values.includes(item));
+        return clean.length ? clean : fallback;
+    }, z.array(z.enum(values)));

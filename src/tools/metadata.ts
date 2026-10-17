@@ -35,8 +35,11 @@ const pkg = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
  * @param databaseTools - Mapa de herramientas de base de datos ya configuradas.
  * @returns Map<string, ToolDefinition> - Mapa con las herramientas de metadatos.
  */
-export function setupMetadataTools(databaseTools: Map<string, ToolDefinition>): Map<string, ToolDefinition> {
+export function setupMetadataTools(databaseTools: Map<string, ToolDefinition>, catalogNames?: () => string[]): Map<string, ToolDefinition> {
     const tools = new Map<string, ToolDraft>();
+    // The server supplies its registered catalog, including simple/event tools.
+    // Standalone callers retain the catalog assembled from their own maps.
+    const toolNames = () => [...new Set(catalogNames?.() || [...databaseTools.keys(), ...tools.keys()])];
 
     // Herramienta para obtener información del servidor
     tools.set('get-server-info', {
@@ -50,8 +53,8 @@ export function setupMetadataTools(databaseTools: Map<string, ToolDefinition>): 
                     version: pkg.version || '2.6.0-alpha.11',
                     description: pkg.description || 'MCP server for Firebird databases',
                     capabilities: {
-                        tools: Array.from(databaseTools.keys()),
-                        totalTools: databaseTools.size,
+                        tools: toolNames(),
+                        totalTools: toolNames().length,
                         features: [
                             'SQL query execution',
                             'Database schema inspection',
@@ -169,7 +172,8 @@ export function setupMetadataTools(databaseTools: Map<string, ToolDefinition>): 
                     tools: {
                         database: databaseTools.size,
                         metadata: tools.size,
-                        total: databaseTools.size + tools.size
+                        other: toolNames().filter(name => !databaseTools.has(name) && !tools.has(name)).length,
+                        total: toolNames().length
                     }
                 };
 

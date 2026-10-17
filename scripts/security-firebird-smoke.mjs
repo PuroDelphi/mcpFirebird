@@ -21,7 +21,7 @@ try {
     throw new Error('Could not create a disposable database on local Firebird. Set FIREBIRD_TEST_USER/PASSWORD if needed.');
 }
 const raw = (sql,params=[]) => new Promise((resolve,reject)=>initial.query(sql,params,(error,rows)=>error?reject(error):resolve(rows)));
-const {executeQuery,listTables} = await import('../dist/db/queries.js');
+const {executeQuery,listTables,getFieldDescriptions,describeTable,describeBatchTables,getExecutionPlan} = await import('../dist/db/queries.js');
 const {closePool} = await import('../dist/db/connection.js');
 const {securityConfig,DEFAULT_SECURITY_CONFIG} = await import('../dist/security/config.js');
 const {createAuditTable} = await import('../dist/security/audit.js');
@@ -73,12 +73,82 @@ try {
     securityConfig.forbiddenTables=['PRIVATE_DATA'];
     await assert.rejects(executeQuery(derivedSql,[1],config));
     console.log('PASS: issue #41 derived sources, JOIN ON/USING, parameters, nested catalog denial and populated-denylist boundary');
+    // #44: grouping/predicate syntax through the actual policy + transaction path.
+    // Window functions require Firebird 3+, so this 2.5 smoke does not execute them.
+    reset();
+    Object.assign(securityConfig, {
+        allowedOperations: ['SELECT', 'EXECUTE'], forbiddenTables: [],
+        sql: { allowSystemTables: false, allowUnsafeQueries: false }
+    });
+    await raw('CREATE TABLE DEPARTMENT (ID INTEGER, CODE VARCHAR(20))');
+    for (const [id, code] of [[1, 'IRL'], [2, 'FR'], [3, 'I_A']]) await raw('INSERT INTO DEPARTMENT VALUES (?, ?)', [id, code]);
+    const groupedQueries = [
+        'SELECT FIRST 1 ID FROM DEPARTMENT ORDER BY (ID)',
+        'SELECT CODE FROM DEPARTMENT GROUP BY (CODE)',
+        "SELECT FIRST 1 ID FROM DEPARTMENT WHERE CODE LIKE ('I%')",
+        "SELECT FIRST 1 ID FROM DEPARTMENT WHERE CODE CONTAINING ('IRL')",
+        "SELECT FIRST 1 ID FROM DEPARTMENT WHERE CODE STARTING WITH ('IRL')",
+        "SELECT FIRST 1 ID FROM DEPARTMENT WHERE CODE SIMILAR TO ('IRL%')",
+        "SELECT ID FROM DEPARTMENT WHERE CODE NOT LIKE ('I!_%') ESCAPE ('!') ORDER BY (ID)",
+        "SELECT ID FROM DEPARTMENT WHERE CODE STARTS WITH ('IRL')",
+        "SELECT ID FROM DEPARTMENT WHERE CODE STARTING ('IRL')",
+        'SELECT ID FROM DEPARTMENT WHERE ID IS DISTINCT FROM (1) ORDER BY (ID)',
+        'SELECT ID FROM DEPARTMENT WHERE ID IS NOT DISTINCT FROM (1)',
+        'SELECT FIRST (1) SKIP (0) ID FROM DEPARTMENT ORDER BY (ID)',
+        'SELECT ID FROM DEPARTMENT WHERE ID BETWEEN (1) AND (2) ORDER BY (ID)',
+        'SELECT CAST(ID AS DECIMAL(10, 2)) AS N FROM DEPARTMENT ORDER BY (ID)'
+    ];
+    for (const sql of groupedQueries) assert.deepEqual(await executeQuery(sql, [], config), await raw(sql));
+    await assert.rejects(executeQuery('SELECT ID FROM DEPARTMENT ORDER BY (PRIVATE_FUNCTION(ID))', [], config), /Unrecognized SQL function/);
+    await assert.rejects(executeQuery('SELECT ID FROM DEPARTMENT WHERE ID IS DISTINCT FROM (SELECT RDB$RELATION_ID FROM RDB$RELATIONS)', [], config), /System table/);
+    console.log('PASS: issue #44 grouping/predicates match direct Firebird results while nested routines/catalogs remain denied');
     reset();
     // Default compatibility: catalog, opaque functions, stored procedures,
     // joins and long-lived sessions work without enabling advanced controls.
     delete process.env.ALLOW_RAW_SQL;
     await raw('CREATE PROCEDURE COMPAT_PROC RETURNS (ID INTEGER) AS BEGIN ID = 42; END');
     assert.equal((await executeQuery('EXECUTE PROCEDURE COMPAT_PROC',[],config))[0].ID,42);
+    // #43: real pure-JS BLOB lifetime, LIST aggregate, dates and FB 2.5 statistics.
+    await raw('CREATE TABLE BLOB_TEST (ID INTEGER, NOTE BLOB SUB_TYPE TEXT, CREATED_AT TIMESTAMP)');
+    await raw("INSERT INTO BLOB_TEST VALUES (1, NULL, TIMESTAMP '2026-09-04 23:12:26.9852')");
+    await raw("INSERT INTO BLOB_TEST VALUES (2, ?, NULL)", ['Türkçe İSTANBUL ŞİŞLİ ığüşöç']);
+    const blobRows = await executeQuery('SELECT * FROM BLOB_TEST ORDER BY ID', [], config);
+    assert.equal(blobRows[0].NOTE, null);
+    assert.equal(blobRows[0].CREATED_AT, '2026-09-04 23:12:26.985');
+    assert.equal(blobRows[1].NOTE, 'Türkçe İSTANBUL ŞİŞLİ ığüşöç');
+    const listRows = await executeQuery('SELECT LIST(ID) AS IDS FROM BLOB_TEST', [], config);
+    assert.deepEqual(listRows[0].IDS.split(',').sort(), ['1', '2']);
+    const { setupDatabaseTools } = await import('../dist/tools/database.js');
+    globalThis.MCP_FIREBIRD_CONFIG = config;
+    const stats = await setupDatabaseTools().get('analyze-table-statistics').handler({ tableName: 'BLOB_TEST' });
+    delete globalThis.MCP_FIREBIRD_CONFIG;
+    assert.equal(stats.structuredContent.success, true);
+    assert.equal(stats.structuredContent.result.rowCount, 2);
+    console.log('PASS: PR #43 BLOB/NULL/LIST, wall-clock dates and real table statistics');
+    // #45/#46: full metadata BLOBs, including a NULL first description.
+    await raw('CREATE TABLE DESCRIPTION_TEST (ID INTEGER, NOTE_514 INTEGER, NOTE_LONG INTEGER)');
+    const description514 = 'x'.repeat(514), descriptionLong = 'á'.repeat(10000);
+    await raw(`COMMENT ON COLUMN DESCRIPTION_TEST.NOTE_514 IS '${description514}'`);
+    await raw(`COMMENT ON COLUMN DESCRIPTION_TEST.NOTE_LONG IS '${descriptionLong}'`);
+    await assert.rejects(raw('SELECT CAST(RDB$DESCRIPTION AS VARCHAR(500)) AS DESCRIPTION FROM RDB$RELATION_FIELDS WHERE RDB$RELATION_NAME = ? AND RDB$FIELD_NAME = ?', ['DESCRIPTION_TEST', 'NOTE_514']), /truncation|length/i);
+    const expectedDescriptions = [null, description514, descriptionLong];
+    assert.deepEqual((await getFieldDescriptions('DESCRIPTION_TEST', config)).map(field => field.description), expectedDescriptions);
+    assert.deepEqual((await describeTable('DESCRIPTION_TEST', config)).map(field => field.description), expectedDescriptions);
+    const describedBatch = await describeBatchTables(['DESCRIPTION_TEST'], config);
+    assert.deepEqual(describedBatch[0].schema.map(field => field.description), expectedDescriptions);
+    // A plan request must not execute the submitted SQL, even if it has a side effect.
+    await raw('CREATE SEQUENCE PLAN_ONLY_SEQ');
+    const planSql = 'SELECT GEN_ID(PLAN_ONLY_SEQ, 1) AS N FROM RDB$DATABASE';
+    const plan = await getExecutionPlan(planSql, [], config);
+    assert.equal(plan.success, false); assert.equal(plan.plan, '');
+    assert.equal(plan.error, 'Execution plan not available');
+    assert.match(plan.analysis, /SET PLANONLY ON/);
+    globalThis.MCP_FIREBIRD_CONFIG = config;
+    const planTool = await setupDatabaseTools().get('get-execution-plan').handler({ sql: planSql });
+    delete globalThis.MCP_FIREBIRD_CONFIG;
+    assert.equal(planTool.isError, true); assert.equal(planTool.structuredContent.success, false);
+    assert.equal((await raw('SELECT GEN_ID(PLAN_ONLY_SEQ, 0) AS N FROM RDB$DATABASE'))[0].N, 0);
+    console.log('PASS: issue #45 full 514/10000-character descriptions across all metadata paths; unavailable plan errors do not execute submitted SQL');
     assert((await executeQuery("SELECT RDB$GET_CONTEXT('SYSTEM', 'ENGINE_VERSION') AS VERSION FROM RDB$DATABASE",[],config))[0].VERSION);
     assert.equal((await executeQuery('SELECT A.ID FROM PUBLIC_DATA A, PUBLIC_DATA B WHERE A.ID = B.ID',[],config)).length,2);
     for (let i=0;i<110;i++) await executeQuery('SELECT ID FROM PUBLIC_DATA',[],config);

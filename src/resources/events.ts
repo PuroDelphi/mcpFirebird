@@ -210,8 +210,9 @@ export interface EventResourceOptions {
     eventLifetime?: 'request' | 'connection';
 }
 
-export function setupEventResources(server: McpServer, options: EventResourceOptions = {}): void {
-    try { assertEventPolicy(); } catch { return; }
+export function setupEventResources(server: McpServer, options: EventResourceOptions = {}): string[] {
+    try { assertEventPolicy(); } catch { return []; }
+    const registeredTools: string[] = [];
     const subscriptions = new Set<string>();
     const client = options.eventLifetime === 'request' ? undefined : createEventClient(uri => {
         if (options.era === 'modern' || subscriptions.has(uri)) return server.server.sendResourceUpdated({ uri });
@@ -285,7 +286,9 @@ export function setupEventResources(server: McpServer, options: EventResourceOpt
                 });
             } catch (error) { return toolError(error); }
         });
+        registeredTools.push(name);
     }
+    return registeredTools;
 }
 
 /** Idempotent shutdown releases all clients, native event handles and connections. */

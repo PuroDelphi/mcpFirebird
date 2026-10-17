@@ -1,5 +1,25 @@
 # Changelog
 
+## [2.12.1-alpha.2] - 2026-10-15
+
+- Integrate PR #46 for issue #45: preserve full column-description BLOBs in `describe-table`, `describe-batch-tables` and `get-field-descriptions`, avoiding the former 500-character SQL cast limit while retaining BLOB transaction ownership and configured security/resource controls.
+- Report unavailable execution plans as `success: false`, empty plan/details and an explicit error; emit MCP `isError: true` while preserving manual-tool guidance. This does not execute the supplied query or add monitoring-table plan retrieval.
+- Correct server-information and health tool counts using the registered catalog, including simple/event tools. Add the optional health `tools.other` category so counts reconcile without hardcoded totals.
+- Add metadata/plan regressions and cross-protocol status/count assertions. Extend disposable live integration checks to reproduce the old SQL truncation, preserve 514/10,000-character descriptions across all three paths, and verify that plan requests do not execute a sequence-changing SELECT.
+- See the [alpha release notes](docs/releases/2.12.1-alpha.2.md) and [English/Spanish tool contract](docs/tool-contract.md). Missing-index heuristics and actual Firebird 4/5 monitoring-plan retrieval are not changed by this release.
+
+## [2.12.1-alpha.1] - 2026-10-14
+
+- Fix #44 at the shared query-policy boundary: separate SQL parenthesis grammar from builtin routine names, recognize grouping/predicate contexts (including ORDER/GROUP/PARTITION BY, LIKE/CONTAINING, STARTING WITH, SIMILAR TO, ESCAPE and IS DISTINCT FROM), and preserve inspection of every nested routine and relation.
+- Recognize the Firebird ranking/navigational window-function family only in analytic calls with OVER, plus named-window clause boundaries. Function availability still depends on the connected Firebird version; standalone/quoted/package-qualified routine names are not analytic builtin exemptions.
+- Add a 519-case syntax/security regression suite and extend disposable live Firebird checks with grouped queries, result comparisons and nested-denial checks. Existing table, row, masking, catalog and routine restrictions remain enforced; no new configuration is required.
+
+- Integrate PR #43 by @sudeposutemizligi with transaction-safety and compatibility adjustments: execute pure-JS SQL once, resolve BLOBs inside their owning transaction, preserve repeatable-read/read-write behavior and authorized audit/write paths, and propagate commit failures without declaring pending cleanup complete after a timer.
+- Preserve query-deadline ownership while transactions/BLOBs settle; do not start SQL or BLOB reads after an already-expired deadline. Retain native-adapter behavior and shared binary serialization.
+- Format pure-JS database Date columns as local wall-clock strings without UTC conversion; document millisecond precision and consumer parsing implications.
+- Correct the Firebird 2.5 statistics count alias and add a nonzero-count contract assertion. Accept loose prompt arguments with actual defaults, including omitted migration type.
+- Add transaction-boundary, prompt, binary and multi-timezone date regressions; expand the opt-in live Firebird smoke script. See [compatibility and validation details](docs/blob-date-compatibility.md) and [alpha release notes](docs/releases/2.12.1-alpha.1.md).
+
 ## [2.12.0] - 2026-10-07
 
 Promote all changes from `2.12.0-alpha.1` through `2.12.0-alpha.5` since stable `2.11.0`. See the [complete release notes](docs/releases/2.12.0.md).

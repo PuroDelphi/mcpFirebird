@@ -31,6 +31,13 @@ async function checkCatalog(client) {
     assert((await client.listResources()).resources.length > 0);
     assert((await client.listResourceTemplates()).resourceTemplates.length > 0);
     assert((await client.listPrompts()).prompts.length > 0);
+    for (const [name, argument] of [['migration-planning', 'migrationType'], ['query-optimization-guide', 'queryType'], ['database-health-check', 'focusAreas'], ['security-audit', 'auditScope']]) {
+        for (const args of [{}, { [argument]: '$1' }]) {
+            const prompt = await client.getPrompt({ name, arguments: args });
+            assert.ok(prompt.messages[0].content.text);
+            assert.ok(!prompt.messages[0].content.text.includes('undefined'));
+        }
+    }
     const failed = await client.callTool({ name: 'execute-query', arguments: { sql: 'DROP TABLE NOT_ALLOWED' } });
     assert.equal(failed.isError, true);
     assert.equal(failed.structuredContent.success, false);

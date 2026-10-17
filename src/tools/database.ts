@@ -469,9 +469,10 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
                 checkAllowedOperation('SELECT');
                 checkAllowedTable(tableName);
                 const quotedTable = quoteIdentifier(tableName);
-                // Get row count
-                const countResult = await executeQuery(`SELECT COUNT(*) as ROW_COUNT FROM ${quotedTable}`);
-                const rowCount = countResult[0]?.ROW_COUNT || 0;
+                // Get row count. ROW_COUNT is a reserved token in Firebird 2.5 and
+                // cannot be used as an alias, so the count is projected as TOTAL_ROWS.
+                const countResult = await executeQuery(`SELECT COUNT(*) as TOTAL_ROWS FROM ${quotedTable}`);
+                const rowCount = Number(countResult[0]?.TOTAL_ROWS ?? 0);
 
                 // Get table schema
                 const schema = await describeTable(tableName);
