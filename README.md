@@ -153,10 +153,10 @@ npx -y mcp-firebird --database /path/to/database.fdb
 npm install -g mcp-firebird@alpha
 
 # Or use specific alpha version
-npm install -g mcp-firebird@2.12.1-alpha.2
+npm install -g mcp-firebird@2.13.0-alpha.1
 ```
 
-**The fixes in 2.12.1-alpha.2 are included in stable 2.12.2, with historical date output restored by default.** Use `mcp-firebird@latest`; the `alpha` tag remains at 2.12.1-alpha.2 and is not advanced by a stable publication. Keep your existing connection and security settings. Select `FIREBIRD_DATE_FORMAT=wall-clock` only to retain the alpha/2.12.1 date representation. Read the [stable release notes](docs/releases/2.12.2.md), [security guide](docs/security.md) and [date/BLOB compatibility notes](docs/blob-date-compatibility.md).
+**Alpha 2.13.0-alpha.1 adds prepare-only optimizer plans and catalog-aware index advice for issue #45.** It includes stable 2.12.2 and preserves historical ISO/UTC date output by default. These diagnostics are invoked through the existing tools; no new flag, driver upgrade or security-policy relaxation is required. The index advisor never creates indexes. Keep your connection/security settings and restart the MCP after updating. Read the [diagnostics guide](docs/query-diagnostics.md) and [alpha release notes](docs/releases/2.13.0-alpha.1.md). Stable `latest` remains 2.12.2; see the [security guide](docs/security.md) and [date/BLOB compatibility notes](docs/blob-date-compatibility.md).
 
 
 

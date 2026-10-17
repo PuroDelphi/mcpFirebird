@@ -114,14 +114,23 @@ tests, not a substitute for live Firebird integration tests.
 
 These changes, first shipped in `2.12.1-alpha.2`, are included in stable `2.12.1`. See the [release notes](releases/2.12.1.md).
 
-`get-execution-plan` currently cannot retrieve a plan through the supported driver
-interfaces. It returns `success: false`, `plan: ""`, `planDetails: []`, and
+In stable 2.12.2 and the earlier alpha, `get-execution-plan` cannot retrieve a plan through the driver
+interfaces used there. It returns `success: false`, `plan: ""`, `planDetails: []`, and
 `error: "Execution plan not available"`, preserving manual-tool guidance in
 `analysis`. The MCP response also has `isError: true` and structured
 `success: false`; clients must not treat the guidance as a retrieved plan.
 This corrects the former successful placeholder response. The request still
 passes the existing SQL policy checks and does not execute the supplied query.
 No monitoring-table workaround or permission bypass is introduced.
+
+**Starting with 2.13.0-alpha.1**, the tool uses prepare-only statement-info APIs
+to return real optimizer plan text with `success: true` when available. The
+result shape is unchanged and `planDetails` remains `[]`. The SQL is policy-checked
+and row-filtered, prepared in a read-only transaction and never executed/fetched;
+parameter values are not bound. Unavailable plans and policy/driver/cleanup failures
+retain the error contract above. The index advisor also checks catalog indexes,
+including primary keys, before suggesting DDL. No DDL is applied. See the
+[diagnostics guide](query-diagnostics.md) for supported query shapes and limits.
 
 `describe-table`, `describe-batch-tables`, and `get-field-descriptions` read full
 column-description BLOBs instead of casting them to `VARCHAR(500)`. Existing

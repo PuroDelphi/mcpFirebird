@@ -123,7 +123,7 @@ Analyzes the performance of a SQL query by executing it multiple times and measu
 
 ### 11. get-execution-plan
 
-Gets the execution plan for a SQL query to understand how the database will execute it.
+In 2.13.0-alpha.1, prepares an authorized SELECT in a read-only transaction and retrieves its optimizer plan **without executing it**. Parameter values are not bound. Unavailable plans return an error, never an execution fallback. See [configuration and limitations](query-diagnostics.md).
 
 ```json
 {
@@ -133,7 +133,7 @@ Gets the execution plan for a SQL query to understand how the database will exec
 
 ### 12. analyze-missing-indexes
 
-Analyzes a SQL query to identify missing indexes that could improve performance.
+In 2.13.0-alpha.1, suggests indexes for simple single-table SELECT predicates/order terms after checking existing catalog indexes, including primary keys. Heuristic advice only; never executes the query or applies DDL. Unsupported query shapes are explicitly identified. See [the diagnostics guide](query-diagnostics.md).
 
 ```json
 {

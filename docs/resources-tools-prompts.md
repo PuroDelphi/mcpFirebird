@@ -378,18 +378,18 @@ These tools mirror the corresponding `firebird://tables/{tableName}/...` Resourc
 ---
 
 #### `get-execution-plan`
-**Description:** Gets the execution plan for a SQL query.
+**Description:** In 2.13.0-alpha.1, prepares an authorized SELECT and retrieves its optimizer plan without executing/fetching it. Read-only transaction; unavailable plans are errors. See [the diagnostics guide](query-diagnostics.md).
 
 **Parameters:**
 - `sql` (string, required) - SQL query to analyze
-- `params` (array, optional) - Query parameters
+- `params` (array, optional) - Retained for compatibility/auditing; values are not bound for prepare-only plans
 
 **Use Case:** Understand how Firebird executes a query.
 
 ---
 
 #### `analyze-missing-indexes`
-**Description:** Analyzes a query to identify missing indexes.
+**Description:** In 2.13.0-alpha.1, provides conservative single-table index advice after checking the catalog, including primary keys. Does not execute the query or apply DDL. See [the diagnostics guide](query-diagnostics.md).
 
 **Parameters:**
 - `sql` (string, required) - SQL query to analyze

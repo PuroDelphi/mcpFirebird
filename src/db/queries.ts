@@ -15,7 +15,9 @@ import { FirebirdError } from '../utils/errors.js';
 import { validateSql } from '../utils/security.js';
 import { resolveBlobFields } from './blob.js';
 import { securityConfig } from '../security/config.js';
-import { prepareUserQuery } from '../security/sqlPolicy.js';
+import { prepareUserQuery, tokenizeSql } from '../security/sqlPolicy.js';
+import { prepareDatabasePlan } from './plan.js';
+import { adviseIndexes } from './index-advisor.js';
 import { checkAllowedOperation, checkAllowedTable } from '../security/authorization.js';
 import { applyDataMasking } from '../security/dataMasking.js';
 import { checkQueryCountLimit, checkRateLimit, checkResponseSizeLimit, checkRowLimit } from '../security/resourceLimits.js';
@@ -96,7 +98,7 @@ export const executeQuery = (sql: string, params: any[] = [], config = DEFAULT_C
 export const executeMetadataQuery = (sql: string, params: any[] = [], config = DEFAULT_CONFIG): Promise<any[]> => executeGuarded(sql, params, config, 'metadata');
 export const executeAuditQuery = (sql: string, params: any[] = [], config = DEFAULT_CONFIG): Promise<any[]> => executeGuarded(sql, params, config, 'audit');
 
-async function executeGuarded(sql: string, params: any[], config: ConfigOptions, kind: 'user' | 'metadata' | 'audit'): Promise<any[]> {
+async function executeGuarded(sql: string, params: any[], config: ConfigOptions, kind: 'user' | 'metadata' | 'audit' | 'plan'): Promise<any[]> {
     // Try to load config from global variable first
     const globalConfig = getGlobalConfig();
     if (globalConfig && globalConfig.database) {
@@ -116,8 +118,11 @@ async function executeGuarded(sql: string, params: any[], config: ConfigOptions,
             checkRateLimit(sessionId); checkQueryCountLimit(sessionId);
         }
         let aliases: Record<string, string> = {};
-        if (kind === 'user') {
+        if (kind === 'user' || kind === 'plan') {
             const prepared = prepareUserQuery(sql);
+            if (kind === 'plan' && (prepared.operation !== 'SELECT' || tokenizeSql(sql)[0]?.value !== 'SELECT')) {
+                throw new FirebirdError('Only SELECT queries are supported for execution plan analysis', 'UNSUPPORTED_OPERATION');
+            }
             sql = prepared.sql; aliases = prepared.aliases;
         }
         if (kind !== 'audit') {
@@ -132,7 +137,9 @@ async function executeGuarded(sql: string, params: any[], config: ConfigOptions,
             try {
                 db = await connectToDatabase(config);
                 if (expired) throw new FirebirdError('Query deadline exceeded', 'QUERY_TIMEOUT');
-                const result = await queryDatabase(db, sql, params, () => expired);
+                const result = kind === 'plan'
+                    ? [{ PLAN: await prepareDatabasePlan(db, sql, () => expired) }]
+                    : await queryDatabase(db, sql, params, () => expired);
                 // Do not start BLOB reads or process a result after its deadline.
                 if (expired) throw new FirebirdError('Query deadline exceeded', 'QUERY_TIMEOUT');
                 // EXECUTE PROCEDURE may return an object rather than an array.
@@ -160,7 +167,7 @@ async function executeGuarded(sql: string, params: any[], config: ConfigOptions,
         if (timer) clearTimeout(timer);
         if (kind !== 'audit') {
             checkRowLimit(resolved.length);
-            resolved = applyDataMasking(resolved, aliases);
+            if (kind !== 'plan') resolved = applyDataMasking(resolved, aliases);
             checkResponseSizeLimit(resolved);
             // Free the user-query attachment before database auditing borrows one.
             // Otherwise concurrent audited queries can exhaust the pool and deadlock.
@@ -683,76 +690,14 @@ export const analyzeQueryPerformance = async (
  */
 export const getExecutionPlan = async (
     sql: string,
-    _params: any[] = [],
-    _config = getGlobalConfig() || DEFAULT_CONFIG
+    params: any[] = [],
+    config = getGlobalConfig() || DEFAULT_CONFIG
 ): Promise<ExecutionPlanResult> => {
     try {
-        // Validate the SQL query to prevent injection
-        prepareUserQuery(sql);
-
-        logger.info(`Getting execution plan for query: ${sql.substring(0, 100)}${sql.length > 100 ? '...' : ''}`);
-
-        // Only SELECT queries are supported for execution plan analysis
-        if (!sql.trim().toUpperCase().startsWith('SELECT')) {
-            throw new FirebirdError(
-                `Only SELECT queries are supported for execution plan analysis`,
-                'UNSUPPORTED_OPERATION'
-            );
-        }
-
-        // Check if we're using the native driver by checking DriverFactory
-        const { DriverFactory } = await import('./driver-factory.js');
-        const driverInfo = await DriverFactory.getDriverInfo();
-
-        logger.debug('Driver info for execution plan', {
-            driverType: driverInfo.current,
-            nativeAvailable: driverInfo.nativeAvailable
-        });
-
-        // Note: node-firebird-driver-native and node-firebird do not expose a direct method to get execution plans
-        // The Firebird API has isc_dsql_sql_info with isc_info_sql_get_plan (constant value: 22), but this is not
-        // exposed in the high-level driver interfaces. The low-level node-firebird-native-api would be needed,
-        // but it's complex to use directly and would require significant refactoring.
-        //
-        // Research findings:
-        // - FDB (Python driver) uses: isc_dsql_sql_info(statement_handle, [isc_info_sql_get_plan])
-        // - node-firebird-driver-native Statement object does not have getPlan() or getInfo() methods
-        // - node-firebird (pure JS) does not support SET PLANONLY or SET PLAN commands (isql-specific)
-        //
-        // Recommendation: Use Firebird tools for execution plan analysis:
-        // - isql: SET PLANONLY ON; <query>; SET PLANONLY OFF;
-        // - FlameRobin: GUI tool with built-in plan visualization
-        // - IBExpert: Commercial tool with advanced plan analysis
-
-        logger.info('Execution plan retrieval is not available through Node.js Firebird drivers');
-        logger.info('The drivers do not expose the isc_dsql_sql_info API needed to get execution plans');
-        logger.info('Recommendation: Use Firebird tools like isql, FlameRobin, or IBExpert for execution plans');
-
-        // An unavailable plan is a failed retrieval, not a successful plan result.
+        const rows = await executeGuarded(sql, params, config, 'plan');
         return {
-            query: sql,
-            plan: "",
-            planDetails: [],
-            success: false,
-            error: "Execution plan not available",
-            analysis: "Node.js Firebird drivers do not expose the execution plan API.\n\n" +
-                     "The Firebird API provides isc_dsql_sql_info with isc_info_sql_get_plan (constant: 22) " +
-                     "to retrieve execution plans, but neither node-firebird-driver-native nor node-firebird " +
-                     "expose this functionality in their high-level interfaces.\n\n" +
-                     "To view execution plans, please use one of these Firebird tools:\n\n" +
-                     "1. isql (Firebird command-line tool):\n" +
-                     "   SET PLANONLY ON;\n" +
-                     "   <your query>;\n" +
-                     "   SET PLANONLY OFF;\n\n" +
-                     "2. FlameRobin (Free GUI tool):\n" +
-                     "   - Open SQL Editor\n" +
-                     "   - Enter your query\n" +
-                     "   - Click 'Show Plan' button\n\n" +
-                     "3. IBExpert (Commercial GUI tool):\n" +
-                     "   - SQL Editor with built-in plan visualization\n" +
-                     "   - Advanced plan analysis features\n\n" +
-                     "Alternatively, you can use the 'analyze-query-performance' tool to measure " +
-                     "query execution time and identify performance issues."
+            query: sql, plan: rows[0].PLAN, planDetails: [], success: true,
+            analysis: 'Optimizer plan for the policy-adjusted statement, prepared without execution. Parameter values are not bound. This is not a runtime performance measurement.'
         };
 
     } catch (error: any) {
@@ -764,53 +709,11 @@ export const getExecutionPlan = async (
             plan: "",
             planDetails: [],
             success: false,
-            error: errorMessage,
-            analysis: "Failed to get execution plan."
+            error: error?.type === 'PLAN_UNAVAILABLE' ? 'Execution plan not available' : errorMessage,
+            analysis: 'No query was executed. If this driver/server cannot provide a plan, use an authorized isql client with SET PLANONLY ON; no execution fallback is attempted.'
         };
     }
 };
-
-/**
- * Analyzes a Firebird execution plan and provides insights
- */
-// Retained plan formatter for driver support; current API returns estimates.
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-function analyzePlan(plan: string): string {
-    const analysis: string[] = [];
-    const upperPlan = plan.toUpperCase();
-
-    // Check for NATURAL scans (table scans without index)
-    if (upperPlan.includes('NATURAL')) {
-        analysis.push('⚠️ NATURAL scan detected - table is being scanned without using an index. Consider adding an index for better performance.');
-    }
-
-    // Check for INDEX usage
-    const indexMatches = plan.match(/INDEX\s+\(([^)]+)\)/gi);
-    if (indexMatches && indexMatches.length > 0) {
-        analysis.push(`✅ Using ${indexMatches.length} index(es): ${indexMatches.join(', ')}`);
-    }
-
-    // Check for JOIN operations
-    if (upperPlan.includes('JOIN')) {
-        analysis.push('🔗 Query contains JOIN operations');
-    }
-
-    // Check for SORT operations
-    if (upperPlan.includes('SORT')) {
-        analysis.push('📊 SORT operation detected - may impact performance on large datasets');
-    }
-
-    // Check for FILTER operations
-    if (upperPlan.includes('FILTER')) {
-        analysis.push('🔍 FILTER operation detected - rows are being filtered after retrieval');
-    }
-
-    if (analysis.length === 0) {
-        return 'Plan retrieved successfully. The query appears to be optimized.';
-    }
-
-    return analysis.join('\n');
-}
 
 /**
  * Analyzes a query to identify missing indexes that could improve performance
@@ -822,84 +725,11 @@ function analyzePlan(plan: string): string {
  */
 export const analyzeMissingIndexes = async (
     sql: string,
-    _config = DEFAULT_CONFIG
+    config = DEFAULT_CONFIG
 ): Promise<{missingIndexes: string[], recommendations: string[], success: boolean, error?: string}> => {
     try {
-        // Validate the SQL query to prevent injection
         prepareUserQuery(sql);
-
-        logger.info(`Analyzing missing indexes for query: ${sql.substring(0, 100)}${sql.length > 100 ? '...' : ''}`);
-
-        // Parse the SQL query to extract table and column information
-        const tablePattern = /\bFROM\s+([\w\.]+)\b/i;
-        const wherePattern = /\bWHERE\s+(.+?)(?:\bGROUP BY\b|\bORDER BY\b|\bHAVING\b|$)/is;
-        const joinPattern = /\bJOIN\s+([\w\.]+)\s+(?:\w+\s+)?ON\s+(.+?)(?:\bJOIN\b|\bWHERE\b|\bGROUP BY\b|\bORDER BY\b|\bHAVING\b|$)/gis;
-        const orderByPattern = /\bORDER BY\s+(.+?)(?:$|;)/i;
-
-        // Extract the main table
-        const tableMatch = sql.match(tablePattern);
-        const mainTable = tableMatch ? tableMatch[1].trim() : null;
-
-        // Extract WHERE conditions
-        const whereMatch = sql.match(wherePattern);
-        const whereConditions = whereMatch ? whereMatch[1].trim() : null;
-
-        // Extract JOIN conditions
-        const joinMatches = Array.from(sql.matchAll(joinPattern));
-        const joinTables: {table: string, condition: string}[] = joinMatches.map(match => ({
-            table: match[1].trim(),
-            condition: match[2].trim()
-        }));
-
-        // Extract ORDER BY columns
-        const orderByMatch = sql.match(orderByPattern);
-        const orderByColumns = orderByMatch ? orderByMatch[1].trim() : null;
-
-        // Analyze and generate recommendations
-        const missingIndexes: string[] = [];
-        const recommendations: string[] = [];
-
-        // Check WHERE conditions for potential indexes
-        if (whereConditions && mainTable) {
-            const whereColumns = extractColumnsFromCondition(whereConditions);
-            if (whereColumns.length > 0) {
-                const indexName = `IDX_${mainTable}_${whereColumns.join('_')}`;
-                missingIndexes.push(`CREATE INDEX ${indexName} ON ${mainTable} (${whereColumns.join(', ')});`);
-                recommendations.push(`Consider creating an index on ${mainTable}(${whereColumns.join(', ')}) to improve WHERE clause filtering.`);
-            }
-        }
-
-        // Check JOIN conditions for potential indexes
-        for (const join of joinTables) {
-            const joinColumns = extractColumnsFromCondition(join.condition);
-            if (joinColumns.length > 0) {
-                const tableColumns = joinColumns.filter(col => col.includes(join.table + '.'));
-                if (tableColumns.length > 0) {
-                    // Extract just the column names without table prefix
-                    const columns = tableColumns.map(col => col.split('.')[1]);
-                    const indexName = `IDX_${join.table}_${columns.join('_')}`;
-                    missingIndexes.push(`CREATE INDEX ${indexName} ON ${join.table} (${columns.join(', ')});`);
-                    recommendations.push(`Consider creating an index on ${join.table}(${columns.join(', ')}) to improve JOIN performance.`);
-                }
-            }
-        }
-
-        // Check ORDER BY for potential indexes
-        if (orderByColumns && mainTable) {
-            const orderCols = orderByColumns.split(',').map(col => col.trim().split(' ')[0]); // Remove ASC/DESC
-            const indexName = `IDX_${mainTable}_ORDER_${orderCols.join('_')}`;
-            missingIndexes.push(`CREATE INDEX ${indexName} ON ${mainTable} (${orderCols.join(', ')});`);
-            recommendations.push(`Consider creating an index on ${mainTable}(${orderCols.join(', ')}) to improve ORDER BY performance.`);
-        }
-
-        logger.info(`Missing index analysis complete, found ${missingIndexes.length} potential missing indexes`);
-
-        return {
-            missingIndexes,
-            recommendations,
-            success: true
-        };
-
+        return await adviseIndexes(sql, (metadataSql, params) => executeMetadataQuery(metadataSql, params, config));
     } catch (error: any) {
         const errorMessage = `Error analyzing missing indexes: ${error.message || error}`;
         logger.error(errorMessage);
@@ -912,28 +742,6 @@ export const analyzeMissingIndexes = async (
         };
     }
 };
-
-/**
- * Helper function to extract column names from SQL conditions
- * @param {string} condition - SQL condition to parse
- * @returns {string[]} Array of column names
- */
-function extractColumnsFromCondition(condition: string): string[] {
-    const columns: string[] = [];
-
-    // Match patterns like: column = value, column IN (...), column BETWEEN ... AND ...
-    const columnPattern = /([\w\.]+)\s*(?:=|>|<|>=|<=|<>|!=|LIKE|IN|BETWEEN|IS)/gi;
-    let match;
-
-    while ((match = columnPattern.exec(condition)) !== null) {
-        const column = match[1].trim();
-        if (!columns.includes(column)) {
-            columns.push(column);
-        }
-    }
-
-    return columns;
-}
 
 /**
  * Executes multiple SQL queries in parallel

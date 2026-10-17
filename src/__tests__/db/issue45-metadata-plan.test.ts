@@ -87,7 +87,7 @@ describe('issue #45: full field descriptions and honest unavailable plans', () =
         const result = await getExecutionPlan('SELECT * FROM TEST WHERE ID = ?', [1]);
         expect(result).toMatchObject({ plan: '', planDetails: [], success: false, error: 'Execution plan not available' });
         expect(result.analysis).toContain('SET PLANONLY ON');
-        expect(connectToDatabase).not.toHaveBeenCalled();
+        expect(connectToDatabase).toHaveBeenCalledTimes(1);
         expect(queryDatabase).not.toHaveBeenCalled();
     });
 

@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.13.0-alpha.1] - 2026-10-17
+
+- Complete the pending diagnostics from #45: retrieve the optimizer plan of an authorized SELECT using prepare-only, read-only transactions through feature-detected pure-JS/native statement-info APIs. Never execute/fetch the supplied SQL, bind parameter values, read other sessions' monitoring data or fall back to execution. Unavailable plans remain explicit errors.
+- Preserve SQL/table/operation/role policies, row-filter rewriting, masking projection rules, audit enforcement, quotas, response limits and query deadlines. Drain statement/transaction cleanup before recycling or disposing an attachment, including node-firebird lazy-send preparation and DROP replies.
+- Replace text-only missing-index suggestions with parameterized catalog checks, including system-generated primary-key/unique indexes, active composite left prefixes and index direction. Flag inactive equivalents for review instead of proposing duplicate DDL; partial/expression indexes are not assumed to provide general coverage. Unsupported complex SQL receives an explicit limitation, not an all-clear result.
+- Keep advice read-only: no user query or suggested DDL is executed. Quote/validate identifiers against the catalog, deduplicate candidates and use generated names within the Firebird 2.5 length limit. See the [diagnostics guide](docs/query-diagnostics.md) and [release notes](docs/releases/2.13.0-alpha.1.md).
+- Include stable 2.12.2: historical ISO/UTC dates remain the default and wall-clock dates remain opt-in. No dependency/driver changes, GitHub Actions activation or new implicit security restrictions.
+- Validation: 1,348 unit tests, 116 protocol/Node tests without skips, typecheck/build/lint error checks, compiled security-runtime checks, extracted-package diagnostics and disposable Firebird 2.5.9 pure-JS integration passed. Production dependency audit reports zero known vulnerabilities; native API orchestration uses controlled adapters, not live native/Firebird 5 validation.
+
 ## [2.12.2] - 2026-10-17
 
 - Restore pre-2.12.1 pure-JS database date output by default: preserve Date objects internally so existing JSON/tool/resource serialization emits ISO/UTC strings with `T` and `Z`.

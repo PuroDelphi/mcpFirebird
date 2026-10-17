@@ -23,7 +23,7 @@ try {
     throw new Error('Could not create a disposable database on local Firebird. Set FIREBIRD_TEST_USER/PASSWORD if needed.');
 }
 const raw = (sql,params=[]) => new Promise((resolve,reject)=>initial.query(sql,params,(error,rows)=>error?reject(error):resolve(rows)));
-const {executeQuery,listTables,getFieldDescriptions,describeTable,describeBatchTables,getExecutionPlan} = await import('../dist/db/queries.js');
+const {executeQuery,listTables,getFieldDescriptions,describeTable,describeBatchTables,getExecutionPlan,analyzeMissingIndexes} = await import('../dist/db/queries.js');
 const {closePool} = await import('../dist/db/connection.js');
 const {securityConfig,DEFAULT_SECURITY_CONFIG} = await import('../dist/security/config.js');
 const {createAuditTable} = await import('../dist/security/audit.js');
@@ -148,15 +148,32 @@ try {
     await raw('CREATE SEQUENCE PLAN_ONLY_SEQ');
     const planSql = 'SELECT GEN_ID(PLAN_ONLY_SEQ, 1) AS N FROM RDB$DATABASE';
     const plan = await getExecutionPlan(planSql, [], config);
-    assert.equal(plan.success, false); assert.equal(plan.plan, '');
-    assert.equal(plan.error, 'Execution plan not available');
-    assert.match(plan.analysis, /SET PLANONLY ON/);
+    assert.equal(plan.success, true, JSON.stringify(plan)); assert.match(plan.plan, /PLAN.*RDB\$DATABASE.*NATURAL/);
+    assert.match(plan.analysis, /without execution/);
     globalThis.MCP_FIREBIRD_CONFIG = config;
     const planTool = await setupDatabaseTools().get('get-execution-plan').handler({ sql: planSql });
     delete globalThis.MCP_FIREBIRD_CONFIG;
-    assert.equal(planTool.isError, true); assert.equal(planTool.structuredContent.success, false);
+    assert.notEqual(planTool.isError, true); assert.equal(planTool.structuredContent.success, true);
     assert.equal((await raw('SELECT GEN_ID(PLAN_ONLY_SEQ, 0) AS N FROM RDB$DATABASE'))[0].N, 0);
-    console.log('PASS: issue #45 full 514/10000-character descriptions across all metadata paths; unavailable plan errors do not execute submitted SQL');
+    await raw('CREATE TABLE INDEX_TEST (ID INTEGER PRIMARY KEY, A INTEGER, B INTEGER, C INTEGER, D INTEGER, E INTEGER)');
+    await raw('CREATE UNIQUE INDEX IX_AB ON INDEX_TEST (A, B)');
+    await raw('CREATE DESCENDING INDEX IX_C_DESC ON INDEX_TEST (C)');
+    await raw('CREATE INDEX IX_D_INACTIVE ON INDEX_TEST (D)');
+    await raw('ALTER INDEX IX_D_INACTIVE INACTIVE');
+    const indexCount = async () => (await raw('SELECT COUNT(*) AS N FROM RDB$INDICES WHERE RDB$RELATION_NAME = ?', ['INDEX_TEST']))[0].N;
+    const beforeIndexes = await indexCount();
+    for (const sql of ['SELECT * FROM INDEX_TEST WHERE ID = ?', 'SELECT * FROM INDEX_TEST WHERE A = ? ORDER BY A, B', 'SELECT * FROM INDEX_TEST ORDER BY C DESC']) {
+        const advice = await analyzeMissingIndexes(sql, config);
+        assert.equal(advice.success, true, JSON.stringify(advice)); assert.deepEqual(advice.missingIndexes, []);
+    }
+    const inactive = await analyzeMissingIndexes('SELECT * FROM INDEX_TEST WHERE D = ?', config);
+    assert.deepEqual(inactive.missingIndexes, []); assert.match(inactive.recommendations.join(' '), /inactive.*IX_D_INACTIVE/);
+    const missing = await analyzeMissingIndexes('SELECT * FROM INDEX_TEST WHERE E = ?', config);
+    assert.equal(missing.success, true); assert.equal(missing.missingIndexes.length, 1); assert.match(missing.missingIndexes[0], /ON "INDEX_TEST" \("E"\)/);
+    const indexedPlan = await getExecutionPlan('SELECT * FROM INDEX_TEST WHERE ID = ?', [1], config);
+    assert.equal(indexedPlan.success, true, JSON.stringify(indexedPlan)); assert.match(indexedPlan.plan, /INDEX \(RDB\$PRIMARY/);
+    assert.equal(await indexCount(), beforeIndexes); // Suggestions are not applied.
+    console.log('PASS: #45 descriptions; real prepare-only plans leave sequence unchanged; PK/composite/descending/inactive index metadata prevents duplicate DDL');
     assert((await executeQuery("SELECT RDB$GET_CONTEXT('SYSTEM', 'ENGINE_VERSION') AS VERSION FROM RDB$DATABASE",[],config))[0].VERSION);
     assert.equal((await executeQuery('SELECT A.ID FROM PUBLIC_DATA A, PUBLIC_DATA B WHERE A.ID = B.ID',[],config)).length,2);
     for (let i=0;i<110;i++) await executeQuery('SELECT ID FROM PUBLIC_DATA',[],config);

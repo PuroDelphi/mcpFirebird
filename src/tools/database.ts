@@ -41,8 +41,8 @@ export const AnalyzeQueryPerformanceArgsSchema = z.object({
 });
 
 export const GetExecutionPlanArgsSchema = z.object({
-    sql: z.string().min(1).describe("SQL query to analyze"),
-    params: z.array(z.string().or(z.number()).or(z.boolean()).or(z.null())).optional().describe("Parameters for parameterized queries")
+    sql: z.string().min(1).describe("Authorized SELECT-first statement to prepare, not execute; WITH/CTE and writes are not supported"),
+    params: z.array(z.string().or(z.number()).or(z.boolean()).or(z.null())).optional().describe("Retained for compatibility/auditing; values are not bound for prepare-only plans")
 });
 
 export const AnalyzeMissingIndexesArgsSchema = z.object({
@@ -290,7 +290,7 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
     // Add get-execution-plan tool
     tools.set("get-execution-plan", {
         name: "get-execution-plan",
-        description: "Gets the execution plan for a SQL query to understand how the database will execute it",
+        description: "Prepares an authorized SELECT in a read-only transaction and retrieves its optimizer plan without executing it. Parameters are not bound; unavailable plans return an error, never an execution fallback.",
         inputSchema: GetExecutionPlanArgsSchema,
         handler: async (request) => {
             const { sql, params } = request;
@@ -316,7 +316,7 @@ export const setupDatabaseTools = (): Map<string, ToolDefinition> => {
     // Add analyze-missing-indexes tool
     tools.set("analyze-missing-indexes", {
         name: "analyze-missing-indexes",
-        description: "Analyzes a SQL query to identify missing indexes that could improve performance",
+        description: "Suggests indexes for simple single-table SELECT predicates/order terms after checking existing catalog indexes, including primary keys. Heuristic advice only; never executes the query or applies index DDL.",
         inputSchema: AnalyzeMissingIndexesArgsSchema,
         handler: async (request) => {
             const { sql } = request;

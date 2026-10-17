@@ -27,16 +27,17 @@ export const cases = [
     ['echo', { message: 'contract regression' }]
 ];
 
-function rowsFor(sql) {
+function rowsFor(sql, params = []) {
     const text = sql.replace(/\s+/g, ' ').toUpperCase();
     if (text === 'SELECT 1 FROM RDB$DATABASE') return [{ ONE: 1 }];
     if (text.includes('POST_EVENT')) return [{ NAME: 'TR_CUSTOMERS', TYPE: 'TRIGGER' }];
     if (text.includes('FROM RDB$RELATIONS')) return [{ RDB$RELATION_NAME: 'CUSTOMERS   ' }, { RDB$RELATION_NAME: 'ORDERS   ' }];
+    if (text.includes('FROM RDB$RELATION_FIELDS') && params[0] === 'RDB$INDICES') return [];
     if (text.includes('FROM RDB$RELATION_FIELDS')) return [
-        { FIELD_NAME: 'ID', FIELD_TYPE: 'INTEGER', FIELD_LENGTH: 4, FIELD_SCALE: 0, NULLABLE: 0, DEFAULT_VALUE: null, PRIMARY_KEY: 1, DESCRIPTION: null },
-        { FIELD_NAME: 'NAME', FIELD_TYPE: 'VARCHAR', FIELD_LENGTH: 100, FIELD_SCALE: null, NULLABLE: 1, DEFAULT_VALUE: Buffer.from("DEFAULT 'guest'"), PRIMARY_KEY: 0, DESCRIPTION: 'Display name' }
+        { FIELD_NAME: 'ID', FIELD_TYPE: 'INTEGER', FIELD_LENGTH: 4, FIELD_SCALE: 0, NULLABLE: 0, DEFAULT_VALUE: null, PRIMARY_KEY: 1, DESCRIPTION: null, IS_INDEXABLE: 1, IS_VIEW: 0 },
+        { FIELD_NAME: 'NAME', FIELD_TYPE: 'VARCHAR', FIELD_LENGTH: 100, FIELD_SCALE: null, NULLABLE: 1, DEFAULT_VALUE: Buffer.from("DEFAULT 'guest'"), PRIMARY_KEY: 0, DESCRIPTION: 'Display name', IS_INDEXABLE: 1, IS_VIEW: 0 }
     ];
-    if (text.includes('FROM RDB$INDICES')) return [{ INDEX_NAME: 'IX_CUSTOMERS ', IS_UNIQUE: 1, INDEX_TYPE: 0, SEGMENT_COUNT: 1, FIELD_NAME: 'ID ' }];
+    if (text.includes('FROM RDB$INDICES')) return [{ INDEX_NAME: 'IX_CUSTOMERS ', IS_UNIQUE: 1, INDEX_TYPE: 0, SEGMENT_COUNT: 1, FIELD_NAME: 'ID ', FIELD_POSITION: 0 }];
     if (text.includes('FROM RDB$RELATION_CONSTRAINTS')) return [{ CONSTRAINT_NAME: 'PK_CUSTOMERS ', CONSTRAINT_TYPE: 'PRIMARY KEY ', INDEX_NAME: 'IX_CUSTOMERS ', FIELD_NAME: 'ID ', REFERENCED_TABLE_NAME: null, CHECK_SOURCE: null }];
     if (text.includes('FROM RDB$TRIGGERS')) return [{ NAME: 'TR_CUSTOMERS', TABLE_NAME: 'CUSTOMERS', TRIGGER_NAME: 'TR_CUSTOMERS ', TRIGGER_TYPE: 1, SEQUENCE: 0, TRIGGER_SEQUENCE: 0, INACTIVE: 0, IS_INACTIVE: 0, SOURCE: Buffer.from('AS BEGIN END'), DESCRIPTION: null }];
     if (text.includes('FROM RDB$PROCEDURES')) return [{ NAME: 'P_CUSTOMERS', INPUT_PARAMS: 0, OUTPUT_PARAMS: 1, SOURCE: 'AS BEGIN SUSPEND; END', DESCRIPTION: null, VALID_BLR: 1 }];
@@ -50,15 +51,21 @@ function rowsFor(sql) {
     throw new Error(`Unexpected SQL in contract fixture: ${text}`);
 }
 
-export function installContractDriver() {
+export function installContractDriver({ plans = false } = {}) {
     globalThis.MCP_FIREBIRD_CONFIG = { host: '127.0.0.1', port: 3050, database: 'mock-contract-only', user: 'test', password: 'test' };
     DriverFactory.getDriverInfo = async () => ({ current: 'pure-js', nativeAvailable: false });
     DriverFactory.getDriver = async () => ({ attach: async () => {
         const query = (sql, params, callback) => {
-            try { callback(null, rowsFor(sql)); } catch (error) { callback(error); }
+            try { callback(null, rowsFor(sql, params)); } catch (error) { callback(error); }
         };
         return {
             query,
+            ...(plans ? { connection: {
+                prepare: (_tx, _sql, plan, cb) => {
+                    if (plan !== true) throw new Error('Plan flag must be requested');
+                    cb(null, { plan: 'PLAN (CUSTOMERS INDEX (IX_CUSTOMERS))' });
+                }, dropStatement: (_statement, cb) => cb(null)
+            } } : {}),
             transaction: (_mode, callback) => callback(null, {
                 query, commit: cb => cb(null), rollback: cb => cb(null)
             }),
