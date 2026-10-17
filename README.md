@@ -1,6 +1,6 @@
 [![Verified on MseeP](https://mseep.ai/badge.svg)](https://mseep.ai/app/1cb2bb07-00f4-4579-b535-1b9de9b451e9)
 
-> **Stable 2.12.1:** includes both 2.12.1 alphas: transaction-owned BLOB reads, wall-clock dates, SQL grouping/window recognition, full column descriptions, accurate unavailable-plan errors and registered tool counts. Review [date/BLOB compatibility](docs/blob-date-compatibility.md), especially if your client interpreted pure-JS dates as UTC. Historical HTTP/CORS/OAuth defaults remain supported; advanced security remains opt-in. **Node.js 20.19+ is required.** Read the [release notes](docs/releases/2.12.1.md) and [migration guide](docs/mcp-2026-migration.md).
+> **Stable 2.12.2 restores backward-compatible date output:** pure-JS query dates use the historical ISO/UTC JSON format by default. Only `FIREBIRD_DATE_FORMAT=wall-clock` enables 2.12.1's zone-free format. All BLOB/transaction, SQL, metadata and tool-count fixes remain included. Native-driver dates and advanced security defaults are unchanged. **Node.js 20.19+ is required.** See [date configuration](docs/blob-date-compatibility.md), [release notes](docs/releases/2.12.2.md) and the [migration guide](docs/mcp-2026-migration.md).
 
 # MCP Firebird
 
@@ -138,13 +138,14 @@ npm install -g mcp-firebird
 npx -y mcp-firebird --database /path/to/database.fdb
 ```
 
-**Stable features (2.12.1):**
+**Stable features (2.12.2):**
 - MCP 2026-07-28 alongside 2025 clients and legacy SSE, with shared server entry points.
 - Structured tool contracts and opt-in SQL/HTTP security controls.
 - Safe query/BLOB/transaction cleanup and configurable query deadlines.
 - Full metadata descriptions, corrected statistics and registered tool counts.
 - SQL grouping/window syntax recognition without bypassing explicit policies.
-- See the [release notes](docs/releases/2.12.1.md) for the accumulated fixes and compatibility details.
+- Backward-compatible ISO/UTC date output by default; opt in with `FIREBIRD_DATE_FORMAT=wall-clock` and restart the MCP process only if your client needs it. See [date configuration](docs/blob-date-compatibility.md).
+- See the [release notes](docs/releases/2.12.2.md) for the date compatibility correction and the [2.12.1 notes](docs/releases/2.12.1.md) for the accumulated fixes.
 
 #### Alpha Version (Latest Features)
 ```bash
@@ -155,7 +156,7 @@ npm install -g mcp-firebird@alpha
 npm install -g mcp-firebird@2.12.1-alpha.2
 ```
 
-**The changes in 2.12.1-alpha.2 are now included in stable 2.12.1.** Use `mcp-firebird@latest` for this release; the `alpha` tag remains available for prerelease testing and is not advanced by a stable publication. Keep your existing connection and security settings; no new flag is required. Read the [stable release notes](docs/releases/2.12.1.md), [security guide](docs/security.md) and [date/BLOB compatibility notes](docs/blob-date-compatibility.md) before upgrading.
+**The fixes in 2.12.1-alpha.2 are included in stable 2.12.2, with historical date output restored by default.** Use `mcp-firebird@latest`; the `alpha` tag remains at 2.12.1-alpha.2 and is not advanced by a stable publication. Keep your existing connection and security settings. Select `FIREBIRD_DATE_FORMAT=wall-clock` only to retain the alpha/2.12.1 date representation. Read the [stable release notes](docs/releases/2.12.2.md), [security guide](docs/security.md) and [date/BLOB compatibility notes](docs/blob-date-compatibility.md).
 
 
 
@@ -354,7 +355,7 @@ export MCP_ALLOWED_ORIGIN="https://myapp.com,https://localhost:3000"
 npx mcp-firebird --transport-type sse
 ```
 
-**Stable 2.12.1 retains the 2.11/2.12 security improvements and includes both 2.12.1 alphas.** Install with `npm install -g mcp-firebird@latest`, or pin `mcp-firebird@2.12.1`. Explicit policies remain enforced; review the [migration guide](./docs/security.md#important-migration-notice) and [release notes](docs/releases/2.12.1.md), especially date parsing, the Node.js minimum and the effective `QUERY_TIMEOUT` fallback.
+**Stable 2.12.2 retains the 2.11/2.12 security improvements and accumulated fixes, restoring historical date output by default.** Install with `npm install -g mcp-firebird@latest`, or pin `mcp-firebird@2.12.2`. Explicit policies remain enforced; review the [migration guide](./docs/security.md#important-migration-notice) and [release notes](docs/releases/2.12.2.md). Date-format selection is a separate process environment setting, not a security-policy field.
 
 Raw SQL writes are disabled by default. `2.11.0` preserves the historical `ALLOW_RAW_SQL=true` switch for writes, including DDL, without requiring new flags. Explicitly configured operation/table/row/masking/role restrictions and `sql.allowDDL=false` are never bypassed by that switch. See the [security guide](./docs/security.md) for opt-in controls and the structured `get-table-data` filter format.
 

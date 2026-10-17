@@ -540,6 +540,8 @@ export const queryDatabaseWithBlobs = async (
 
     let tx: any;
     try {
+        // Snapshot and validate before transaction/SQL dispatch, including writes.
+        const dateFormat = getPureJsDateFormat();
         checkDeadline();
         await complete<any>(cb => (db as any).transaction(Firebird.ISOLATION_REPEATABLE_READ,
             (err: Error | null, transaction: any) => { tx = transaction; cb(err, transaction); }));
@@ -550,7 +552,7 @@ export const queryDatabaseWithBlobs = async (
         const resolved = await resolveBlobFields(rows, tx);
         checkDeadline();
         await complete(cb => tx.commit(cb));
-        return normalizePureJsDates(resolved);
+        return normalizePureJsDates(resolved, dateFormat);
     } catch (failure) {
         if (tx) {
             try { await complete(cb => tx.rollback(cb)); }
@@ -565,11 +567,23 @@ export const queryDatabaseWithBlobs = async (
     }
 };
 
-/** Pure-JS Firebird dates represent local wall-clock fields, not UTC instants.
- * Restrict this conversion to database row columns; binary/other tool values
- * and the native adapter's own date representation remain unchanged.
+export type PureJsDateFormat = 'iso' | 'wall-clock';
+
+/** Process-owned output setting, not a query/client permission or driver option. */
+export function getPureJsDateFormat(): PureJsDateFormat {
+    const format = process.env.FIREBIRD_DATE_FORMAT?.trim() || 'iso';
+    if (format !== 'iso' && format !== 'wall-clock') {
+        throw new FirebirdError('FIREBIRD_DATE_FORMAT must be "iso" or "wall-clock"; unset it or use "iso" to preserve legacy date serialization.', ErrorTypes.CONFIG_INVALID);
+    }
+    return format;
+}
+
+/** Preserve Date objects by default for the historical JSON ISO/UTC serializer.
+ * Opt-in wall-clock output only converts pure-JS database row columns; binary,
+ * nested/generic tool values and the native adapter remain unchanged.
  */
-export function normalizePureJsDates(rows: any[]): any[] {
+export function normalizePureJsDates(rows: any[], format: PureJsDateFormat = getPureJsDateFormat()): any[] {
+    if (format === 'iso') return rows;
     const pad = (n: number, length = 2) => String(n).padStart(length, '0');
     return rows.map(row => Object.fromEntries(Object.entries(row).map(([key, value]) => {
         if (!(value instanceof Date)) return [key, value];

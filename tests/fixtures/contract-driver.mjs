@@ -29,6 +29,7 @@ export const cases = [
 
 function rowsFor(sql) {
     const text = sql.replace(/\s+/g, ' ').toUpperCase();
+    if (text === 'SELECT 1 FROM RDB$DATABASE') return [{ ONE: 1 }];
     if (text.includes('POST_EVENT')) return [{ NAME: 'TR_CUSTOMERS', TYPE: 'TRIGGER' }];
     if (text.includes('FROM RDB$RELATIONS')) return [{ RDB$RELATION_NAME: 'CUSTOMERS   ' }, { RDB$RELATION_NAME: 'ORDERS   ' }];
     if (text.includes('FROM RDB$RELATION_FIELDS')) return [
@@ -52,10 +53,16 @@ function rowsFor(sql) {
 export function installContractDriver() {
     globalThis.MCP_FIREBIRD_CONFIG = { host: '127.0.0.1', port: 3050, database: 'mock-contract-only', user: 'test', password: 'test' };
     DriverFactory.getDriverInfo = async () => ({ current: 'pure-js', nativeAvailable: false });
-    DriverFactory.getDriver = async () => ({ attach: async () => ({
-        query: (sql, params, callback) => {
+    DriverFactory.getDriver = async () => ({ attach: async () => {
+        const query = (sql, params, callback) => {
             try { callback(null, rowsFor(sql)); } catch (error) { callback(error); }
-        },
-        detach: callback => callback(null)
-    }) });
+        };
+        return {
+            query,
+            transaction: (_mode, callback) => callback(null, {
+                query, commit: cb => cb(null), rollback: cb => cb(null)
+            }),
+            detach: callback => callback(null)
+        };
+    } });
 }

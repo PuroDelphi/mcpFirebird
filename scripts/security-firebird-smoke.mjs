@@ -9,6 +9,8 @@ import Firebird from 'node-firebird';
 if (process.env.RUN_FIREBIRD_SECURITY_SMOKE !== 'true') throw new Error('Set RUN_FIREBIRD_SECURITY_SMOKE=true to create a disposable local database');
 process.env.LOG_LEVEL = 'error';
 process.env.USE_NATIVE_DRIVER = 'false';
+// Exercise the compatibility default independently of the maintainer's launcher.
+delete process.env.FIREBIRD_DATE_FORMAT;
 const database = resolve('temp', `security-${randomUUID()}.fdb`);
 const auditFile = database + '.audit.jsonl';
 mkdirSync(dirname(database), {recursive:true});
@@ -114,8 +116,14 @@ try {
     await raw("INSERT INTO BLOB_TEST VALUES (2, ?, NULL)", ['Türkçe İSTANBUL ŞİŞLİ ığüşöç']);
     const blobRows = await executeQuery('SELECT * FROM BLOB_TEST ORDER BY ID', [], config);
     assert.equal(blobRows[0].NOTE, null);
-    assert.equal(blobRows[0].CREATED_AT, '2026-09-04 23:12:26.985');
+    assert.equal(JSON.parse(JSON.stringify(blobRows[0].CREATED_AT)), new Date(2026, 8, 4, 23, 12, 26, 985).toISOString());
     assert.equal(blobRows[1].NOTE, 'Türkçe İSTANBUL ŞİŞLİ ığüşöç');
+    process.env.FIREBIRD_DATE_FORMAT = 'wall-clock';
+    try {
+        const localRows = await executeQuery('SELECT * FROM BLOB_TEST ORDER BY ID', [], config);
+        assert.equal(localRows[0].CREATED_AT, '2026-09-04 23:12:26.985');
+        assert.equal(localRows[1].NOTE, blobRows[1].NOTE);
+    } finally { delete process.env.FIREBIRD_DATE_FORMAT; }
     const listRows = await executeQuery('SELECT LIST(ID) AS IDS FROM BLOB_TEST', [], config);
     assert.deepEqual(listRows[0].IDS.split(',').sort(), ['1', '2']);
     const { setupDatabaseTools } = await import('../dist/tools/database.js');
@@ -124,7 +132,7 @@ try {
     delete globalThis.MCP_FIREBIRD_CONFIG;
     assert.equal(stats.structuredContent.success, true);
     assert.equal(stats.structuredContent.result.rowCount, 2);
-    console.log('PASS: PR #43 BLOB/NULL/LIST, wall-clock dates and real table statistics');
+    console.log('PASS: PR #43 BLOB/NULL/LIST, legacy ISO and opt-in wall-clock dates, real table statistics');
     // #45/#46: full metadata BLOBs, including a NULL first description.
     await raw('CREATE TABLE DESCRIPTION_TEST (ID INTEGER, NOTE_514 INTEGER, NOTE_LONG INTEGER)');
     const description514 = 'x'.repeat(514), descriptionLong = 'á'.repeat(10000);

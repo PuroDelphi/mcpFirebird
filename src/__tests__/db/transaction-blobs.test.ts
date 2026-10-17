@@ -19,14 +19,20 @@ const fixture = () => {
 
 describe('transaction-owned pure-JS BLOB queries (#43)', () => {
     const raw = process.env.ALLOW_RAW_SQL;
+    const originalDateFormat = process.env.FIREBIRD_DATE_FORMAT;
     const original = structuredClone(securityConfig);
     beforeEach(() => {
         jest.useFakeTimers();
         Object.keys(securityConfig).forEach(key => delete (securityConfig as any)[key]);
         Object.assign(securityConfig, structuredClone(DEFAULT_SECURITY_CONFIG));
         delete process.env.ALLOW_RAW_SQL;
+        delete process.env.FIREBIRD_DATE_FORMAT;
     });
-    afterEach(() => { jest.restoreAllMocks(); jest.useRealTimers(); });
+    afterEach(() => {
+        jest.restoreAllMocks(); jest.useRealTimers();
+        if (originalDateFormat === undefined) delete process.env.FIREBIRD_DATE_FORMAT;
+        else process.env.FIREBIRD_DATE_FORMAT = originalDateFormat;
+    });
     afterAll(() => {
         Object.keys(securityConfig).forEach(key => delete (securityConfig as any)[key]);
         Object.assign(securityConfig, original);
@@ -40,6 +46,44 @@ describe('transaction-owned pure-JS BLOB queries (#43)', () => {
         jest.spyOn(connection, 'getPool').mockReturnValue(pool as any);
         return pool;
     }
+
+    it.each([undefined, '', '  ', 'iso', ' iso '])('preserves Date objects and legacy ISO output with format %p', async format => {
+        if (format !== undefined) process.env.FIREBIRD_DATE_FORMAT = format;
+        const { db, tx } = fixture();
+        const stamp = new Date(2026, 8, 4, 23, 12, 26, 985), binary = Buffer.from([255, 0]);
+        const source = [{ STAMP: stamp, NULL_DATE: null, binary }];
+        tx.query.mockImplementation((_sql, _params, cb) => cb(null, source));
+        const rows = await connection.queryDatabase(db, 'SELECT STAMP FROM T');
+        expect(rows[0].STAMP).toBe(stamp);
+        // Preserve the existing pure-JS BLOB decoder separately from date output.
+        expect(JSON.parse(JSON.stringify(rows))[0]).toEqual({ STAMP: stamp.toISOString(), NULL_DATE: null, binary: binary.toString('utf8') });
+        expect(tx.query).toHaveBeenCalledTimes(1); expect(tx.commit).toHaveBeenCalledTimes(1);
+    });
+
+    it('enables wall-clock output explicitly and snapshots the mode before SQL', async () => {
+        process.env.FIREBIRD_DATE_FORMAT = 'wall-clock';
+        const { db, tx } = fixture();
+        tx.query.mockImplementation((_sql, _params, cb) => {
+            process.env.FIREBIRD_DATE_FORMAT = 'iso';
+            cb(null, [{ STAMP: new Date(2026, 8, 4, 23, 12, 26, 985), EMPTY: null }]);
+        });
+        await expect(connection.queryDatabase(db, 'SELECT STAMP FROM T')).resolves.toEqual([{ STAMP: '2026-09-04 23:12:26.985', EMPTY: null }]);
+        expect(tx.query).toHaveBeenCalledTimes(1); expect(tx.commit).toHaveBeenCalledTimes(1);
+    });
+
+    it.each(['local', 'true', 'ISO', 'wallclock'])('rejects invalid date format %s before starting a transaction or write', async format => {
+        process.env.FIREBIRD_DATE_FORMAT = format;
+        const { db, tx } = fixture();
+        await expect(connection.queryDatabase(db, 'UPDATE T SET V = 1')).rejects.toMatchObject({ type: 'CONFIG_INVALID_ERROR' });
+        expect(db.transaction).not.toHaveBeenCalled(); expect(tx.query).not.toHaveBeenCalled();
+        expect(tx.commit).not.toHaveBeenCalled(); expect(tx.rollback).not.toHaveBeenCalled();
+    });
+
+    it('preserves legacy invalid-Date JSON null behavior without opting in', () => {
+        const rows = [{ STAMP: new Date(NaN) }];
+        expect(connection.normalizePureJsDates(rows)).toBe(rows);
+        expect(JSON.parse(JSON.stringify(rows))).toEqual([{ STAMP: null }]);
+    });
 
     it('executes once, resolves later-row BLOBs inside their transaction, then commits', async () => {
         const { db, tx } = fixture();

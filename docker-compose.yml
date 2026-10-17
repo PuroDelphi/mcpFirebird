@@ -29,6 +29,8 @@ services:
       FIREBIRD_USER: SYSDBA
       FIREBIRD_PASSWORD: masterkey
       FIREBIRD_DATABASE: /firebird/data/database.fdb
+      # Preserve legacy dates; optionally set wall-clock in the Compose .env/launcher.
+      FIREBIRD_DATE_FORMAT: ${FIREBIRD_DATE_FORMAT:-iso}
       # Use EMA (Enterprise Managed Authorization) to protect access
       FIREBIRD_API_KEY: my_secure_token_123
       # We recommend HTTP Streamable as the standard modern transport

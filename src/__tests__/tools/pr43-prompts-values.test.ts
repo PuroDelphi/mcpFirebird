@@ -27,9 +27,9 @@ describe('PR43 prompt defaults and scoped value conversion', () => {
     });
     it('normalizes only database Date columns without decoding Buffers or recursing into arbitrary objects', () => {
         const binary = Buffer.from([255, 0]); const nested = { date: new Date() };
-        const result = normalizePureJsDates([{ WHEN: new Date(2026, 8, 4, 23, 12, 26, 985), binary, nested }]);
+        const result = normalizePureJsDates([{ WHEN: new Date(2026, 8, 4, 23, 12, 26, 985), binary, nested }], 'wall-clock');
         expect(result[0].WHEN).toBe('2026-09-04 23:12:26.985');
         expect(result[0].binary).toBe(binary); expect(result[0].nested).toBe(nested);
-        expect(() => normalizePureJsDates([{ WHEN: new Date(NaN) }])).toThrow('Invalid Firebird date');
+        expect(() => normalizePureJsDates([{ WHEN: new Date(NaN) }], 'wall-clock')).toThrow('Invalid Firebird date');
     });
 });

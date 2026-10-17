@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.12.2] - 2026-10-17
+
+- Restore pre-2.12.1 pure-JS database date output by default: preserve Date objects internally so existing JSON/tool/resource serialization emits ISO/UTC strings with `T` and `Z`.
+- Add the explicit process setting `FIREBIRD_DATE_FORMAT=wall-clock` for the zone-free `YYYY-MM-DD HH:mm:ss.SSS` representation introduced by 2.12.1. Unset/blank or `iso` retains legacy output. Reject other values before application SQL/transaction dispatch and snapshot the mode per query.
+- Keep all 2.12.1 BLOB/transaction, SQL-policy, metadata, plan-status and tool-count fixes. Native-driver dates, generic tool dates, SQL permissions and opt-in security defaults remain unchanged; no database migration is performed.
+- Test default/blank/explicit ISO and opt-in wall-clock modes with DATE/TIME/TIMESTAMP wire decoding across four timezones, plus SDK 1/SDK 2 STDIO/HTTP output checks, invalid settings and transaction-lifecycle regressions. Document launcher, environment and Docker configuration in English and Spanish. See the [release notes](docs/releases/2.12.2.md) and [date/BLOB guide](docs/blob-date-compatibility.md).
+- Validation: 1,292 unit tests, 110 protocol/Node tests without skips, typecheck/build/lint error checks, compiled security-runtime checks and disposable Firebird 2.5.9 integration passed. Production dependency audit reports zero known vulnerabilities; GitHub Actions remains disabled.
+
 ## [2.12.1] - 2026-10-16
 
 Promote all changes from `2.12.1-alpha.1` and `2.12.1-alpha.2` since stable `2.12.0`. See the [complete release notes](docs/releases/2.12.1.md).

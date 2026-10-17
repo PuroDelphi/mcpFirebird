@@ -98,7 +98,12 @@ test('all tool schemas explicitly describe JSON values instead of empty schemas'
 
 for (const transportKind of ['stdio', 'http']) {
     for (const era of ['sdk1', 'legacy', 'modern']) {
-        test(`${transportKind} ${era}: every tool reports its expected status with client output validation enabled`, { timeout: 30000 }, async () => {
+      for (const format of [undefined, 'wall-clock']) {
+        test(`${transportKind} ${era}, dates=${format || 'default'}: every tool reports its expected status with client output validation enabled`, { timeout: 30000 }, async () => {
+            const savedFormat = process.env.FIREBIRD_DATE_FORMAT, savedTz = process.env.TZ;
+            if (format === undefined) delete process.env.FIREBIRD_DATE_FORMAT;
+            else process.env.FIREBIRD_DATE_FORMAT = format;
+            process.env.TZ = 'UTC'; // Non-UTC and DST wire decoding has its separate matrix.
             const client = era === 'sdk1' ? new V1Client({ name: 'contract-sdk1', version: '1' }) : new Client(
                 { name: 'contract-sdk2', version: '1' }, era === 'modern' ? { versionNegotiation: { mode: { pin: '2026-07-28' } } } : {});
             let http, listener;
@@ -124,12 +129,20 @@ for (const transportKind of ['stdio', 'http']) {
                     const response = await client.callTool({ name, arguments: args });
                     assertToolStatus(name, response, catalog.tools.map(tool => tool.name));
                     assert.deepEqual(tools.get(name).outputSchema.parse(response.structuredContent), response.structuredContent);
+                    if (name === 'execute-query') {
+                        const expectedDate = format === 'wall-clock' ? '2026-09-30 00:00:00.000' : '2026-09-30T00:00:00.000Z';
+                        assert.equal(response.structuredContent.result.rows[0].CREATED, expectedDate);
+                        assert.equal(JSON.parse(response.content[0].text).rows[0].CREATED, expectedDate);
+                    }
                 }
             } finally {
                 await client.close();
                 if (http) await http.close();
                 if (listener) await new Promise(resolve => listener.close(resolve));
+                if (savedFormat === undefined) delete process.env.FIREBIRD_DATE_FORMAT; else process.env.FIREBIRD_DATE_FORMAT = savedFormat;
+                if (savedTz === undefined) delete process.env.TZ; else process.env.TZ = savedTz;
             }
         });
+      }
     }
 }

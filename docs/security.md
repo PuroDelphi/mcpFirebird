@@ -2,7 +2,7 @@
 
 [Español](security.es.md)
 
-This guide describes stable **2.12.1**, retaining the SQL/HTTP/OAuth and timeout controls from 2.11/2.12 and including the SQL syntax and transaction/BLOB fixes from both 2.12.1 alphas. No alpha installation is required. Explicit policies and compatibility defaults are preserved. See the [release notes](releases/2.12.1.md), [security implementation review](security-implementation-review.md) and [changelog](../CHANGELOG.md).
+This guide describes stable **2.12.2**, retaining the SQL/HTTP/OAuth, timeout and transaction/BLOB fixes from 2.11/2.12. No alpha installation is required. Explicit policies and security compatibility defaults are preserved. Date output now defaults to the historical ISO representation; optional `FIREBIRD_DATE_FORMAT=wall-clock` belongs in the process environment, not this policy. See [date configuration](blob-date-compatibility.md), the [release notes](releases/2.12.2.md), [security implementation review](security-implementation-review.md) and [changelog](../CHANGELOG.md).
 
 ## Important migration notice
 
