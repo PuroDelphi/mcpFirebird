@@ -378,7 +378,7 @@ These tools mirror the corresponding `firebird://tables/{tableName}/...` Resourc
 ---
 
 #### `get-execution-plan`
-**Description:** In 2.13.0-alpha.1, prepares an authorized SELECT and retrieves its optimizer plan without executing/fetching it. Read-only transaction; unavailable plans are errors. See [the diagnostics guide](query-diagnostics.md).
+**Description:** In stable 2.12.3 (first tested in 2.13.0-alpha.1), prepares an authorized SELECT and retrieves its optimizer plan without executing/fetching it. Read-only transaction; unavailable plans are errors. See [the diagnostics guide](query-diagnostics.md).
 
 **Parameters:**
 - `sql` (string, required) - SQL query to analyze
@@ -389,7 +389,7 @@ These tools mirror the corresponding `firebird://tables/{tableName}/...` Resourc
 ---
 
 #### `analyze-missing-indexes`
-**Description:** In 2.13.0-alpha.1, provides conservative single-table index advice after checking the catalog, including primary keys. Does not execute the query or apply DDL. See [the diagnostics guide](query-diagnostics.md).
+**Description:** In stable 2.12.3 (first tested in 2.13.0-alpha.1), provides conservative single-table index advice after checking the catalog, including primary keys. Does not execute the query or apply DDL. See [the diagnostics guide](query-diagnostics.md).
 
 **Parameters:**
 - `sql` (string, required) - SQL query to analyze

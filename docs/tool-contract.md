@@ -123,7 +123,7 @@ This corrects the former successful placeholder response. The request still
 passes the existing SQL policy checks and does not execute the supplied query.
 No monitoring-table workaround or permission bypass is introduced.
 
-**Starting with 2.13.0-alpha.1**, the tool uses prepare-only statement-info APIs
+**In stable 2.12.3, first tested in 2.13.0-alpha.1**, the tool uses prepare-only statement-info APIs
 to return real optimizer plan text with `success: true` when available. The
 result shape is unchanged and `planDetails` remains `[]`. The SQL is policy-checked
 and row-filtered, prepared in a read-only transaction and never executed/fetched;

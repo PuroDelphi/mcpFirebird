@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.12.3] - 2026-10-17
+
+- Promote all changes from 2.13.0-alpha.1 into the stable 2.12 release line: real prepare-only optimizer plans and catalog-aware missing-index advice for #45.
+- Prepare authorized SELECT statements in read-only transactions without executing/fetching them or binding parameter values. Preserve policy rewriting, audit/quotas/deadlines, asynchronous descriptor-error handling and cleanup ownership, including lazy-send wire replies. Unavailable plans remain errors with no execution fallback.
+- Check primary-key/unique and composite index coverage before suggesting DDL, distinguish sort direction, warn about inactive equivalents, and reject inconsistent metadata. Never create or activate indexes automatically; advice remains a documented single-table heuristic.
+- Retain historical ISO/UTC dates by default, opt-in wall-clock formatting, all existing SQL/security/BLOB/event fixes and unchanged driver dependencies. No new security defaults, migrations or GitHub Actions activation.
+- See the [2.12.3 release notes](docs/releases/2.12.3.md) and [diagnostics guide](docs/query-diagnostics.md) for installation, scope and validation details.
+- Stable validation passed 1,348 unit tests, 116 protocol/Node tests without skips, typecheck/build/lint error checks, security-runtime checks, extracted-package diagnostics and disposable Firebird 2.5.9 pure-JS integration. The production dependency audit reports zero known vulnerabilities in the unchanged lockfile; no live native/Firebird 5 coverage is claimed.
+
 ## [2.13.0-alpha.1] - 2026-10-17
 
 - Complete the pending diagnostics from #45: retrieve the optimizer plan of an authorized SELECT using prepare-only, read-only transactions through feature-detected pure-JS/native statement-info APIs. Never execute/fetch the supplied SQL, bind parameter values, read other sessions' monitoring data or fall back to execution. Unavailable plans remain explicit errors.

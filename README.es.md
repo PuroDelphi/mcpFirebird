@@ -1,6 +1,6 @@
 # MCP Firebird
 
-> **Estable 2.12.2 restaura la compatibilidad de fechas:** por defecto, las consultas del driver puro JS vuelven al formato JSON ISO/UTC anterior. Solo `FIREBIRD_DATE_FORMAT=wall-clock` activa el formato sin zona de 2.12.1. Se conservan las correcciones de BLOB/transacciones, SQL, metadatos y conteos. No cambian las fechas del driver nativo ni los valores de seguridad optativa. **Requiere Node.js 20.19+.** Consulta la [configuración de fechas, también en español](docs/blob-date-compatibility.md#español), las [notas de lanzamiento](docs/releases/2.12.2.md) y la [guía de migración](docs/mcp-2026-migration.md).
+> **Estable 2.12.3 incluye planes sin ejecutar consultas y recomendaciones de índices contrastadas con el catálogo:** incorpora todas las mejoras de 2.13.0-alpha.1. Las fechas conservan ISO/UTC por defecto; `FIREBIRD_DATE_FORMAT=wall-clock` sigue siendo optativo. No se actualizan drivers ni se crean índices automáticamente, y no cambian los valores de seguridad. **Requiere Node.js 20.19+.** Consulta la [guía de diagnósticos, también en español](docs/query-diagnostics.md#español), las [notas de lanzamiento](docs/releases/2.12.3.md) y la [configuración de fechas](docs/blob-date-compatibility.md#español).
 
 
 Implementación del protocolo MCP (Model Context Protocol) de Anthropic para bases de datos Firebird.
@@ -151,15 +151,15 @@ El servidor MCP Firebird ofrece:
    }
    ```
 
-6. **get-execution-plan**: Obtiene el plan de ejecución de una consulta SQL
+6. **get-execution-plan**: Prepara un SELECT autorizado y obtiene su plan sin ejecutar la consulta
    ```json
    {
      "sql": "SELECT * FROM EMPLOYEES WHERE DEPARTMENT_ID = 10",
-     "params": []  // Parámetros opcionales para consultas preparadas
+     "params": []  // Compatibilidad/auditoría; no se vinculan valores para obtener el plan
    }
    ```
 
-7. **analyze-missing-indexes**: Analiza una consulta SQL para identificar índices faltantes
+7. **analyze-missing-indexes**: Contrasta el catálogo para sugerir índices en SELECT simples de una tabla, sin aplicar DDL
    ```json
    {
      "sql": "SELECT * FROM EMPLOYEES WHERE DEPARTMENT_ID = 10"
@@ -574,7 +574,7 @@ end.
 
 ## Configuración de seguridad
 
-La versión estable **2.12.2** conserva las mejoras de seguridad y las correcciones acumuladas, recuperando el formato anterior de fechas por defecto. Instala con `npm install -g mcp-firebird@latest` o fija `mcp-firebird@2.12.2`. Las políticas explícitas siguen aplicándose. Para conservar el formato sin zona de 2.12.1, añade `FIREBIRD_DATE_FORMAT=wall-clock` al entorno del lanzador y reinicia el MCP; para usar el formato anterior deja la variable sin definir o usa `iso`. No es un campo de la política de seguridad. Consulta la [guía en español](docs/security.es.md), la [configuración de fechas](docs/blob-date-compatibility.md#español) y las [notas de lanzamiento](docs/releases/2.12.2.md).
+La versión estable **2.12.3** incorpora todas las mejoras de 2.13.0-alpha.1: planes preparados sin ejecución y recomendaciones de índices que comprueban claves primarias, índices compuestos e inactivos. No aplica DDL automáticamente. Conserva las mejoras de seguridad y el formato anterior de fechas por defecto. Instala con `npm install -g mcp-firebird@latest` o fija `mcp-firebird@2.12.3`. Las políticas explícitas siguen aplicándose y no se necesitan parámetros nuevos. Para conservar el formato sin zona de 2.12.1, añade `FIREBIRD_DATE_FORMAT=wall-clock` al entorno del lanzador y reinicia el MCP; para usar el formato anterior deja la variable sin definir o usa `iso`. No es un campo de la política de seguridad. Consulta la [guía en español](docs/security.es.md), los [diagnósticos](docs/query-diagnostics.md#español), la [configuración de fechas](docs/blob-date-compatibility.md#español) y las [notas de lanzamiento](docs/releases/2.12.3.md).
 
 Usa `--security-config /ruta/politica.json` o `FIREBIRD_SECURITY_JSON`. Ambas fuentes admiten `security` y `sql`; una configuración seleccionada inválida detiene el inicio. En **2.11.0-alpha.3** las restricciones avanzadas son optativas: no hay cuotas, plazos, bloqueo de catálogo ni restricciones nuevas de rutinas implícitas. Se conserva `ALLOW_RAW_SQL=true` para escrituras, incluido DDL; los permisos configurados expresamente y `sql.allowDDL=false` no se pueden omitir.
 

@@ -1,6 +1,6 @@
-# BLOB, date and prompt compatibility (stable 2.12.2)
+# BLOB, date and prompt compatibility (stable 2.12.3)
 
-The transaction/BLOB fixes from PR #43 are retained. Stable **2.12.2 restores the pre-2.12.1 date output by default** and makes 2.12.1's wall-clock representation explicitly optional. Install with `npm install -g mcp-firebird@latest` or select `mcp-firebird@2.12.2` in your existing `npx` launcher, then restart the MCP process. Retain your connection and security settings. See the [stable release notes](releases/2.12.2.md).
+The transaction/BLOB fixes from PR #43 are retained. Stable **2.12.3 preserves the pre-2.12.1 date output restored by 2.12.2** and keeps 2.12.1's wall-clock representation explicitly optional. Install with `npm install -g mcp-firebird@latest` or select `mcp-firebird@2.12.3` in your existing `npx` launcher, then restart the MCP process. Retain your connection and security settings. See the [stable release notes](releases/2.12.3.md) and the [2.12.2 date correction](releases/2.12.2.md).
 
 ## Pure-JavaScript database transactions
 
