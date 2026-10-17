@@ -1,6 +1,6 @@
 [![Verified on MseeP](https://mseep.ai/badge.svg)](https://mseep.ai/app/1cb2bb07-00f4-4579-b535-1b9de9b451e9)
 
-> **Stable 2.12.0:** includes all changes from 2.12.0-alpha.1 through alpha.5: MCP 2026-07-28 alongside 2025 clients, safer timeout/connection cleanup, corrected tool schemas and derived SQL parsing. Historical HTTP/CORS/OAuth defaults remain supported; HTTP hardening is opt-in with `MCP_HTTP_SECURITY_MODE=strict`. **Node.js 20.19+ is required**; older runtimes must stay on 2.11.0 until upgraded. Existing nonempty `QUERY_TIMEOUT` values now take effect. Read the [release notes](docs/releases/2.12.0.md) and [migration guide](docs/mcp-2026-migration.md).
+> **Stable 2.12.1:** includes both 2.12.1 alphas: transaction-owned BLOB reads, wall-clock dates, SQL grouping/window recognition, full column descriptions, accurate unavailable-plan errors and registered tool counts. Review [date/BLOB compatibility](docs/blob-date-compatibility.md), especially if your client interpreted pure-JS dates as UTC. Historical HTTP/CORS/OAuth defaults remain supported; advanced security remains opt-in. **Node.js 20.19+ is required.** Read the [release notes](docs/releases/2.12.1.md) and [migration guide](docs/mcp-2026-migration.md).
 
 # MCP Firebird
 
@@ -138,14 +138,13 @@ npm install -g mcp-firebird
 npx -y mcp-firebird --database /path/to/database.fdb
 ```
 
-**Stable Features (v2.2.3):**
-- 🐛 **FIXED**: SSE JSON parsing bug - resolves "Invalid message: [object Object]" errors
-- ✨ Streamable HTTP transport support (MCP 2025-03-26)
-- 🔄 Unified server with automatic protocol detection
-- 📊 Enhanced session management and monitoring
-- 🛠️ Modern MCP SDK integration (v1.13.2)
-- 🔧 Improved error handling and logging
-- 🧪 Comprehensive test suite with 9+ tests for SSE functionality
+**Stable features (2.12.1):**
+- MCP 2026-07-28 alongside 2025 clients and legacy SSE, with shared server entry points.
+- Structured tool contracts and opt-in SQL/HTTP security controls.
+- Safe query/BLOB/transaction cleanup and configurable query deadlines.
+- Full metadata descriptions, corrected statistics and registered tool counts.
+- SQL grouping/window syntax recognition without bypassing explicit policies.
+- See the [release notes](docs/releases/2.12.1.md) for the accumulated fixes and compatibility details.
 
 #### Alpha Version (Latest Features)
 ```bash
@@ -156,7 +155,7 @@ npm install -g mcp-firebird@alpha
 npm install -g mcp-firebird@2.12.1-alpha.2
 ```
 
-**Alpha changes (2.12.1-alpha.2):** full column descriptions beyond 500 characters, honest unavailable-plan errors and registered tool counts (#45/#46), plus the previous SQL grouping/window recognition, transaction-owned BLOBs, wall-clock dates, statistics and prompt fixes (#43/#44). Keep your existing connection and security settings; no new flag is required. Read the [alpha release notes](docs/releases/2.12.1-alpha.2.md), [security guide](docs/security.md) and [date/BLOB compatibility notes](docs/blob-date-compatibility.md) before testing.
+**The changes in 2.12.1-alpha.2 are now included in stable 2.12.1.** Use `mcp-firebird@latest` for this release; the `alpha` tag remains available for prerelease testing and is not advanced by a stable publication. Keep your existing connection and security settings; no new flag is required. Read the [stable release notes](docs/releases/2.12.1.md), [security guide](docs/security.md) and [date/BLOB compatibility notes](docs/blob-date-compatibility.md) before upgrading.
 
 
 
@@ -355,7 +354,7 @@ export MCP_ALLOWED_ORIGIN="https://myapp.com,https://localhost:3000"
 npx mcp-firebird --transport-type sse
 ```
 
-**Stable 2.12.0 includes the 2.11.0 security improvements and all five 2.12.0 alphas.** Install with `npm install -g mcp-firebird@latest`, or pin `mcp-firebird@2.12.0`. Explicit policies remain enforced; review the [migration guide](./docs/security.md#important-migration-notice) and [release notes](docs/releases/2.12.0.md), especially the Node.js minimum and `QUERY_TIMEOUT` activation.
+**Stable 2.12.1 retains the 2.11/2.12 security improvements and includes both 2.12.1 alphas.** Install with `npm install -g mcp-firebird@latest`, or pin `mcp-firebird@2.12.1`. Explicit policies remain enforced; review the [migration guide](./docs/security.md#important-migration-notice) and [release notes](docs/releases/2.12.1.md), especially date parsing, the Node.js minimum and the effective `QUERY_TIMEOUT` fallback.
 
 Raw SQL writes are disabled by default. `2.11.0` preserves the historical `ALLOW_RAW_SQL=true` switch for writes, including DDL, without requiring new flags. Explicitly configured operation/table/row/masking/role restrictions and `sql.allowDDL=false` are never bypassed by that switch. See the [security guide](./docs/security.md) for opt-in controls and the structured `get-table-data` filter format.
 

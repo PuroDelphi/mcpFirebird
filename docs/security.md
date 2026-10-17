@@ -2,7 +2,7 @@
 
 [Español](security.es.md)
 
-This guide describes stable **2.12.0**, including SQL enforcement from 2.11.0 and all HTTP/OAuth, timeout and SQL compatibility improvements from the five 2.12.0 alphas. No alpha installation is required. See the [release notes](releases/2.12.0.md), [security implementation review](security-implementation-review.md) and [changelog](../CHANGELOG.md).
+This guide describes stable **2.12.1**, retaining the SQL/HTTP/OAuth and timeout controls from 2.11/2.12 and including the SQL syntax and transaction/BLOB fixes from both 2.12.1 alphas. No alpha installation is required. Explicit policies and compatibility defaults are preserved. See the [release notes](releases/2.12.1.md), [security implementation review](security-implementation-review.md) and [changelog](../CHANGELOG.md).
 
 ## Important migration notice
 

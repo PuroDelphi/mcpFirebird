@@ -1,5 +1,18 @@
 # Changelog
 
+## [2.12.1] - 2026-10-16
+
+Promote all changes from `2.12.1-alpha.1` and `2.12.1-alpha.2` since stable `2.12.0`. See the [complete release notes](docs/releases/2.12.1.md).
+
+- Integrate the adjusted PR #43: execute pure-JS SQL once, resolve BLOBs within their owning transaction, preserve authorized writes/audit operations and wait for transaction cleanup before releasing pooled attachments.
+- Preserve pure-JS database dates as stored wall-clock fields (`YYYY-MM-DD HH:mm:ss.SSS`), without UTC conversion. Consumers that interpreted previous values as UTC must review their parsing. Native-adapter behavior and driver versions are unchanged.
+- Fix Firebird 2.5 statistics counts and normalize missing/placeholder prompt arguments to documented defaults.
+- Fix #44 at the shared SQL-policy boundary: recognize grouping/predicate/window grammar while continuing to inspect nested routines, relations and explicit policy denials. No new security flag or permission relaxation is required; window execution still depends on the Firebird version.
+- Include PR #46 for #45: preserve full column-description BLOBs across all three metadata paths; report unavailable execution plans with `success: false` and MCP `isError: true` without executing the submitted query.
+- Derive server/health tool counts from the registered catalog, including policy-dependent event tools, with the additive `tools.other` category.
+- Update English/Spanish stable guidance and document compatibility boundaries. Advanced controls remain opt-in, Node.js 20.19+ is required, and GitHub Actions remains disabled.
+- Validation: 1,281 unit tests, 92 protocol/Node tests without skips, typecheck/build/lint error checks and compiled security-runtime checks passed. Fresh disposable Firebird 2.5.9 integration passed with the pure-JS driver; native-driver/Firebird 3+ live coverage is not claimed. Production dependency audit reports zero known vulnerabilities.
+
 ## [2.12.1-alpha.2] - 2026-10-15
 
 - Integrate PR #46 for issue #45: preserve full column-description BLOBs in `describe-table`, `describe-batch-tables` and `get-field-descriptions`, avoiding the former 500-character SQL cast limit while retaining BLOB transaction ownership and configured security/resource controls.

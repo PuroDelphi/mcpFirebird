@@ -1,6 +1,6 @@
-# BLOB, date and prompt compatibility (2.12.1-alpha.1)
+# BLOB, date and prompt compatibility (stable 2.12.1)
 
-These changes adapt PR #43 for the development `alpha` branch and are included in `2.12.1-alpha.1`. Install with `npm install -g mcp-firebird@2.12.1-alpha.1` or select that package version in your existing `npx` launcher, then restart the MCP process. Stable `latest` remains 2.12.0.
+These changes adapt PR #43, first shipped in `2.12.1-alpha.1`, and are now included in stable `2.12.1`. Install with `npm install -g mcp-firebird@latest` or select `mcp-firebird@2.12.1` in your existing `npx` launcher, then restart the MCP process. Retain existing connection and security settings; review the date representation below before upgrading. See the [stable release notes](releases/2.12.1.md).
 
 ## Pure-JavaScript database transactions
 

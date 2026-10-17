@@ -112,6 +112,8 @@ tests, not a substitute for live Firebird integration tests.
 
 ## Metadata and unavailable execution plans (#45, 2.12.1-alpha.2)
 
+These changes, first shipped in `2.12.1-alpha.2`, are included in stable `2.12.1`. See the [release notes](releases/2.12.1.md).
+
 `get-execution-plan` currently cannot retrieve a plan through the supported driver
 interfaces. It returns `success: false`, `plan: ""`, `planDetails: []`, and
 `error: "Execution plan not available"`, preserving manual-tool guidance in
