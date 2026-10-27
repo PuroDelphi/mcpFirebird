@@ -5,6 +5,8 @@
 
 Implementación del protocolo MCP (Model Context Protocol) de Anthropic para bases de datos Firebird.
 
+**Próxima alpha: 2.13.0-alpha.2 — publicación pendiente en npm.** Corrige el [issue #47](https://github.com/PuroDelphi/mcpFirebird/issues/47): codifica marcas en el texto de las herramientas y conserva los valores originales en `structuredContent` y al interpretar el JSON. `echo` deja de registrar el mensaje recibido. Conserva los diagnósticos de alpha.1, las fechas ISO/UTC por defecto y la configuración de seguridad. Consulta las [notas de la versión](docs/releases/2.13.0-alpha.2.md) y el [contrato de compatibilidad](docs/tool-contract.md#español-codificación-del-texto). Por ahora, `mcp-firebird@alpha` sigue instalando alpha.1; el canal estable permanece en 2.12.3.
+
 ## Ejemplo de Uso
 
 https://github.com/user-attachments/assets/e68e873f-f87b-4afd-874f-157086e223af

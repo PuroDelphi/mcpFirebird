@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.13.0-alpha.2] - 2026-10-27
+
+- Fix #47 at the shared tool-result boundary: encode HTML, Markdown and template delimiters in JSON string values/keys using Unicode escapes, and in echo/custom text/headings using character references. Cover successful results, partial batches and errors, including `describe-batch-tables`, `get-execution-plan`, `echo` and `list-available-tools`.
+- Preserve original values in `structuredContent` and after `JSON.parse` of JSON text. Keep existing SQL/table authorization, identifier handling and output schemas. Response-size limits apply after encoding. Clients consuming structured data must still render it safely.
+- Stop logging caller-controlled echo messages. Add regression coverage for nested values/keys, JSON escapes, metadata headings, error details, size limits and all reported tools over STDIO/HTTP with SDK 1 and SDK 2 clients.
+- Prepare the next alpha without changing dependencies or the stable channel. See the [release notes](docs/releases/2.13.0-alpha.2.md) and [text compatibility contract](docs/tool-contract.md#display-text-encoding-47-2130-alpha2). npm publication is pending maintainer authentication.
+- Validation: 1,369 unit tests, 123 protocol/Node tests without skips, typecheck/build/lint error checks and compiled security-runtime checks passed. The separate production dependency audit reports seven affected packages in the unchanged lockfile (four high, three moderate); review them before publication.
+
 ## [2.13.0-alpha.1] - 2026-10-17
 
 - Complete the pending diagnostics from #45: retrieve the optimizer plan of an authorized SELECT using prepare-only, read-only transactions through feature-detected pure-JS/native statement-info APIs. Never execute/fetch the supplied SQL, bind parameter values, read other sessions' monitoring data or fall back to execution. Unavailable plans remain explicit errors.

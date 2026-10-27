@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { checkResponseSizeLimit } from '../security/resourceLimits.js';
 import { wrapError } from '../utils/jsonHelper.js';
+import { encodeDisplayJson, encodeDisplayText } from '../utils/outputEncoding.js';
 
 export interface ToolResult extends Record<string, unknown> {
     content: { type: 'text'; text: string }[];
@@ -74,7 +75,9 @@ export function toolResult(
     if (json === undefined) throw new Error('Tool returned a result that cannot be represented as JSON');
     const isError = options.isError === true;
     return {
-        content: [{ type: 'text', text: options.text ?? `${options.prefix ?? ''}${json}` }],
+        content: [{ type: 'text', text: options.text !== undefined
+            ? encodeDisplayText(options.text)
+            : `${encodeDisplayText(options.prefix ?? '')}${encodeDisplayJson(json)}` }],
         structuredContent: {
             success: !isError,
             result: JSON.parse(json),
@@ -94,7 +97,9 @@ export function toolError(error: unknown, options: { text?: string; compact?: bo
     } catch { /* The message and type remain available without unsafe details. */ }
     const safeError = { ...wrapped, errorDetails: details };
     return {
-        content: [{ type: 'text', text: options.text ?? JSON.stringify(safeError, null, options.compact ? undefined : 2) }],
+        content: [{ type: 'text', text: options.text !== undefined
+            ? encodeDisplayText(options.text)
+            : encodeDisplayJson(JSON.stringify(safeError, null, options.compact ? undefined : 2)) }],
         structuredContent: {
             success: false,
             error: {

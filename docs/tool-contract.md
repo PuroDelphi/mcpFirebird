@@ -1,8 +1,9 @@
 # MCP tool result contract
 
 Every database, metadata and echo tool declares an `outputSchema`, returns
-`structuredContent`, and preserves its pre-existing text response for clients
-that only display `content`.
+`structuredContent`, and preserves its pre-existing text response shape for clients
+that only display `content`. Starting in 2.13.0-alpha.2, markup delimiters in text
+are encoded as described below.
 
 ## Structured results
 
@@ -19,7 +20,7 @@ The structured result is always an object:
 responses, the human-readable heading remains in `content`, while `result`
 contains the JSON below it. Existing array payloads remain arrays inside
 `result`. Echo returns `{ "message": "..." }` inside `result`, while its text
-content remains the original message.
+content encodes markup delimiters starting in 2.13.0-alpha.2.
 
 Each tool's schema describes its own payload, including row arrays, table
 metadata, performance measurements, runtime information, and batch items. SQL
@@ -67,7 +68,7 @@ response-size/output-validation failures follow the same rule:
 ```
 
 Serializable exception context is included as optional `error.details`. The
-legacy error text is preserved. A failed batch has `success: false` and
+legacy error text shape is preserved, with display encoding. A failed batch has `success: false` and
 `isError: true`, but retains the complete per-item results, including successful
 items and individual error codes. Analysis failures likewise retain their
 original diagnostic payload in `result`.
@@ -81,6 +82,47 @@ The complete response, including both text and structured data, is subject to
 configured response-size limits. An oversized payload is discarded and replaced
 with an error result. Error reporting is allowed even if an unusually small cap
 cannot accommodate the error message itself.
+
+## Display text encoding (#47, 2.13.0-alpha.2)
+
+Tool `content[].text` is display text, not trusted HTML or a template. Starting in
+2.13.0-alpha.2, the shared result/error helpers encode `<`, `>`, `&`, braces,
+brackets, backticks and Markdown emphasis/link delimiters inside JSON string
+values and keys as `\uXXXX` escapes. JSON syntax, indentation and existing escapes
+remain intact: `JSON.parse` recovers the original values, including table names,
+SQL, database text, error details, Unicode, Dates and Buffers after normal JSON
+serialization. `structuredContent` retains these original values as well.
+
+Plain-text echo responses, metadata headings and custom errors use numeric HTML
+character references instead. For example, echoing `<b>{{name}}</b>` produces
+`&#60;b&#62;&#123;&#123;name&#125;&#125;&#60;/b&#62;` in `content`, while
+`structuredContent.result.message` remains `<b>{{name}}</b>`. Plain-text-only
+clients may show the references literally; consumers needing the exact echo
+message should use the structured field. Ordinary headings and messages without
+these delimiters are unchanged. Echo logs the invocation without its message.
+
+This addresses the four reported tools on success and failure, plus other tools
+using the shared helpers. It does not introduce a restrictive table-name pattern
+or change SQL authorization. The configured response-size limit includes the
+encoded text, so markup-heavy responses may reach it sooner.
+
+This is display-boundary encoding, not a general HTML sanitizer or a guarantee
+against prompt injection. Clients must still treat decoded JSON and structured
+values as untrusted data, use text-safe rendering, and avoid inserting them into
+HTML attributes, scripts or executable templates. Resource and prompt output
+formats are outside this change. See [OWASP's output-encoding guidance](https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html).
+
+### Español: codificación del texto
+
+Desde 2.13.0-alpha.2, el texto JSON codifica los delimitadores de marcas mediante
+`\uXXXX`; `JSON.parse` y `structuredContent` conservan los valores originales.
+El texto de `echo`, los encabezados y los errores personalizados usan referencias
+HTML numéricas, que algunos clientes de texto plano mostrarán literalmente.
+Para recuperar el mensaje exacto de `echo`, usa `structuredContent.result.message`.
+Se mantienen los nombres de tablas aceptados, las políticas SQL y los esquemas.
+El límite de respuesta se aplica después de codificar. Los clientes deben mostrar
+los datos estructurados o decodificados como texto no confiable; esta medida no
+convierte esos valores en HTML seguro ni evita la inyección de instrucciones.
 
 ## Annotations
 

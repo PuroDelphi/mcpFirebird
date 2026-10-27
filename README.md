@@ -153,10 +153,12 @@ npx -y mcp-firebird --database /path/to/database.fdb
 npm install -g mcp-firebird@alpha
 
 # Or use specific alpha version
-npm install -g mcp-firebird@2.13.0-alpha.1
+npm install -g mcp-firebird@2.13.0-alpha.2
 ```
 
-**Alpha 2.13.0-alpha.1 adds prepare-only optimizer plans and catalog-aware index advice for issue #45.** It includes stable 2.12.2 and preserves historical ISO/UTC date output by default. These diagnostics are invoked through the existing tools; no new flag, driver upgrade or security-policy relaxation is required. The index advisor never creates indexes. Keep your connection/security settings and restart the MCP after updating. Read the [diagnostics guide](docs/query-diagnostics.md) and [alpha release notes](docs/releases/2.13.0-alpha.1.md). Stable `latest` remains 2.12.2; see the [security guide](docs/security.md) and [date/BLOB compatibility notes](docs/blob-date-compatibility.md).
+**Alpha 2.13.0-alpha.2 fixes output encoding reported in issue #47. Publication is pending; npm currently serves alpha.1.** Tool display text encodes markup while structured data and parsed JSON retain the original values. Echo no longer logs its message. See the [text compatibility contract](docs/tool-contract.md#display-text-encoding-47-2130-alpha2) and [alpha release notes](docs/releases/2.13.0-alpha.2.md).
+
+This alpha retains prepare-only optimizer plans and catalog-aware index advice from alpha.1, plus historical ISO/UTC dates by default. Keep existing connection/security settings and restart after upgrading; no new flag or driver change is required. The index advisor never creates indexes. See the [diagnostics guide](docs/query-diagnostics.md). The stable npm channel remains at 2.12.3.
 
 
 
