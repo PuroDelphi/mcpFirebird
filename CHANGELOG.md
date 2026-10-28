@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.13.0-alpha.3] - 2026-10-27
+
+- Resolve the seven affected production packages recorded in alpha.2: update MCP server/server-legacy to 2.4.0, Zod to 4.6.7, and locked body-parser to 2.4.0, ip-address to 10.7.5, qs to 6.17.0 and undici to 6.29.1. Raise direct dependency minimums for the corrected MCP/Zod releases; keep the Firebird drivers unchanged.
+- Align the MCP Node adapter at 2.1.2, shared core/client at 2.4.0 and SDK 1 compatibility-test client at 1.32.2. Preserve alpha.2 output encoding, diagnostics, SQL/security settings and the Node.js 20.19+ requirement.
+- Add `npm run audit:production` to the release/prepublication gate so known production dependency vulnerabilities prevent publication. The audit requires registry access and covers optional production dependencies as well.
+- Validation: 1,369 unit tests, 124 protocol/Node tests, typecheck/build/lint error checks and compiled security-runtime checks, including valid/malformed gzip request handling. Focused checks also passed on Node.js 20.19.0 and from a clean production installation of the npm archive. Production audit reports zero known vulnerabilities; development-only tooling findings are outside that result. See [release details and compatibility checks](docs/releases/2.13.0-alpha.3.md).
+
 ## [2.13.0-alpha.2] - 2026-10-27
 
 - Fix #47 at the shared tool-result boundary: encode HTML, Markdown and template delimiters in JSON string values/keys using Unicode escapes, and in echo/custom text/headings using character references. Cover successful results, partial batches and errors, including `describe-batch-tables`, `get-execution-plan`, `echo` and `list-available-tools`.

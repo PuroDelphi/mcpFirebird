@@ -3,6 +3,7 @@ import test from 'node:test';
 import { once } from 'node:events';
 import { request as httpRequest } from 'node:http';
 import { spawn } from 'node:child_process';
+import { gzipSync } from 'node:zlib';
 import { randomUUID } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -116,7 +117,7 @@ for (const entry of ['dist/cli.js', 'dist/index.js', 'dist/http-entry.js']) {
     });
 }
 
-test('SDK 1.29 client remains compatible over HTTP', { timeout: 15000 }, async () => {
+test('SDK 1 client remains compatible over HTTP', { timeout: 15000 }, async () => {
     const { Client: V1Client } = await import('@modelcontextprotocol/sdk/client/index.js');
     const { StreamableHTTPClientTransport: V1Http } = await import('@modelcontextprotocol/sdk/client/streamableHttp.js');
     process.env.STREAMABLE_STATELESS_MODE = 'false';
@@ -127,6 +128,44 @@ test('SDK 1.29 client remains compatible over HTTP', { timeout: 15000 }, async (
         await client.connect(new V1Http(new URL(`http://127.0.0.1:${listener.address().port}/mcp`)));
         await checkCatalog(client);
     } finally { await client.close(); await http.close(); await new Promise(resolve => listener.close(resolve)); }
+});
+
+test('HTTP preserves valid gzip requests and survives malformed compressed bodies', { timeout: 10000 }, async () => {
+    const http = createHttpApplication(createMcpServerInstance, loadHttpSecurityConfig({}));
+    const listener = http.app.listen(0, '127.0.0.1');
+    await once(listener, 'listening');
+    const base = `http://127.0.0.1:${listener.address().port}`;
+    const body = gzipSync(JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {
+        protocolVersion: '2025-11-25', capabilities: {}, clientInfo: { name: 'compressed-body-test', version: '1' }
+    } }));
+    const send = compressed => new Promise((resolve, reject) => {
+        const req = httpRequest(base + '/mcp', { method: 'POST', headers: {
+            'Content-Type': 'application/json', 'Content-Encoding': 'gzip',
+            Accept: 'application/json, text/event-stream', 'Content-Length': compressed.length
+        } }, res => {
+            let text = '';
+            res.on('data', chunk => { text += chunk.toString(); });
+            res.once('error', reject);
+            res.once('end', () => resolve({ status: res.statusCode, text }));
+        });
+        req.once('error', reject);
+        req.setTimeout(3000, () => req.destroy(new Error('Compressed request timed out')));
+        req.end(compressed);
+    });
+    try {
+        const valid = await send(body);
+        assert.equal(valid.status, 200);
+        assert.match(valid.text, /"result"/);
+        // Regression coverage for the body-parser trailing-bytes crash advisory.
+        const malformed = await send(Buffer.concat([body, Buffer.from('trailing garbage')]));
+        assert.equal(malformed.status, 400);
+        assert.deepEqual(JSON.parse(malformed.text), { error: 'Request failed' });
+        assert.equal((await fetch(base + '/')).status, 200);
+        assert.equal((await send(body)).status, 200);
+    } finally {
+        await http.close();
+        await new Promise(resolve => listener.close(resolve));
+    }
 });
 
 test('real HTTP rejects rebinding and malformed modern headers before dispatch', { timeout: 10000 }, async () => {
