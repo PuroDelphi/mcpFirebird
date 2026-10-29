@@ -201,11 +201,11 @@ describe('MCP tool contracts', () => {
         expect(response.structuredContent.success).toBe(false);
     });
 
-    it('preserves echo text and exposes its structured message', async () => {
+    it('encodes echo markup and preserves its structured message', async () => {
         const tool = setupSimpleTools().get('echo')!;
         const message = 'hello\n{not json}';
         const response = await tool.handler({ message });
-        expect(response.content).toEqual([{ type: 'text', text: message }]);
+        expect(response.content).toEqual([{ type: 'text', text: 'hello\n&#123;not json&#125;' }]);
         expect(response.structuredContent).toEqual({ success: true, result: { message } });
         expect(tool.outputSchema.safeParse(response.structuredContent).success).toBe(true);
     });

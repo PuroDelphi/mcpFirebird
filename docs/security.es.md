@@ -2,7 +2,7 @@
 
 [English](security.md)
 
-Esta guía describe la estable **2.12.3**, que conserva los controles SQL/HTTP/OAuth, timeouts y correcciones de transacciones/BLOB de 2.11/2.12 y añade [planes sin ejecución y recomendaciones de índices contrastadas con el catálogo](query-diagnostics.md#español). No es necesario instalar la alpha. Se conservan las políticas explícitas y los valores de compatibilidad de seguridad. Las fechas mantienen el formato ISO anterior por defecto; `FIREBIRD_DATE_FORMAT=wall-clock` es una opción del entorno del proceso, no de esta política. Consulta la [configuración de fechas](blob-date-compatibility.md#español), las [notas de lanzamiento](releases/2.12.3.md), la [revisión de implementación](security-implementation-review.md) y el [historial de cambios](../CHANGELOG.md).
+Esta guía describe la estable **2.13.0**, que conserva los controles SQL/HTTP/OAuth, timeouts y correcciones de transacciones/BLOB de 2.11/2.12 y añade [planes sin ejecución y recomendaciones de índices contrastadas con el catálogo](query-diagnostics.md#español). Incluye la codificación del texto de herramientas del issue #47 y las correcciones de dependencias de producción. No es necesario instalar la alpha. Se conservan las políticas explícitas y los valores de compatibilidad de seguridad. Las fechas mantienen el formato ISO anterior por defecto; `FIREBIRD_DATE_FORMAT=wall-clock` es una opción del entorno del proceso, no de esta política. Consulta la [configuración de fechas](blob-date-compatibility.md#español), las [notas de lanzamiento](releases/2.13.0.md), la [revisión de implementación](security-implementation-review.md) y el [historial de cambios](../CHANGELOG.md).
 
 ## Aviso de migración
 
@@ -199,7 +199,7 @@ Si falla el registro, no se ejecuta la consulta o se retiene el resultado. Un fa
 
 ## Comprobación
 
-Ejecuta `npm run verify:release` desde una copia de desarrollo con sus dependencias de desarrollo instaladas. Comprueba tipos, compila, comprueba errores de lint y ejecuta las pruebas unitarias, de protocolo y de seguridad compilada. `prepublishOnly` ejecuta esta validación antes de un `npm publish` normal; no debe omitirse con `--ignore-scripts`. Es local, sin GitHub Actions, y no se ejecuta al instalar ni iniciar el MCP. Jest solo descubre pruebas dentro de `src`, evitando copias temporales de revisiones.
+Ejecuta `npm run verify:release` desde una copia de desarrollo con sus dependencias de desarrollo instaladas. Comprueba tipos, compila, comprueba errores de lint y ejecuta las pruebas unitarias, de protocolo y de seguridad compilada. Desde 2.13.0-alpha.3 también ejecuta `npm run audit:production` (`npm audit --omit=dev`), incluidas las dependencias opcionales de producción: las vulnerabilidades conocidas o un registro inaccesible impiden completar la validación. Las alertas exclusivas del entorno de desarrollo tienen un alcance separado. `prepublishOnly` ejecuta esta validación antes de un `npm publish` normal; no debe omitirse con `--ignore-scripts`. Es local, sin GitHub Actions, y no se ejecuta al instalar ni iniciar el MCP. Jest solo descubre pruebas dentro de `src`, evitando copias temporales de revisiones.
 
 Comando de publicación estable para mantenedores: `npm publish --tag latest --access public --ignore-scripts=false`; usa `--tag alpha` para versiones preliminares. La bandera explícita de scripts es importante si npm tiene configurado `ignore-scripts=true`, que omitiría los hooks. Esta validación reduce regresiones, pero no es una restricción de publicación impuesta por el servidor.
 

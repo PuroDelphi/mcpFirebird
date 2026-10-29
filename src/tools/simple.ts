@@ -16,15 +16,15 @@ const logger = createLogger('tools:simple');
 export const setupSimpleTools = () => {
     const tools = new Map<string, ToolDraft>();
 
-    // Simple echo tool - returns exactly what it receives
+    // Preserve the original message in structuredContent; encode display text.
     tools.set('echo', {
         name: 'echo',
-        description: 'Echoes back the input message',
+        description: 'Echoes the original message in structured data with markup-encoded display text',
         inputSchema: z.object({
             message: z.string().describe('The message to echo back')
         }),
         handler: async (args: { message: string }) => {
-            logger.info(`Echo tool called with message: ${args.message}`);
+            logger.info('Echo tool called');
 
             return toolResult({ message: args.message }, { text: args.message });
         }

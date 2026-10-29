@@ -1,5 +1,29 @@
 # Changelog
 
+## [2.13.0] - 2026-10-29
+
+- Promote the remaining changes through 2.13.0-alpha.3 to stable, retaining the diagnostics and documentation already shipped in 2.12.3.
+- Fix #47 by encoding markup delimiters in tool display text while preserving original structured data and parsed JSON; stop logging caller-controlled echo messages. Clients consuming structured values must still render them safely.
+- Resolve the seven production dependency findings with MCP server/server-legacy 2.4.0, Zod 4.6.7 and the corrected transitive dependencies from alpha.3. Keep the coordinated MCP adapters/clients and production audit in the release gate.
+- Refresh locked `@hono/node-server` from 1.19.17 to 2.1.5 within the MCP packages' supported ranges, addressing the newly indexed [static-path double-decoding advisory](https://github.com/advisories/GHSA-rmxm-3fg6-px4f) found by the stable release audit.
+- Preserve Firebird driver versions, SQL/security configuration, prepare-only diagnostics and default ISO/UTC dates. Node.js 20.19+ remains required. See the [stable release notes](docs/releases/2.13.0.md) for compatibility and validation scope.
+- Validation: 1,369 unit tests, 124 protocol/Node tests without skips, typecheck/build/lint and security-runtime checks passed. Also passed 28 focused checks on Node.js 20.19.0 and four clean-package STDIO/HTTP checks. Repository and clean-install production audits both report zero known vulnerabilities.
+
+## [2.13.0-alpha.3] - 2026-10-27
+
+- Resolve the seven affected production packages recorded in alpha.2: update MCP server/server-legacy to 2.4.0, Zod to 4.6.7, and locked body-parser to 2.4.0, ip-address to 10.7.5, qs to 6.17.0 and undici to 6.29.1. Raise direct dependency minimums for the corrected MCP/Zod releases; keep the Firebird drivers unchanged.
+- Align the MCP Node adapter at 2.1.2, shared core/client at 2.4.0 and SDK 1 compatibility-test client at 1.32.2. Preserve alpha.2 output encoding, diagnostics, SQL/security settings and the Node.js 20.19+ requirement.
+- Add `npm run audit:production` to the release/prepublication gate so known production dependency vulnerabilities prevent publication. The audit requires registry access and covers optional production dependencies as well.
+- Validation: 1,369 unit tests, 124 protocol/Node tests, typecheck/build/lint error checks and compiled security-runtime checks, including valid/malformed gzip request handling. Focused checks also passed on Node.js 20.19.0 and from a clean production installation of the npm archive. Production audit reports zero known vulnerabilities; development-only tooling findings are outside that result. See [release details and compatibility checks](docs/releases/2.13.0-alpha.3.md).
+
+## [2.13.0-alpha.2] - 2026-10-27
+
+- Fix #47 at the shared tool-result boundary: encode HTML, Markdown and template delimiters in JSON string values/keys using Unicode escapes, and in echo/custom text/headings using character references. Cover successful results, partial batches and errors, including `describe-batch-tables`, `get-execution-plan`, `echo` and `list-available-tools`.
+- Preserve original values in `structuredContent` and after `JSON.parse` of JSON text. Keep existing SQL/table authorization, identifier handling and output schemas. Response-size limits apply after encoding. Clients consuming structured data must still render it safely.
+- Stop logging caller-controlled echo messages. Add regression coverage for nested values/keys, JSON escapes, metadata headings, error details, size limits and all reported tools over STDIO/HTTP with SDK 1 and SDK 2 clients.
+- Release the next alpha without changing dependencies or the stable channel. See the [release notes](docs/releases/2.13.0-alpha.2.md) and [text compatibility contract](docs/tool-contract.md#display-text-encoding-47-2130-alpha2).
+- Validation: 1,369 unit tests, 123 protocol/Node tests without skips, typecheck/build/lint error checks and compiled security-runtime checks passed. The separate production dependency audit reports seven affected packages in the unchanged lockfile (four high, three moderate); dependency remediation remains a separate follow-up.
+
 ## [2.12.3] - 2026-10-17
 
 - Promote all changes from 2.13.0-alpha.1 into the stable 2.12 release line: real prepare-only optimizer plans and catalog-aware missing-index advice for #45.
@@ -761,8 +785,6 @@ This release brings the MCP Firebird server fully up-to-date with the latest Mod
 ### Fixed
 - Fixed issue with field descriptions not being properly retrieved from Firebird BLOB fields
 - Improved SQL queries for retrieving field descriptions using CAST to VARCHAR
-<<<<<<< HEAD
-=======
 - Fixed hardcoded localhost values in connection handling by replacing with 127.0.0.1
 - Improved Smithery integration by passing parameters directly as command line arguments
 - Enhanced error messages for connection issues with more specific troubleshooting guidance
@@ -796,7 +818,6 @@ This release brings the MCP Firebird server fully up-to-date with the latest Mod
 - Added improved error handling with more detailed logging
 
 ### Fixed
->>>>>>> alpha
 - Fixed hardcoded localhost values in connection handling by replacing with 127.0.0.1
 - Improved Smithery integration by passing parameters directly as command line arguments
 - Enhanced error messages for connection issues with more specific troubleshooting guidance

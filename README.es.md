@@ -1,9 +1,11 @@
 # MCP Firebird
 
-> **Estable 2.12.3 incluye planes sin ejecutar consultas y recomendaciones de índices contrastadas con el catálogo:** incorpora todas las mejoras de 2.13.0-alpha.1. Las fechas conservan ISO/UTC por defecto; `FIREBIRD_DATE_FORMAT=wall-clock` sigue siendo optativo. No se actualizan drivers ni se crean índices automáticamente, y no cambian los valores de seguridad. **Requiere Node.js 20.19+.** Consulta la [guía de diagnósticos, también en español](docs/query-diagnostics.md#español), las [notas de lanzamiento](docs/releases/2.12.3.md) y la [configuración de fechas](docs/blob-date-compatibility.md#español).
+> **Estable 2.13.0 incorpora la codificación de texto del issue #47 y las correcciones de dependencias de producción de alpha.3.** Los datos estructurados y el JSON interpretado conservan los valores originales. Se mantienen los diagnósticos sin ejecutar consultas, las fechas ISO/UTC por defecto y la configuración de seguridad. **Requiere Node.js 20.19+.** Consulta las [notas de lanzamiento](docs/releases/2.13.0.md), el [contrato del texto](docs/tool-contract.md#español-codificación-del-texto) y la [guía de diagnósticos](docs/query-diagnostics.md#español).
 
 
 Implementación del protocolo MCP (Model Context Protocol) de Anthropic para bases de datos Firebird.
+
+**Todas las mejoras hasta alpha 2.13.0-alpha.3 están incluidas en la estable 2.13.0.** Instala con `npm install -g mcp-firebird@latest` o fija `mcp-firebird@2.13.0`. La auditoría de producción forma parte de la validación previa a publicar; las alertas de herramientas de desarrollo tienen un alcance separado. El canal `alpha` conserva 2.13.0-alpha.3 para quienes prueban versiones preliminares. Consulta las [notas de la versión](docs/releases/2.13.0.md).
 
 ## Ejemplo de Uso
 
@@ -574,7 +576,7 @@ end.
 
 ## Configuración de seguridad
 
-La versión estable **2.12.3** incorpora todas las mejoras de 2.13.0-alpha.1: planes preparados sin ejecución y recomendaciones de índices que comprueban claves primarias, índices compuestos e inactivos. No aplica DDL automáticamente. Conserva las mejoras de seguridad y el formato anterior de fechas por defecto. Instala con `npm install -g mcp-firebird@latest` o fija `mcp-firebird@2.12.3`. Las políticas explícitas siguen aplicándose y no se necesitan parámetros nuevos. Para conservar el formato sin zona de 2.12.1, añade `FIREBIRD_DATE_FORMAT=wall-clock` al entorno del lanzador y reinicia el MCP; para usar el formato anterior deja la variable sin definir o usa `iso`. No es un campo de la política de seguridad. Consulta la [guía en español](docs/security.es.md), los [diagnósticos](docs/query-diagnostics.md#español), la [configuración de fechas](docs/blob-date-compatibility.md#español) y las [notas de lanzamiento](docs/releases/2.12.3.md).
+La versión estable **2.13.0** incorpora la codificación de texto del issue #47 y las correcciones de dependencias de alpha.3. Mantiene los diagnósticos de 2.12.3: planes preparados sin ejecución y recomendaciones de índices que comprueban claves primarias, índices compuestos e inactivos. No aplica DDL automáticamente. Conserva las mejoras de seguridad y el formato anterior de fechas por defecto. Instala con `npm install -g mcp-firebird@latest` o fija `mcp-firebird@2.13.0`. Las políticas explícitas siguen aplicándose y no se necesitan parámetros nuevos. Para conservar el formato sin zona de 2.12.1, añade `FIREBIRD_DATE_FORMAT=wall-clock` al entorno del lanzador y reinicia el MCP; para usar el formato anterior deja la variable sin definir o usa `iso`. No es un campo de la política de seguridad. Consulta la [guía en español](docs/security.es.md), los [diagnósticos](docs/query-diagnostics.md#español), la [configuración de fechas](docs/blob-date-compatibility.md#español) y las [notas de lanzamiento](docs/releases/2.13.0.md).
 
 Usa `--security-config /ruta/politica.json` o `FIREBIRD_SECURITY_JSON`. Ambas fuentes admiten `security` y `sql`; una configuración seleccionada inválida detiene el inicio. En **2.11.0-alpha.3** las restricciones avanzadas son optativas: no hay cuotas, plazos, bloqueo de catálogo ni restricciones nuevas de rutinas implícitas. Se conserva `ALLOW_RAW_SQL=true` para escrituras, incluido DDL; los permisos configurados expresamente y `sql.allowDDL=false` no se pueden omitir.
 

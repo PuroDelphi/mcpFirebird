@@ -1,6 +1,6 @@
 [![Verified on MseeP](https://mseep.ai/badge.svg)](https://mseep.ai/app/1cb2bb07-00f4-4579-b535-1b9de9b451e9)
 
-> **Stable 2.12.3 includes prepare-only optimizer plans and catalog-aware index advice:** all improvements from 2.13.0-alpha.1 are now stable. Historical ISO/UTC dates remain the default; only `FIREBIRD_DATE_FORMAT=wall-clock` enables zone-free output. No driver upgrade, automatic index DDL or new security defaults. **Node.js 20.19+ is required.** See the [diagnostics guide](docs/query-diagnostics.md), [release notes](docs/releases/2.12.3.md) and [date configuration](docs/blob-date-compatibility.md).
+> **Stable 2.13.0 includes the issue #47 display-text encoding fix and production dependency security updates from alpha.3.** Structured data and parsed JSON preserve original values. Existing prepare-only query diagnostics, ISO/UTC date defaults and security settings remain available. **Node.js 20.19+ is required.** See the [release notes](docs/releases/2.13.0.md), [text compatibility contract](docs/tool-contract.md#display-text-encoding-47-2130-alpha2) and [diagnostics guide](docs/query-diagnostics.md).
 
 # MCP Firebird
 
@@ -138,7 +138,9 @@ npm install -g mcp-firebird
 npx -y mcp-firebird --database /path/to/database.fdb
 ```
 
-**Stable features (2.12.3):**
+**Stable features (2.13.0):**
+- Encoded tool display text for issue #47, with original values retained in structured results and parsed JSON.
+- Updated production dependencies and a production audit in the publication gate.
 - MCP 2026-07-28 alongside 2025 clients and legacy SSE, with shared server entry points.
 - Structured tool contracts and opt-in SQL/HTTP security controls.
 - Safe query/BLOB/transaction cleanup and configurable query deadlines.
@@ -146,18 +148,18 @@ npx -y mcp-firebird --database /path/to/database.fdb
 - SQL grouping/window syntax recognition without bypassing explicit policies.
 - Prepare-only optimizer plans and catalog-checked, single-table index advice that includes existing primary-key/composite indexes; no automatic DDL.
 - Backward-compatible ISO/UTC date output by default; opt in with `FIREBIRD_DATE_FORMAT=wall-clock` and restart the MCP process only if your client needs it. See [date configuration](docs/blob-date-compatibility.md).
-- See the [2.12.3 release notes](docs/releases/2.12.3.md), [2.12.2 date compatibility correction](docs/releases/2.12.2.md) and [2.12.1 accumulated fixes](docs/releases/2.12.1.md).
+- See the [2.13.0 release notes](docs/releases/2.13.0.md), [2.12.3 diagnostics](docs/releases/2.12.3.md), [2.12.2 date compatibility correction](docs/releases/2.12.2.md) and [2.12.1 accumulated fixes](docs/releases/2.12.1.md).
 
-#### Alpha Version (Latest Features)
+#### Alpha Version (Prerelease Channel)
 ```bash
-# Install alpha version with latest features
+# Install the current prerelease
 npm install -g mcp-firebird@alpha
 
 # Or use specific alpha version
-npm install -g mcp-firebird@2.13.0-alpha.1
+npm install -g mcp-firebird@2.13.0-alpha.3
 ```
 
-**All improvements from alpha 2.13.0-alpha.1 are included in stable 2.12.3.** Use `mcp-firebird@latest` or pin `mcp-firebird@2.12.3`; no alpha installation is required for issue #45 diagnostics. The `alpha` tag remains at 2.13.0-alpha.1 for existing testers. No new flag, driver upgrade or security-policy relaxation is required, and the advisor never creates indexes. Keep your connection/security settings and restart the MCP after updating. Read the [diagnostics guide](docs/query-diagnostics.md), [stable release notes](docs/releases/2.12.3.md), [security guide](docs/security.md) and [date/BLOB compatibility notes](docs/blob-date-compatibility.md).
+**All improvements through alpha 2.13.0-alpha.3 are included in stable 2.13.0.** Install `mcp-firebird@latest` or pin `mcp-firebird@2.13.0` for the issue #47 output-encoding fix and production dependency updates. The `alpha` tag remains at 2.13.0-alpha.3 for existing testers. Keep your connection/security settings and restart after upgrading. See the [stable release notes](docs/releases/2.13.0.md) and [text compatibility contract](docs/tool-contract.md#display-text-encoding-47-2130-alpha2).
 
 
 
@@ -356,7 +358,7 @@ export MCP_ALLOWED_ORIGIN="https://myapp.com,https://localhost:3000"
 npx mcp-firebird --transport-type sse
 ```
 
-**Stable 2.12.3 retains the 2.11/2.12 security improvements and historical date output by default, adding safe query diagnostics.** Install with `npm install -g mcp-firebird@latest`, or pin `mcp-firebird@2.12.3`. Explicit policies remain enforced; review the [migration guide](./docs/security.md#important-migration-notice) and [release notes](docs/releases/2.12.3.md). Date-format selection is a separate process environment setting, not a security-policy field.
+**Stable 2.13.0 adds display-text encoding and production dependency fixes while retaining existing security controls, query diagnostics and historical date output by default.** Install with `npm install -g mcp-firebird@latest`, or pin `mcp-firebird@2.13.0`. Explicit policies remain enforced; review the [migration guide](./docs/security.md#important-migration-notice) and [release notes](docs/releases/2.13.0.md). Date-format selection is a separate process environment setting, not a security-policy field.
 
 Raw SQL writes are disabled by default. `2.11.0` preserves the historical `ALLOW_RAW_SQL=true` switch for writes, including DDL, without requiring new flags. Explicitly configured operation/table/row/masking/role restrictions and `sql.allowDDL=false` are never bypassed by that switch. See the [security guide](./docs/security.md) for opt-in controls and the structured `get-table-data` filter format.
 

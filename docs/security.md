@@ -2,7 +2,7 @@
 
 [Español](security.es.md)
 
-This guide describes stable **2.12.3**, retaining the SQL/HTTP/OAuth, timeout and transaction/BLOB fixes from 2.11/2.12 and adding [prepare-only plans and catalog-aware index advice](query-diagnostics.md). No alpha installation is required. Explicit policies and security compatibility defaults are preserved. Date output keeps the historical ISO representation; optional `FIREBIRD_DATE_FORMAT=wall-clock` belongs in the process environment, not this policy. See [date configuration](blob-date-compatibility.md), the [release notes](releases/2.12.3.md), [security implementation review](security-implementation-review.md) and [changelog](../CHANGELOG.md).
+This guide describes stable **2.13.0**, retaining the SQL/HTTP/OAuth, timeout and transaction/BLOB fixes from 2.11/2.12 and adding [prepare-only plans and catalog-aware index advice](query-diagnostics.md). It includes issue #47 tool display-text encoding and production dependency fixes. No alpha installation is required. Explicit policies and security compatibility defaults are preserved. Date output keeps the historical ISO representation; optional `FIREBIRD_DATE_FORMAT=wall-clock` belongs in the process environment, not this policy. See [date configuration](blob-date-compatibility.md), the [release notes](releases/2.13.0.md), [security implementation review](security-implementation-review.md) and [changelog](../CHANGELOG.md).
 
 ## Important migration notice
 
@@ -282,7 +282,7 @@ An unavailable audit sink prevents query dispatch or withholds the result. A fai
 
 ## Verification and boundaries
 
-Run `npm run verify:release` from a development checkout with its development dependencies installed. This runs type checking, a fresh build, lint error checks, the full unit suite, protocol regressions and compiled security smoke checks. `prepublishOnly` runs the same gate before a normal `npm publish`; maintainers must not bypass it with `--ignore-scripts`. It runs locally, not in GitHub Actions, and does not run when users install or start the MCP. Jest discovery is limited to `src` so temporary review copies are not mistaken for current tests.
+Run `npm run verify:release` from a development checkout with its development dependencies installed. This runs type checking, a fresh build, lint error checks, the full unit suite, protocol regressions and compiled security smoke checks. Starting in 2.13.0-alpha.3 it also runs `npm run audit:production` (`npm audit --omit=dev`), including optional production dependencies; known vulnerabilities or an unavailable registry fail the gate. Development-only audit findings are a separate scope. `prepublishOnly` runs the same gate before a normal `npm publish`; maintainers must not bypass it with `--ignore-scripts`. It runs locally, not in GitHub Actions, and does not run when users install or start the MCP. Jest discovery is limited to `src` so temporary review copies are not mistaken for current tests.
 
 Maintainer publication command for stable releases: `npm publish --tag latest --access public --ignore-scripts=false`; use `--tag alpha` for prereleases. The explicit script flag is important when a user's npm configuration has `ignore-scripts=true`, which would otherwise skip lifecycle hooks. The gate reduces regression risk but is not a server-enforced publishing restriction.
 
